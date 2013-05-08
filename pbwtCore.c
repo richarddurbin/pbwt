@@ -1,0 +1,523 @@
+/*  File: pbwtCore.c
+ *  Author: Richard Durbin (rd@sanger.ac.uk)
+ *  Copyright (C) Genome Research Limited, 2013-
+ *-------------------------------------------------------------------
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *-------------------------------------------------------------------
+ * Description: core functions for pbwt package
+ * Exported functions:
+ * HISTORY:
+ * Last edited: May  6 19:39 2013 (rd)
+ * Created: Thu Apr  4 11:06:17 2013 (rd)
+ *-------------------------------------------------------------------
+ */
+
+#include "pbwt.h"
+
+BOOL isCheck = FALSE ;
+BOOL isStats = FALSE ;
+
+static void pack3init (void) ;	/* forward declaration */
+
+/************** core pbwt options *********************/
+
+void pbwtInit (void) { pack3init () ; }
+
+PBWT *pbwtCreate (int M)
+{
+  PBWT *p = mycalloc (1, PBWT) ; /* cleared so elements default to 0 */
+
+  p->M = M ;
+
+  return p ;
+}
+
+void pbwtDestroy (PBWT *p)
+{
+  if (p->chrom) free (p->chrom) ;
+  if (p->sites) arrayDestroy (p->sites) ;
+  if (p->variationDict) dictDestroy (p->variationDict) ;
+  if (p->samples) arrayDestroy (p->samples) ;
+  if (p->sampleNameDict) dictDestroy (p->sampleNameDict) ;
+  if (p->yz) arrayDestroy (p->yz) ;
+  if (p->zz) arrayDestroy (p->zz) ;
+  if (p->c) free (p->c) ;
+  free (p) ;
+}
+
+
+/*************** subsites, subsamples, subrange etc. **************/
+
+PBWT *pbwtSubSample (PBWT *pOld, int start, int Mnew)
+{
+  PBWT *pNew = pbwtCreate (Mnew) ;
+  int i, j, nOld = 0 , nNew, k ;
+  uchar *x, *yz ;
+  Update *uOld = updateCreate (pOld->M, 0), *uNew = updateCreate (pNew->M, 0) ;
+
+  if (!pOld || !pOld->yz) die ("subsample called without an valid existing pbwt") ;
+  if (start < 0 || start >= pOld->M || Mnew <= 0 || Mnew > start + pOld->M)
+    die ("bad start %d, Mnew %d in subsample", start, Mnew) ;
+  pNew->N = pOld->N ;
+
+  x = myalloc (pNew->M, uchar) ;
+  yz = myalloc (pNew->M, uchar) ;
+
+  pNew->yz = arrayCreate (pNew->N*8, uchar) ;
+  for (i = 0 ; i < pOld->N ; ++i)
+    { nOld += unpack3 (arrp(pOld->yz,nOld,uchar), pOld->M, uOld->y, 0) ;
+      for (j = 0 ; j < pOld->M ; ++j)
+	if ((k = uOld->a[j] - start) >= 0 && k < Mnew)
+	  x[k] = uOld->y[j] ;
+      for (j = 0 ; j < pNew->M ; ++j)
+	uNew->y[j] = x[uNew->a[j]] ;
+      nNew = pack3 (uNew->y, pNew->M, yz) ;
+      for (j = 0 ; j < nNew ; ++j) array(pNew->yz,arrayMax(pNew->yz),uchar) = yz[j] ;
+      updateForwardsA (uOld) ;
+      updateForwardsA (uNew) ;
+    }
+
+  if (pOld->samples)
+    { pNew->samples = arrayCreate (Mnew, Sample) ;
+      for (j = 0 ; j < Mnew ; ++j)
+	array(pNew->samples,j,Sample) = arr(pOld->samples,j,Sample) ;
+    }
+
+  pNew->sites = pOld->sites ; pOld->sites = 0 ;
+  pNew->variationDict = pOld->variationDict ; pOld->variationDict = 0 ;
+  pNew->sampleNameDict = pOld->sampleNameDict ; pOld->sampleNameDict = 0 ;
+  pbwtDestroy (pOld) ;
+  free(x) ; free(yz) ; updateDestroy (uOld) ; updateDestroy (uNew) ;
+  return pNew ;
+}
+
+PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac)
+{
+  int M = pOld->M ;
+  PBWT *pNew = pbwtCreate (M) ;
+  int i, j, nOld = 0, nNew, k, n0, thresh = M*(1-fmin)  ;
+  double bit = 0.0 ;
+  uchar *x, *yz ;
+  Update *uOld = updateCreate (pOld->M, 0), *uNew = updateCreate (pNew->M, 0) ;
+
+  if (!pOld || !pOld->yz) die ("subsites without an existing pbwt") ;
+  if (fmin < 0 || fmin >= 1 || frac <= 0 || frac > 1)
+    die ("fmin %f, frac %f for subsites out of range\n", fmin, frac) ;
+
+  x = myalloc (M, uchar) ;
+  yz = myalloc (M, uchar) ;
+  if (pOld->sites)
+    pNew->sites = arrayCreate (4096, Site) ;
+
+  pNew->yz = arrayCreate (pNew->N*8, uchar) ;
+  for (i = 0 ; i < pOld->N ; ++i)
+    { nOld += unpack3 (arrp(pOld->yz,nOld,uchar), M, uOld->y, &n0) ;
+      if ((n0 < thresh) && ((bit += frac) > 1.0))
+	{ for (j = 0 ; j < M ; ++j) x[uOld->a[j]] = uOld->y[j] ;
+	  for (j = 0 ; j < M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
+	  nNew = pack3 (uNew->y, M, yz) ;
+	  for (j = 0 ; j < nNew ; ++j) array(pNew->yz,arrayMax(pNew->yz),uchar) = yz[j] ;
+	  updateForwardsA (uNew) ;
+	  if (pOld->sites)
+	    array(pNew->sites, pNew->N, Site) = arr(pOld->sites, i, Site)  ;
+	  ++pNew->N ;
+	  bit -= 1.0 ;
+	}  
+      updateForwardsA (uOld) ;
+    }
+
+  fprintf (stderr, "subsites with fmin %f, frac %f leaves %d sites\n", fmin, frac, pNew->N) ;
+
+  pNew->samples = pOld->samples ; pOld->samples = 0 ;
+  pNew->sampleNameDict = pOld->sampleNameDict ; pOld->sampleNameDict = 0 ;
+  pNew->variationDict = pOld->variationDict ; pOld->variationDict = 0 ;
+  pbwtDestroy (pOld) ; updateDestroy (uOld) ; updateDestroy (uNew) ;
+  free(x) ; free(yz) ;
+  return pNew ;
+}
+
+PBWT *pbwtSubRange (PBWT *pOld, int start, int end)
+{
+  int M = pOld->M ;
+  PBWT *pNew = pbwtCreate (M) ;
+  int i, j, nOld = 0, nNew, k ;
+  uchar *x, *yz ;
+  Update *uOld = updateCreate (pOld->M, 0), *uNew = updateCreate (pNew->M, 0) ;
+
+  if (!pOld || !pOld->yz) die ("subrange without an existing pbwt") ;
+  if (start < 0 || end > pOld->N || end <= start) 
+    die ("subrange invalid start %d, end %d", start, end) ;
+
+  x = myalloc (M, uchar) ;
+  yz = myalloc (M, uchar) ;
+  if (pOld->sites)
+    pNew->sites = arrayCreate (4096, Site) ;
+
+  pNew->yz = arrayCreate (pNew->N*8, uchar) ;
+  for (i = 0 ; i < end ; ++i)
+    { nOld += unpack3 (arrp(pOld->yz,nOld,uchar), M, uOld->y, 0) ;
+      if (i >= start)
+	{ for (j = 0 ; j < M ; ++j) x[uOld->a[j]] = uOld->y[j] ;
+	  for (j = 0 ; j < M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
+	  nNew = pack3 (uNew->y, M, yz) ;
+	  for (j = 0 ; j < nNew ; ++j) array(pNew->yz,arrayMax(pNew->yz),uchar) = yz[j] ;
+	  updateForwardsA (uNew) ;
+	  if (pOld->sites)
+	    array(pNew->sites, pNew->N, Site) = arr(pOld->sites, i, Site)  ;
+	  ++pNew->N ;
+	}  
+      updateForwardsA (uOld) ;
+    }
+
+  pbwtDestroy (pOld) ; updateDestroy (uOld) ; updateDestroy (uNew) ;
+  free(x) ; free(yz) ;
+  return pNew ;
+}
+
+/***** reverse PBWT - used for local matching to new sequences, and phasing/imputation *****/
+
+void pbwtBuildReverse (PBWT *p)
+{
+  int i, j, n = 0, M = p->M, nz = 0 ;
+  uchar *zz = myalloc (M, uchar), *x = myalloc (M, uchar) ;
+  Update *uF= updateCreate (M, 0), *uR = updateCreate (M, 0) ;
+
+  p->c = myalloc (p->N, int) ;
+  for (i = 0 ; i < p->N ; ++i)	/* first run forwards to the end */
+    { n += unpack3 (arrp(p->yz,n,uchar), M, uF->y, &p->c[i]) ;
+      updateForwardsA (uF) ;
+    }
+
+  p->zz = arrayReCreate (p->zz, arrayMax(p->yz), uchar) ;
+  for (i = p->N ; i-- ; )
+    { n -= packCountReverse (arrp(p->yz,n,uchar), M) ;
+      unpack3 (arrp(p->yz,n,uchar), M, uF->y, 0) ;
+      updateBackwardsA (uF, p->c[i]) ;
+      for (j = 0 ; j < M ; ++j) x[uF->a[j]] = uF->y[j] ;
+      for (j = 0 ; j < M ; ++j) uR->y[j] = x[uR->a[j]] ;
+      updateForwardsA (uR) ;
+      nz = pack3 (uR->y, M, zz) ;
+      for (j = 0 ; j < nz ; ++j) array(p->zz,arrayMax(p->zz),uchar) = zz[j] ;
+    }
+  /* now must save uR->a, which is in fact the lexicographic order of the sequences */
+  if (!p->za) p->za = myalloc (M, int) ;
+  memcpy (p->za, uR->a, M * sizeof(int)) ;
+
+  fprintf (stderr, "built reverse PBWT - size %d\n", arrayMax(p->zz)) ;
+
+  if (isCheck)			/* print out the reversed haplotypes */
+    { FILE *fp = fopen ("rev.haps","w") ;
+      Array t = p->zz ; p->zz = p->yz ; p->yz = t ;
+
+      pbwtWriteHaplotypes (fp, p) ;
+      t = p->zz ; p->zz = p->yz ; p->yz = t ;
+    }
+
+  free (zz) ;
+}
+
+/*************** make haplotypes ******************/
+
+uchar **pbwtHaplotypes (PBWT *p)	/* NB haplotypes can be costly */
+{
+  int M = p->M ;
+  int i, j, n = 0 ;
+  int *a ;
+  Update *u = updateCreate (M, 0) ;
+  uchar **hap = myalloc (M, uchar*) ;
+
+  for (i = 0 ; i < M ; ++i) hap[i] = myalloc (p->N, uchar) ;
+
+  for (i = 0 ; i < p->N ; ++i)
+    { n += unpack3 (arrp(p->yz,n,uchar), M, u->y, 0) ;
+      for (j = 0 ; j < M ; ++j) hap[u->a[j]][i] = u->y[j] ;
+      updateForwardsA (u) ;
+    }
+  updateDestroy (u) ;
+  return hap ;
+}
+
+/****************** Y compression and decompression *************************/
+/****************** low level - does not know about PBWT structures *********/
+
+/* pack3 is a three level run length encoding: n times value
+   yp & 0x80 = value
+   yp & 0x40 == 0 implies n = yp & 0x3f
+   yp & 0x40 == 1 implies
+     yp & 0x20 == 0 implies n = (yp & 0x1f) << 6
+     yp & 0x20 == 1 implies n = (yp & 0x1f) << 11
+   This allows coding runs of length up to 64 * 32 * 32 = 64k in 3 bytes.
+   Potential factor of ~1000 over a bit array.
+   Build a lookup to avoid conditional operation in uncompression.
+*/
+
+static int p3decode[128] ;
+#define ENCODE_MAX1 64		     /* ~64 */
+#define ENCODE_MAX2 ((95-63) << 6)   /* ~1k - is this 32 or 31?*/
+#define ENCODE_MAX3 ((127-96) << 11) /* ~64k - ditto */
+
+static void pack3init (void)
+{
+  int n ;
+  for (n = 0 ; n < 64 ; ++n) p3decode[n] = n ;
+  for (n = 64 ; n < 96 ; ++n) p3decode[n] = (n-64) << 6 ;
+  for (n = 96 ; n < 128 ; ++n) p3decode[n] = (n-96) << 11 ;
+}
+
+static inline int pack3Add (uchar yy, uchar *yzp, int n)
+/* local utility for pack3 */
+{ 
+  uchar *yzp0 = yzp ;
+
+  yy <<= 7 ;			/* first move the actual symbol to the top bit */
+
+  while (n >= ENCODE_MAX3) { *yzp++ = yy | 0x7f ; n -= ENCODE_MAX3 ; }
+  if (n >= ENCODE_MAX2) { *yzp++ = yy | 0x60 | (n >> 11) ; n &= 0x7ff ; }
+  if (n >= ENCODE_MAX1) { *yzp++ = yy | 0x40 | (n >> 6) ; n &= 0x3f ; }
+  if (n) { *yzp++ = yy | n ; }
+  return yzp - yzp0 ;
+}
+
+int pack3 (uchar *yp, int M, uchar *yzp) 
+/* pack M chars from y into yz - return number of chars added */
+{ 
+  int m = 0, m0 ;
+  uchar *yzp0 = yzp ;
+  uchar ym ;
+  
+  while (m < M)		/* NB this relies on the M'th character not being 0 or 1 */
+    { ym = *yp++ ; m0 = m++ ;
+      while (*yp == ym) { ++m ; ++yp ; }
+      yzp += pack3Add (ym, yzp, m-m0) ;
+    }
+  return yzp - yzp0 ;
+}
+
+int unpack3 (uchar *yzp, int M, uchar *yp, int *n0) 
+/* unpack yz into M chars in y - return number of chars unpacked - n0 is number of 0s */
+{
+  int m = 0 ;
+  uchar *yzp0 = yzp ;
+  uchar yz ;
+  int n ;
+
+  if (n0) *n0 = 0 ;
+  while (m < M)
+    { yz = *yzp++ ;
+      n = p3decode[yz & 0x7f] ;
+      m += n ;
+      yz = yz >> 7 ;
+      if (n0 && !yz) *n0 += n ;
+      if (n > 63)
+	{ memset (yp, yz, n) ;
+	  yp += n ;
+	}
+      else
+	while (n--) *yp++ = yz ;
+    }
+  if (isCheck && m != M) die ("mismatch m %d != M %d in unpack3\n", m, M) ;
+
+  return yzp - yzp0 ;
+}
+
+int packCountReverse (uchar *yzp, int M) /* return number of bytes to reverse 1 position */
+{ 
+  int m = 0 ;
+  uchar *yzp0 = yzp ;
+
+  while (m < M)
+    m += p3decode[*--yzp & 0x7f] ;
+  if (m != M) die ("problem in packCountReverse") ; /* checking assertion */
+  return yzp0 - yzp ;
+}
+
+int extendMatchForwards (uchar *yzp, int M, uchar x, int *f, int *g)    
+		/* x is value to match, [f,g) are start, end of interval */
+/* update *f and *g to new match interval, return number of bytes used from yzp */
+/* this is more or less standard FM extension, counting nc (=ACC) on fly from BWT */
+{
+  int m = 0, nc[2] ;
+  /* macro for inner loop to move along array */
+  uchar z, *yzp0 = yzp ;
+  int n = 0 ;
+#define EATBYTE z = *yzp++ ; n = p3decode[z & 0x7f] ; m += n ; z >>= 7 ; nc[z] += n
+
+  /* first f */
+  nc[0] = nc[1] = 0 ;
+  while (m <= *f) { EATBYTE ; }
+  if (z == x)
+    *f += nc[z] - m ;	        /* equivalent to *f = nc[z] - (m - *f) */
+  else
+    *f = nc[z] ;
+
+  /* next g */
+  if (*g < M)			/* special case g==M so we don't loop beyond M */
+    { while (m <= *g) { EATBYTE ; }
+      if (z == x)
+	*g += nc[z] - m ;
+      else
+	*g = nc[z] ;
+    }
+
+  while (m < M) { EATBYTE ; }	/* complete reading the column */
+  
+  if (*g == M)          	/* here is the special case - must come after end of column */
+    *g = x ? (M-nc[0]) : nc[0] ;
+
+  if (x)			/* add on nc[0] because in block of 1s which follows 0s */
+    { *f += nc[0] ;
+      *g += nc[0] ;
+    }
+
+  return yzp - yzp0 ;
+}
+
+int extendPackedForwards (uchar *yzp, int M, int *f, int c)
+{
+  int m = 0, nc[2], n ;
+  uchar z, *yzp0 = yzp ;
+
+  nc[0] = nc[1] = 0 ;
+  while (m <= *f)		/* find the block containing *f */
+    { n = p3decode[*yzp++ & 0x7f] ; z >>= 7 ;
+      m += n ; nc[z] += n ;
+    }
+  *f += nc[z] - m ;	        /* equivalent to *f = nc[z] - (m - *f) */
+  if (z) *f += c ;		/* add on c because in block of 1s which follows 0s */
+
+  while (m < M) m += p3decode[*yzp++ & 0x7f] ; 	/* complete reading the column */
+
+  return yzp - yzp0 ;
+}
+
+int extendPackedBackwards (uchar *yzp, int M, int *f, int c, uchar *zp)
+{
+  int n, m = 0, nc[2] ;
+  uchar z, *yzp0 = yzp, *yzp1 ; 
+
+  while (m < M)			/* first go back to start of previous block */
+    m += p3decode[*--yzp & 0x7f] ;
+  yzp1 = yzp ;			/* record the start so we can return the difference */
+
+  m = 0 ; nc[0] = nc[1] = 0 ;
+  if (*f < c)			/* it was a 0 */
+    { while (nc[0] <= *f)
+	{ n = p3decode[(z = *yzp++) & 0x7f] ; z >>= 7 ;
+	  m += n ; nc[z] += n ;
+	}
+      *f += nc[1] ;	        /* equivalent to *f = m - (nc[0] - *f) */
+      if (zp) *zp = 0 ;
+    }
+  else				/* it was a 1 */
+    { while (nc[1] <= *f-c)
+	{ n = p3decode[(z = *yzp++) & 0x7f] ; z >>= 7 ;
+	  m += n ; nc[z] += n ;
+	}
+      *f += nc[0] - c ;	        /* equivalent to *f = m - (nc[1] - (*f-c)) */
+      if (zp) *zp = 1 ;
+    }
+  				/* we don't need to finish the block this time */
+  return yzp0 - yzp1 ;
+}
+
+/************ block extension algorithms, updating whole arrays ************/
+/* we could do these also on the packed array with memcpy */
+
+void updateInitialise (Update *u)
+{ int i ; 
+  for (i = 0 ; i < u->M ; ++i) { u->a[i] = i ; u->d[i] = 0 ; } 
+  u->d[0] = 2 ; u->d[u->M] = 2 ;
+}
+
+Update *updateCreate (int M, int *aInit) 
+{
+  Update *u = myalloc (1, Update) ;
+  int i ; 
+
+  u->M = M ;
+  u->y = myalloc (M+1, uchar) ; u->y[M] = Y_SENTINEL ;
+  u->a = myalloc (M, int) ;
+  u->b = myalloc (M, int) ;
+  u->d = myalloc (M+1, int) ;
+  u->e = myalloc (M+1, int) ;
+  u->u = myalloc (M+1, int) ;
+  updateInitialise (u) ;
+  if (aInit) memcpy (u->a, aInit, M) ;
+  return u ;
+}
+
+void updateDestroy (Update *u)
+{
+  free (u->y) ;
+  free (u->a) ;
+  free (u->b) ;
+  free (u->d) ;
+  free (u->e) ;
+  free (u->u) ;
+  free (u) ;
+}
+
+void updateForwardsA (Update *x) /* algorithm 1 in the manuscript */
+{
+  int u = 0, v = 0 ;
+  int i ;
+    
+  for (i = 0 ; i < x->M ; ++i)
+    if (x->y[i] == 0)
+      x->a[u++] = x->a[i] ;
+    else			/* y[i] == 1, since bi-allelic */
+      x->b[v++] = x->a[i] ;
+
+  memcpy (x->a+u, x->b, v*sizeof(int)) ;
+}
+
+void updateBackwardsA (Update *x, int c) /* undo algorithm 1 */
+{
+  int u = 0, v = 0 ;
+  int i ;
+  int *t = x->a ; x->a = x->b ; x->b = t ; /* will copy back from b to a */
+
+  for (i = 0 ; i < x->M ; ++i)
+    if (x->y[i] == 0)
+      x->a[i] = x->b[u++] ;
+    else			/* y[i] == 1, since bi-allelic */
+      x->a[i] = x->b[c + v++] ;
+}
+
+void updateForwardsADU (Update *x, int k) /* algorithm 2 in the manuscript */
+{
+  int u = 0, v = 0 ;
+  int i ;
+  int p = k+1 ; int q = k+1 ;
+    
+  for (i = 0 ; i < x->M ; ++i)
+    { if (x->d[i] > p) p = x->d[i] ;
+      if (x->d[i] > q) q = x->d[i] ;
+      if (x->y[i] == 0)		/* NB x[a[i]] = y[i] in manuscript */
+	{ x->a[u] = x->a[i] ;
+	  x->d[u] = p ;
+	  x->u[i] = u ;
+	  ++u ; p = 0 ;
+	}
+      else			/* y[i] == 1, since bi-allelic */
+	{ x->b[v] = x->a[i] ;
+	  x->e[v] = q ;
+	  x->u[i] = u ;
+	  ++v ; q = 0 ;
+	}
+    }
+  x->u[i] = u ;			/* need one off the end of update intervals */
+
+  memcpy (x->a+u, x->b, v*sizeof(int)) ;
+  memcpy (x->d+u, x->e, v*sizeof(int)) ; x->d[0] = k+2 ; x->d[x->M] = k+2 ; /* sentinels */
+}
+
+/******************* end of file *******************/
