@@ -30,18 +30,27 @@ A quick synopsis for usage is:
 
    macs 11000 1e6 -t 0.001 -r 0.001 > 11k.macs
    pbwt -checkpoint 10000 -macs 11k.macs -write macs11k.pbwt -writeSites macs.sites
-# NB "checkpoint 10000" writes out files every 10000 sites during the vcfq 
-# conversion to alternating checkA.{pbwt,sites} and checkB.{pbwt,sites} files.
+
+NB "checkpoint 10000" writes out files every 10000 sites during the vcfq 
+conversion to alternating checkA.{pbwt,sites} and checkB.{pbwt,sites} files.
+
    pbwt -read macs11k.pbwt -subsample 0 10000 -write macs10k.pbwt
    pbwt -read macs11k.pbwt -subsample 10000 1000 -write macs1k.pbwt
    pbwt -read macs10k.pbwt -sfs > macs10k.sfs
-# gives the site frequency spectrum for macs10k
+
+gives the site frequency spectrum for macs10k
+
    pbwt -read macs1k -haps macs1k.haps
-# writes out the haplotypes stored in macs1k
+
+writes out the haplotypes stored in macs1k
+
    pbwt -read macs10k.pbwt -maxIndexed macs1k.pbwt > macs1k-10k.max
-# for each sequence in macs1k, finds maximal matches to anything in macs10k
+
+for each sequence in macs1k, finds maximal matches to anything in macs10k
+
    pbwt -read macs10k.pbwt -maxWithin > macs10k.max
-# finds maximal matches for each sequence in macs10k to anything else in macs10k
+
+finds maximal matches for each sequence in macs10k to anything else in macs10k
 
 To start from real data in a .vcf file rather than a macs simulation
 we recommend to use the htscmd program (available from https://github.com/samtools/htslib.git)
