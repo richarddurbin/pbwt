@@ -86,7 +86,9 @@ char *fgetword (FILE *f)
 /***************** rusage for timing information ******************/
 
 #include <sys/resource.h>
+#ifndef RUSAGE_SELF     /* to prevent "RUSAGE_SELF redefined" gcc warning, fixme if this is more intricate */
 #define RUSAGE_SELF 0
+#endif
 
 #ifdef RUSAGE_STRUCTURE_DEFINITIONS
 

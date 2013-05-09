@@ -100,32 +100,33 @@ int main (int argc, char *argv[])
   if (!argc)			/* print help */
     { fprintf (stderr, "Usage: pbwt [ -<command> [options]* ]+\n") ;
       fprintf (stderr, "Commands:\n") ;
-      fprintf (stderr, "  -check            do various checks\n") ;
-      fprintf (stderr, "  -stats            print stats depending on commands; writes to stdout\n") ;
-      fprintf (stderr, "  -macs <file>      read MaCS output file; '-' for stdin\n") ;
-      fprintf (stderr, "  -vcfq <file>      read VCFQ file; '-' for stdin\n") ;
-      fprintf (stderr, "  -haps <file>      write haplotype file; '-' for stdout\n") ;
-      fprintf (stderr, "  -write <file>     write pbwt file; '-' for stdout\n") ;
-      fprintf (stderr, "  -writeSites <file>  write sites file; '-' for stdout\n") ;
-      fprintf (stderr, "  -read <file>      read pbwt file; '-' for stdin\n") ;
-      fprintf (stderr, "  -readSites <file> read sites file; '-' for stdin\n") ;
-      fprintf (stderr, "  -readSamples <file> read samples file; '-' for stdin\n") ;
-      fprintf (stderr, "  -checkpoint <n>   checkpoint writing every n sites\n") ;
-      fprintf (stderr, "  -subsites <fmin> <frac> subsample <frac> sites with AF > <fmin>\n") ;
-      fprintf (stderr, "  -subsample <start> <n>  subsample <n> samples from index <start>\n") ;
-      fprintf (stderr, "  -subrange <start> <end> cut down to sites in [start,end)\n") ;
-      fprintf (stderr, "  -corruptSites <p> <q> randomise fraction q of positions at fraction p of sites, according to site frequency\n") ;
-      fprintf (stderr, "  -corruptSamples <p> <q> randomise fraction q of positions for fraction p of samples, according to site frequency\n") ;
-      fprintf (stderr, "  -longWithin <L>   find matches within set longer than L\n") ;
-      fprintf (stderr, "  -maxWithin    find maximal matches within set\n") ;
-      fprintf (stderr, "  -maxNaive <file> maximal match seqs in pbwt file to reference\n") ;
-      fprintf (stderr, "  -maxIndexed <file> maximal match seqs in pbwt file to reference\n") ;
-      fprintf (stderr, "  -maxDynamic <file> maximal match seqs in pbwt file to reference\n") ;
-      fprintf (stderr, "  -imputeExplore <n>   n'th impute test\n") ;
-      fprintf (stderr, "  -phase <k> <n>    phase with method k and n sparse pbwts\n") ;
-      fprintf (stderr, "  -pretty <file> <k> pretty plot at site k\n") ;
-      fprintf (stderr, "  -sfs              print site frequency spectrum (log scale)\n") ;
-      fprintf (stderr, "  -buildReverse     build reverse pbwt\n") ;
+      fprintf (stderr, "  -check                    do various checks\n") ;
+      fprintf (stderr, "  -stats                    print stats depending on commands; writes to stdout\n") ;
+      fprintf (stderr, "  -macs <file>              read MaCS output file; '-' for stdin\n") ;
+      fprintf (stderr, "  -vcfq <file>              read VCFQ file; '-' for stdin\n") ;
+      fprintf (stderr, "  -haps <file>              write haplotype file; '-' for stdout\n") ;
+      fprintf (stderr, "  -write <file>             write pbwt file; '-' for stdout\n") ;
+      fprintf (stderr, "  -writeSites <file>        write sites file; '-' for stdout\n") ;
+      fprintf (stderr, "  -merge <file> ...         merge two or more pbwt files\n") ;
+      fprintf (stderr, "  -read <file>              read pbwt file; '-' for stdin\n") ;
+      fprintf (stderr, "  -readSites <file>         read sites file; '-' for stdin\n") ;
+      fprintf (stderr, "  -readSamples <file>       read samples file; '-' for stdin\n") ;
+      fprintf (stderr, "  -checkpoint <n>           checkpoint writing every n sites\n") ;
+      fprintf (stderr, "  -subsites <fmin> <frac>   subsample <frac> sites with AF > <fmin>\n") ;
+      fprintf (stderr, "  -subsample <start> <n>    subsample <n> samples from index <start>\n") ;
+      fprintf (stderr, "  -subrange <start> <end>   cut down to sites in [start,end)\n") ;
+      fprintf (stderr, "  -corruptSites <p> <q>     randomise fraction q of positions at fraction p of sites, according to site frequency\n") ;
+      fprintf (stderr, "  -corruptSamples <p> <q>   randomise fraction q of positions for fraction p of samples, according to site frequency\n") ;
+      fprintf (stderr, "  -longWithin <L>           find matches within set longer than L\n") ;
+      fprintf (stderr, "  -maxWithin                find maximal matches within set\n") ;
+      fprintf (stderr, "  -maxNaive <file>          maximal match seqs in pbwt file to reference\n") ;
+      fprintf (stderr, "  -maxIndexed <file>        maximal match seqs in pbwt file to reference\n") ;
+      fprintf (stderr, "  -maxDynamic <file>        maximal match seqs in pbwt file to reference\n") ;
+      fprintf (stderr, "  -imputeExplore <n>        n'th impute test\n") ;
+      fprintf (stderr, "  -phase <k> <n>            phase with method k and n sparse pbwts\n") ;
+      fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
+      fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale)\n") ;
+      fprintf (stderr, "  -buildReverse             build reverse pbwt\n") ;
     }
 
   timeUpdate() ;
@@ -140,6 +141,19 @@ int main (int argc, char *argv[])
       { if (p) pbwtDestroy (p) ; FOPEN("macs","r") ; p = pbwtReadMacs (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-vcfq") && argc > 1)
       { if (p) pbwtDestroy (p) ; FOPEN("vcfq","r") ; p = pbwtReadVcfq (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-merge") && argc > 1)
+    { 
+        int i, nfiles = 0;
+        const char **files = calloc(argc, sizeof(char*));
+        for (i=1; i<argc; i++) 
+        {
+            if ( argv[i][0] == '-' ) break; // hopefully no one names their files to start with "-"
+            files[nfiles++] = argv[i];
+        }
+        if ( nfiles>1 ) p = pbwtMerge(files, nfiles); 
+        free(files);
+        argc -= nfiles+1 ; argv += nfiles+1 ; 
+    }
     else if (!strcmp (argv[0], "-haps") && argc > 1)
       { FOPEN("haps","w") ; pbwtWriteHaplotypes (fp, p) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-read") && argc > 1)
@@ -188,6 +202,8 @@ int main (int argc, char *argv[])
       die ("unrecognised command %s\nType pbwt without arguments for help", *argv) ;
     timeUpdate() ;
   }
+  if (p) pbwtDestroy(p);
+  return 0;
 }
 
 /******************* end of file *******************/
