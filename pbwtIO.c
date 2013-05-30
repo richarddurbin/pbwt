@@ -223,10 +223,8 @@ static BOOL parseMacsSite (FILE *fp, Site *s, int M, double L, uchar *yp) /* par
   if (isFirst) { conv['0'] = 0 ; conv['1'] = 1 ; isFirst = FALSE ; }
   if (feof (fp)) return FALSE ;
 
-  if (strcmp (fgetword (fp), "SITE:")) 
-    { if (feof (fp)) return FALSE ;
-      die ("MaCS SITE line not found") ;
-    }
+  if (strcmp (fgetword (fp), "SITE:")) return FALSE;
+
   number = atoi(fgetword(fp)) ;	/* this is the site number */
   s->x = (int) (L * atof(fgetword(fp))) ;
   atof(fgetword(fp)) ;		/* ignore the time */
