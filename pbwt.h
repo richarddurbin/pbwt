@@ -124,4 +124,8 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) ;
 PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange) ;
 PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange) ;
 
+/* pbwtMerge.c */
+
+PBWT *pbwtMerge(const char **file_names, int nfiles);
+
 /******************* end of file *******************/
