@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: May  8 15:17 2013 (rd)
+ * Last edited: May 10 00:27 2013 (rd)
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -31,8 +31,8 @@ void imputeExplore (PBWT *p, int test)
   int i, j, k, M = p->M, N = p->N, ff ;
   int ny = 0, nz, c ;
   uchar *y ;
-  Update *u = updateCreate (M, 0) ;
-  Update *uz = updateCreate (M, 0) ;
+  PbwtCursor *u = pbwtCursorCreate (M, 0) ;
+  PbwtCursor *uz = pbwtCursorCreate (M, 0) ;
   double xbar, ybar, tot, r2 ;
   static double fBound[] = {0.1, 0.2, 0.3, 0.5, 0.7, 1, 2, 3, 4, 5, 7, 10, 20, 50, 100.01} ;
   double f ;
@@ -57,7 +57,7 @@ void imputeExplore (PBWT *p, int test)
     { ny += unpack3 (arrp(p->yz,ny,uchar), M, u->y, &c) ;
       nz -= packCountReverse (arrp(p->zz,nz,uchar), M) ;
       unpack3 (arrp(p->zz,nz,uchar), M, uz->y, 0) ;
-      updateBackwardsA (uz, c) ; /* do first so uz->a is other side of y - is this right? */
+      pbwtCursorBackwardsA (uz, c) ; /* do first so uz->a is other side of y - is this right? */
       if (isCheck)
 	{ for (i = 0 ; i < M ; ++i)
 	    x[u->a[i]] = u->y[i] ;
@@ -93,7 +93,7 @@ void imputeExplore (PBWT *p, int test)
 	    if (n0[i] + n1[i] == 4)	/* it wasn't at the end either forwards or backwards */
 	      if (x[i]) ++c1[ff][n1[i]] ; else ++c0[ff][n1[i]] ;
 	}
-      updateForwardsADU (u, k) ;
+      pbwtCursorForwardsADU (u, k) ;
     }
 
   if (test == 1)
@@ -147,7 +147,7 @@ void imputeExplore (PBWT *p, int test)
 	  putchar ('\n') ;
       }
 
-  updateDestroy (u) ;
+  pbwtCursorDestroy (u) ;
 }
 
 /****************** phasing ****************/
@@ -156,7 +156,7 @@ static void phaseCompare (PBWT *p, PBWT *q)
 {
   int i, k ;
   int M = p->M, N = p->N ;
-  Update *up = updateCreate (M, 0), *uq = updateCreate (M, 0) ;
+  PbwtCursor *up = pbwtCursorCreate (M, 0), *uq = pbwtCursorCreate (M, 0) ;
   int nyp = 0, nyq = 0 ;
   int *xp = myalloc (M, int), *xq = myalloc (M, int) ;
   int *isFirst = myalloc (M, int), *isFlipped = myalloc (M, int) ;
@@ -193,8 +193,8 @@ static void phaseCompare (PBWT *p, PBWT *q)
 	    }
 	  if (isCheck && (xp[i]+xp[i+1] != xq[i]+xq[i+1])) die ("phaseCompare mismatch: k %d, i %d", k, i) ;
 	}
-      updateForwardsA (up) ;
-      updateForwardsA (uq) ;
+      pbwtCursorForwardsA (up) ;
+      pbwtCursorForwardsA (uq) ;
     }
 
   fprintf (stderr, "%.1f switches per sample, %.3f per het, %.1f nSwitch1, %.1f nSwitch5\n", 
@@ -217,7 +217,7 @@ static void phaseCompare (PBWT *p, PBWT *q)
 	}
     }
 
-  updateDestroy (up) ; updateDestroy (uq) ;
+  pbwtCursorDestroy (up) ; pbwtCursorDestroy (uq) ;
   free (xp) ; free (xq) ; free (isFirst) ; free (isFlipped) ; 
   free (nSwitchSample) ;  free (nSwitchSite) ;
 }
@@ -237,7 +237,7 @@ static void phaseInit (int N)
     { z = exp (-i * 0.0001) ; logisticCache[i] = 1.0 / (1.0 + z) ; }
 }
 
-static inline double score0 (Update *u, double *xp, int i)
+static inline double score0 (PbwtCursor *u, double *xp, int i)
 {
   double s = 0.0 ;
   int ubi = u->b[i] ;
@@ -246,7 +246,7 @@ static inline double score0 (Update *u, double *xp, int i)
   return s ;
 }
 
-static inline double score1 (Update *u, double *xp, int i, int k)
+static inline double score1 (PbwtCursor *u, double *xp, int i, int k)
 {
   double s = 0 ;
   int ubi = u->b[i] ;
@@ -280,9 +280,9 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
 {
   int    i, j, k, kk, c, kr = 0 ;
   int    M = p->M, N = p->N ;
-  Update *up = updateCreate (M, 0) ;
+  PbwtCursor *up = pbwtCursorCreate (M, 0) ;
   PBWT   *q ;		            /* new pbwt */
-  Update *uq, *ur, **uqq, **urr ;   /* update objects for forward and reverse, uqq and urr for sparse */
+  PbwtCursor *uq, *ur, **uqq, **urr ;   /* update objects for forward and reverse, uqq and urr for sparse */
   int    nyp = 0, nyr, ny, n2, n2Old ;
   uchar  *x = myalloc (M, uchar) ;  /* actual haplotypes in original order, from p */
   uchar  *yz = myalloc(M, uchar) ;  /* temporary holder for updating pbwt */
@@ -307,27 +307,27 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
 
       /* first initialise reverse pbwt and associated data structures */
       q->zz = arrayCreate (arrayMax(q->yz), uchar) ;
-      ur = updateCreate (M, 0) ;
+      ur = pbwtCursorCreate (M, 0) ;
       for (i = 0 ; i < M ; ++i) ur->b[ur->a[i]] = i ;  /* use u->b for inverse of u->a */
       if (nSparse)
-	{ urr = myalloc (nSparse, Update*) ;
+	{ urr = myalloc (nSparse, PbwtCursor*) ;
 	  for (kk = 0 ; kk < nSparse ; ++kk)
-	    { urr[kk] = updateCreate (M, 0) ; 
+	    { urr[kk] = pbwtCursorCreate (M, 0) ; 
 	      for (i = 0 ; i < M ; ++i) urr[kk]->b[urr[kk]->a[i]] = i ;
 	    }
 	}
 
       for (i = 0 ; i < p->N ; ++i)	/* first run forwards to the end to set up */
 	{ nyp += unpack3 (arrp(p->yz,nyp,uchar), M, up->y, 0) ;
-	  updateForwardsA (up) ;
+	  pbwtCursorForwardsA (up) ;
 	}
-      fprintf (stderr, "Forward 1: ") ; timeUpdate() ;
+      fprintf (stderr, "Forward 1: ") ; timeUpdate () ;
 
       /* run back through p, building ur */
       for (k = N ; k-- ; )
 	{ nyp -= packCountReverse (arrp(p->yz, nyp, uchar), M) ;
 	  unpack3 (arrp(p->yz, nyp, uchar), M, up->y, &c) ;
-	  updateBackwardsA (up, c) ; /* this needs to come before the next section */
+	  pbwtCursorBackwardsA (up, c) ; /* this needs to come before the next section */
 	  for (i = 0 ; i < M ; ++i) x[up->a[i]] = up->y[i] ;  /* build x from up->y */
 	  n2 = initialiseXpFromX (xp, x, M) ;
 
@@ -390,12 +390,12 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
 	      for (i = 0 ; i < ny ; ++i) array(q->zz,arrayMax(q->zz),uchar) = yz[i] ;
 
 	      /* and necessary update structures */
-	      updateForwardsADU (ur, nSitesUsed) ; 
+	      pbwtCursorForwardsADU (ur, nSitesUsed) ; 
 	      for (i = 0 ; i < M ; ++i) ur->b[ur->a[i]] = i ;
 	      if (nSparse)
 		{ kk = k % nSparse ;	/* which of the sparse pbwts to update this time */
 		  for (i = 0 ; i < M ; ++i) urr[kk]->y[i] = x[urr[kk]->a[i]] ;
-		  updateForwardsADU (urr[kk], (N-k)/nSparse) ; 
+		  pbwtCursorForwardsADU (urr[kk], (N-k)/nSparse) ; 
 		  for (i = 0 ; i < M ; ++i) urr[kk]->b[urr[kk]->a[i]] = i ;
 		}
 	    }
@@ -414,14 +414,14 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
     }
 
   /* now build forward data structures */
-  uq = updateCreate (M, 0) ; 
+  uq = pbwtCursorCreate (M, 0) ; 
   /* if (is2way) memcpy (uq->a, ur->a, M*sizeof(int)) ; /* prime uq with final ur */
   /* why was the previous line wrong - it clearly did not work */
   for (i = 0 ; i < M ; ++i) uq->b[uq->a[i]] = i ;
   if (nSparse)
-    { uqq = myalloc (nSparse, Update*) ;
+    { uqq = myalloc (nSparse, PbwtCursor*) ;
       for (kk = 0 ; kk < nSparse ; ++kk)
-	{ uqq[kk] = updateCreate (M, 0) ; 
+	{ uqq[kk] = pbwtCursorCreate (M, 0) ; 
 	  if (is2way) memcpy (uqq[kk]->a, urr[kk]->a, M*sizeof(int)) ;
 	  for (i = 0 ; i < M ; ++i) uqq[kk]->b[uqq[kk]->a[i]] = i ;
 	}
@@ -432,7 +432,7 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
   for (k = 0 ; k < N ; k++)
     { nyp += unpack3 (arrp(p->yz,nyp,uchar), M, up->y, &c) ;
       for (i = 0 ; i < M ; ++i) x[up->a[i]] = up->y[i] ;  /* build x from up->y */
-      updateForwardsA (up) ;
+      pbwtCursorForwardsA (up) ;
       n2 = initialiseXpFromX (xp, x, M) ;
 
       /* method 0: iterative majority voting on neighbours - fast and surprisingly good */
@@ -504,11 +504,11 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
       for (i = 0 ; i < ny ; ++i) array(q->yz,arrayMax(q->yz),uchar) = yz[i] ;
 
       /* and related update structures */
-      updateForwardsADU (uq, k) ; for (i = 0 ; i < M ; ++i) uq->b[uq->a[i]] = i ;
+      pbwtCursorForwardsADU (uq, k) ; for (i = 0 ; i < M ; ++i) uq->b[uq->a[i]] = i ;
       if (nSparse)
 	{ kk = k % nSparse ;	/* which of the sparse pbwts to update this time */
 	  for (i = 0 ; i < M ; ++i) uqq[kk]->y[i] = x[uqq[kk]->a[i]] ;
-	  updateForwardsADU (uqq[kk], k/nSparse) ; for (i = 0 ; i < M ; ++i) uqq[kk]->b[uqq[kk]->a[i]] = i ;
+	  pbwtCursorForwardsADU (uqq[kk], k/nSparse) ; for (i = 0 ; i < M ; ++i) uqq[kk]->b[uqq[kk]->a[i]] = i ;
 	}
 
       if (isStats)		/* report on this site */
@@ -546,12 +546,12 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
 	{ nyr -= packCountReverse (arrp(q->zz, nyr, uchar), M) ;
 	  unpack3 (arrp(q->zz, nyr, uchar), M, ur->y, &c) ;
 	  for (i = 0 ; i < M ; ++i) x[ur->a[i]] = ur->y[i] ;  /* need x from ur, not uq, to undo urr[] */
-	  updateBackwardsA (ur, c) ; for (i = 0 ; i < M ; ++i) ur->b[ur->a[i]] = i ;
+	  pbwtCursorBackwardsA (ur, c) ; for (i = 0 ; i < M ; ++i) ur->b[ur->a[i]] = i ;
 #ifdef NO_HELP
 	  if (nSparse)
 	    { kk = k % nSparse ;	/* which of the sparse pbwts to update this time */
 	      for (i = 0 ; i < M ; ++i) urr[kk]->y[i] = x[urr[kk]->a[i]] ;
-	      updateBackwardsA (urr[kk], c) ;
+	      pbwtCursorBackwardsA (urr[kk], c) ;
 	      for (i = 0 ; i < M ; ++i) urr[kk]->b[urr[kk]->a[i]] = i ;
 	    }
 #endif
@@ -563,10 +563,10 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
 
   /* clean up memory allocated */
   free (x) ; free (xp) ; free (yz) ;
-  updateDestroy (up) ; updateDestroy (uq) ;
+  pbwtCursorDestroy (up) ; pbwtCursorDestroy (uq) ;
   if (nSparse) { for (kk = 0 ; kk < nSparse ; ++kk) free (uqq[kk]) ; free (uqq) ; }
   if (is2way) 
-    { updateDestroy (ur) ;
+    { pbwtCursorDestroy (ur) ;
       if (nSparse) { for (kk = 0 ; kk < nSparse ; ++kk) free (urr[kk]) ; free (urr) ; }
     }
   pbwtDestroy (p) ;
@@ -583,7 +583,7 @@ PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange)
   double rFac = RAND_MAX / (double) M ;
   int k, i, nOld = 0, nNew, c  ;
   uchar *x, *yz ;
-  Update *uOld = updateCreate (pOld->M, 0), *uNew = updateCreate (pNew->M, 0) ;
+  PbwtCursor *uOld = pbwtCursorCreate (pOld->M, 0), *uNew = pbwtCursorCreate (pNew->M, 0) ;
   int nChange = 0 ;
 
   if (!pOld || !pOld->yz) die ("corruptSites without an existing pbwt") ;
@@ -597,7 +597,7 @@ PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange)
   for (k = 0 ; k < N ; ++k)
     { nOld += unpack3 (arrp(pOld->yz,nOld,uchar), M, uOld->y, &c) ;
       for (i = 0 ; i < M ; ++i) x[uOld->a[i]] = uOld->y[i] ;
-      updateForwardsA (uOld) ;
+      pbwtCursorForwardsA (uOld) ;
 	  
       for (i = 0 ; i < M ; ++i) uNew->y[i] = x[uNew->a[i]] ;
       if (rand() < rSite)
@@ -611,14 +611,14 @@ PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange)
 	       
       nNew = pack3 (uNew->y, M, yz) ;
       for (i = 0 ; i < nNew ; ++i) array(pNew->yz,arrayMax(pNew->yz),uchar) = yz[i] ;
-      updateForwardsA (uNew) ;
+      pbwtCursorForwardsA (uNew) ;
     }  
 
   fprintf (stderr, "corruptSites with pSite %f, pChange %f changes %.4f of values\n", 
 	   pSite, pChange, nChange/(N*(double)M)) ;
 
   if (pOld->sites) { pNew->sites = pOld->sites ; pOld->sites = 0 ; }
-  pbwtDestroy (pOld) ; updateDestroy (uOld) ; updateDestroy (uNew) ;
+  pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ; free(yz) ;
   return pNew ;
 }
@@ -631,7 +631,7 @@ PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange)
   double rFac = RAND_MAX / (double) M ;
   int k, i, nOld = 0, nNew, c  ;
   uchar *x, *yz ;
-  Update *uOld = updateCreate (pOld->M, 0), *uNew = updateCreate (pNew->M, 0) ;
+  PbwtCursor *uOld = pbwtCursorCreate (pOld->M, 0), *uNew = pbwtCursorCreate (pNew->M, 0) ;
   BOOL *isCorrupt = myalloc (M, BOOL) ;
   int nChange = 0 ;
 
@@ -649,7 +649,7 @@ PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange)
   for (k = 0 ; k < N ; ++k)
     { nOld += unpack3 (arrp(pOld->yz,nOld,uchar), M, uOld->y, &c) ;
       for (i = 0 ; i < M ; ++i) x[uOld->a[i]] = uOld->y[i] ;
-      updateForwardsA (uOld) ;
+      pbwtCursorForwardsA (uOld) ;
 	  
       for (i = 0 ; i < M ; ++i) 
 	if (isCorrupt[i] && rand() < rChange)
@@ -661,14 +661,14 @@ PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange)
 	       
       nNew = pack3 (uNew->y, M, yz) ;
       for (i = 0 ; i < nNew ; ++i) array(pNew->yz,arrayMax(pNew->yz),uchar) = yz[i] ;
-      updateForwardsA (uNew) ;
+      pbwtCursorForwardsA (uNew) ;
     }  
 
   fprintf (stderr, "corruptSamples with pSample %f, pChange %f changes %.4f of values\n",
 	   pSample, pChange, nChange/(N*(double)M)) ;
   
   if (pOld->sites) { pNew->sites = pOld->sites ; pOld->sites = 0 ; }
-  pbwtDestroy (pOld) ; updateDestroy (uOld) ; updateDestroy (uNew) ;
+  pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ; free(yz) ; free (isCorrupt) ;
   return pNew ;
 }

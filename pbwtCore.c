@@ -15,7 +15,7 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: May  6 19:39 2013 (rd)
+ * Last edited: May 10 00:23 2013 (rd)
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -61,7 +61,7 @@ PBWT *pbwtSubSample (PBWT *pOld, int start, int Mnew)
   PBWT *pNew = pbwtCreate (Mnew) ;
   int i, j, nOld = 0 , nNew, k ;
   uchar *x, *yz ;
-  Update *uOld = updateCreate (pOld->M, 0), *uNew = updateCreate (pNew->M, 0) ;
+  PbwtCursor *uOld = pbwtCursorCreate (pOld->M, 0), *uNew = pbwtCursorCreate (pNew->M, 0) ;
 
   if (!pOld || !pOld->yz) die ("subsample called without an valid existing pbwt") ;
   if (start < 0 || start >= pOld->M || Mnew <= 0 || Mnew > start + pOld->M)
@@ -81,8 +81,8 @@ PBWT *pbwtSubSample (PBWT *pOld, int start, int Mnew)
 	uNew->y[j] = x[uNew->a[j]] ;
       nNew = pack3 (uNew->y, pNew->M, yz) ;
       for (j = 0 ; j < nNew ; ++j) array(pNew->yz,arrayMax(pNew->yz),uchar) = yz[j] ;
-      updateForwardsA (uOld) ;
-      updateForwardsA (uNew) ;
+      pbwtCursorForwardsA (uOld) ;
+      pbwtCursorForwardsA (uNew) ;
     }
 
   if (pOld->samples)
@@ -95,7 +95,7 @@ PBWT *pbwtSubSample (PBWT *pOld, int start, int Mnew)
   pNew->variationDict = pOld->variationDict ; pOld->variationDict = 0 ;
   pNew->sampleNameDict = pOld->sampleNameDict ; pOld->sampleNameDict = 0 ;
   pbwtDestroy (pOld) ;
-  free(x) ; free(yz) ; updateDestroy (uOld) ; updateDestroy (uNew) ;
+  free(x) ; free(yz) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   return pNew ;
 }
 
@@ -106,7 +106,7 @@ PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac)
   int i, j, nOld = 0, nNew, k, n0, thresh = M*(1-fmin)  ;
   double bit = 0.0 ;
   uchar *x, *yz ;
-  Update *uOld = updateCreate (pOld->M, 0), *uNew = updateCreate (pNew->M, 0) ;
+  PbwtCursor *uOld = pbwtCursorCreate (pOld->M, 0), *uNew = pbwtCursorCreate (pNew->M, 0) ;
 
   if (!pOld || !pOld->yz) die ("subsites without an existing pbwt") ;
   if (fmin < 0 || fmin >= 1 || frac <= 0 || frac > 1)
@@ -125,13 +125,13 @@ PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac)
 	  for (j = 0 ; j < M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
 	  nNew = pack3 (uNew->y, M, yz) ;
 	  for (j = 0 ; j < nNew ; ++j) array(pNew->yz,arrayMax(pNew->yz),uchar) = yz[j] ;
-	  updateForwardsA (uNew) ;
+	  pbwtCursorForwardsA (uNew) ;
 	  if (pOld->sites)
 	    array(pNew->sites, pNew->N, Site) = arr(pOld->sites, i, Site)  ;
 	  ++pNew->N ;
 	  bit -= 1.0 ;
 	}  
-      updateForwardsA (uOld) ;
+      pbwtCursorForwardsA (uOld) ;
     }
 
   fprintf (stderr, "subsites with fmin %f, frac %f leaves %d sites\n", fmin, frac, pNew->N) ;
@@ -139,7 +139,7 @@ PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac)
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
   pNew->sampleNameDict = pOld->sampleNameDict ; pOld->sampleNameDict = 0 ;
   pNew->variationDict = pOld->variationDict ; pOld->variationDict = 0 ;
-  pbwtDestroy (pOld) ; updateDestroy (uOld) ; updateDestroy (uNew) ;
+  pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ; free(yz) ;
   return pNew ;
 }
@@ -150,7 +150,7 @@ PBWT *pbwtSubRange (PBWT *pOld, int start, int end)
   PBWT *pNew = pbwtCreate (M) ;
   int i, j, nOld = 0, nNew, k ;
   uchar *x, *yz ;
-  Update *uOld = updateCreate (pOld->M, 0), *uNew = updateCreate (pNew->M, 0) ;
+  PbwtCursor *uOld = pbwtCursorCreate (pOld->M, 0), *uNew = pbwtCursorCreate (pNew->M, 0) ;
 
   if (!pOld || !pOld->yz) die ("subrange without an existing pbwt") ;
   if (start < 0 || end > pOld->N || end <= start) 
@@ -169,15 +169,15 @@ PBWT *pbwtSubRange (PBWT *pOld, int start, int end)
 	  for (j = 0 ; j < M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
 	  nNew = pack3 (uNew->y, M, yz) ;
 	  for (j = 0 ; j < nNew ; ++j) array(pNew->yz,arrayMax(pNew->yz),uchar) = yz[j] ;
-	  updateForwardsA (uNew) ;
+	  pbwtCursorForwardsA (uNew) ;
 	  if (pOld->sites)
 	    array(pNew->sites, pNew->N, Site) = arr(pOld->sites, i, Site)  ;
 	  ++pNew->N ;
 	}  
-      updateForwardsA (uOld) ;
+      pbwtCursorForwardsA (uOld) ;
     }
 
-  pbwtDestroy (pOld) ; updateDestroy (uOld) ; updateDestroy (uNew) ;
+  pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ; free(yz) ;
   return pNew ;
 }
@@ -188,22 +188,22 @@ void pbwtBuildReverse (PBWT *p)
 {
   int i, j, n = 0, M = p->M, nz = 0 ;
   uchar *zz = myalloc (M, uchar), *x = myalloc (M, uchar) ;
-  Update *uF= updateCreate (M, 0), *uR = updateCreate (M, 0) ;
+  PbwtCursor *uF= pbwtCursorCreate (M, 0), *uR = pbwtCursorCreate (M, 0) ;
 
   p->c = myalloc (p->N, int) ;
   for (i = 0 ; i < p->N ; ++i)	/* first run forwards to the end */
     { n += unpack3 (arrp(p->yz,n,uchar), M, uF->y, &p->c[i]) ;
-      updateForwardsA (uF) ;
+      pbwtCursorForwardsA (uF) ;
     }
 
   p->zz = arrayReCreate (p->zz, arrayMax(p->yz), uchar) ;
   for (i = p->N ; i-- ; )
     { n -= packCountReverse (arrp(p->yz,n,uchar), M) ;
       unpack3 (arrp(p->yz,n,uchar), M, uF->y, 0) ;
-      updateBackwardsA (uF, p->c[i]) ;
+      pbwtCursorBackwardsA (uF, p->c[i]) ;
       for (j = 0 ; j < M ; ++j) x[uF->a[j]] = uF->y[j] ;
       for (j = 0 ; j < M ; ++j) uR->y[j] = x[uR->a[j]] ;
-      updateForwardsA (uR) ;
+      pbwtCursorForwardsA (uR) ;
       nz = pack3 (uR->y, M, zz) ;
       for (j = 0 ; j < nz ; ++j) array(p->zz,arrayMax(p->zz),uchar) = zz[j] ;
     }
@@ -231,7 +231,7 @@ uchar **pbwtHaplotypes (PBWT *p)	/* NB haplotypes can be costly */
   int M = p->M ;
   int i, j, n = 0 ;
   int *a ;
-  Update *u = updateCreate (M, 0) ;
+  PbwtCursor *u = pbwtCursorCreate (M, 0) ;
   uchar **hap = myalloc (M, uchar*) ;
 
   for (i = 0 ; i < M ; ++i) hap[i] = myalloc (p->N, uchar) ;
@@ -239,9 +239,9 @@ uchar **pbwtHaplotypes (PBWT *p)	/* NB haplotypes can be costly */
   for (i = 0 ; i < p->N ; ++i)
     { n += unpack3 (arrp(p->yz,n,uchar), M, u->y, 0) ;
       for (j = 0 ; j < M ; ++j) hap[u->a[j]][i] = u->y[j] ;
-      updateForwardsA (u) ;
+      pbwtCursorForwardsA (u) ;
     }
-  updateDestroy (u) ;
+  pbwtCursorDestroy (u) ;
   return hap ;
 }
 
@@ -431,15 +431,15 @@ int extendPackedBackwards (uchar *yzp, int M, int *f, int c, uchar *zp)
 /************ block extension algorithms, updating whole arrays ************/
 /* we could do these also on the packed array with memcpy */
 
-void updateInitialise (Update *u)
+void pbwtCursorInitialise (PbwtCursor *u)
 { int i ; 
   for (i = 0 ; i < u->M ; ++i) { u->a[i] = i ; u->d[i] = 0 ; } 
   u->d[0] = 2 ; u->d[u->M] = 2 ;
 }
 
-Update *updateCreate (int M, int *aInit) 
+PbwtCursor *pbwtCursorCreate (int M, int *aInit) 
 {
-  Update *u = myalloc (1, Update) ;
+  PbwtCursor *u = myalloc (1, PbwtCursor) ;
   int i ; 
 
   u->M = M ;
@@ -449,12 +449,12 @@ Update *updateCreate (int M, int *aInit)
   u->d = myalloc (M+1, int) ;
   u->e = myalloc (M+1, int) ;
   u->u = myalloc (M+1, int) ;
-  updateInitialise (u) ;
+  pbwtCursorInitialise (u) ;
   if (aInit) memcpy (u->a, aInit, M) ;
   return u ;
 }
 
-void updateDestroy (Update *u)
+void pbwtCursorDestroy (PbwtCursor *u)
 {
   free (u->y) ;
   free (u->a) ;
@@ -465,7 +465,7 @@ void updateDestroy (Update *u)
   free (u) ;
 }
 
-void updateForwardsA (Update *x) /* algorithm 1 in the manuscript */
+void pbwtCursorForwardsA (PbwtCursor *x) /* algorithm 1 in the manuscript */
 {
   int u = 0, v = 0 ;
   int i ;
@@ -479,7 +479,7 @@ void updateForwardsA (Update *x) /* algorithm 1 in the manuscript */
   memcpy (x->a+u, x->b, v*sizeof(int)) ;
 }
 
-void updateBackwardsA (Update *x, int c) /* undo algorithm 1 */
+void pbwtCursorBackwardsA (PbwtCursor *x, int c) /* undo algorithm 1 */
 {
   int u = 0, v = 0 ;
   int i ;
@@ -492,7 +492,7 @@ void updateBackwardsA (Update *x, int c) /* undo algorithm 1 */
       x->a[i] = x->b[c + v++] ;
 }
 
-void updateForwardsADU (Update *x, int k) /* algorithm 2 in the manuscript */
+void pbwtCursorForwardsADU (PbwtCursor *x, int k) /* algorithm 2 in the manuscript */
 {
   int u = 0, v = 0 ;
   int i ;

@@ -15,7 +15,7 @@
  * Description: match functions in pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: May  5 15:08 2013 (rd)
+ * Last edited: May 10 00:26 2013 (rd)
  * Created: Thu Apr  4 11:55:48 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -50,7 +50,7 @@ static void reportMatch (int ai, int bi, int start, int end)
     checkMatchMaximal (checkHap[ai], checkHap[bi], start, end, Ncheck) ;
 }
 
-static void reportLongMatches1 (Update *u, int T, int k) /* algorithm 3 */
+static void reportLongMatches1 (PbwtCursor *u, int T, int k) /* algorithm 3 */
 {
   static int *a, *b = 0 ;
   int i, ia, ib, na = 0, nb = 0 ;
@@ -73,7 +73,7 @@ static void reportLongMatches1 (Update *u, int T, int k) /* algorithm 3 */
     }
 }
 
-static void reportLongMatches2 (Update *u, int T, int k, BOOL isInternal) 
+static void reportLongMatches2 (PbwtCursor *u, int T, int k, BOOL isInternal) 
 /* alternative giving start - it turns out in tests that this is also faster, so use it */
 {
   int i, i0 = 0, ia, ib, na = 0, nb = 0, dmin ;
@@ -96,7 +96,7 @@ static void reportLongMatches2 (Update *u, int T, int k, BOOL isInternal)
     }
 }
 
-static void reportMaximalMatches1 (Update *u, int k, BOOL isInternal)
+static void reportMaximalMatches1 (PbwtCursor *u, int k, BOOL isInternal)
 /* algorithm 4 in paper */
 {
   int i, j, m, n ;
@@ -126,7 +126,7 @@ static void reportMaximalMatches1 (Update *u, int k, BOOL isInternal)
 void pbwtLongMatches (PBWT *p, int L) /* reporting threshold L - if 0 then maximal */
 {
   int k, n = 0 ;
-  Update *u = updateCreate (p->M, 0) ;
+  PbwtCursor *u = pbwtCursorCreate (p->M, 0) ;
 
   if (!p || !p->yz) die ("option -longWithin called without a PBWT") ;
   if (L <= 0) die ("L %d for longWithin must be >0", L) ;
@@ -142,7 +142,7 @@ void pbwtLongMatches (PBWT *p, int L) /* reporting threshold L - if 0 then maxim
 	reportLongMatches2 (u, k-L, k, TRUE) ;
       else
 	reportMaximalMatches1 (u, k, TRUE) ;
-      updateForwardsADU (u, k) ;
+      pbwtCursorForwardsADU (u, k) ;
     }
   if (L)
     reportLongMatches2 (u, p->N - L, p->N, FALSE) ;
@@ -163,7 +163,7 @@ void pbwtLongMatches (PBWT *p, int L) /* reporting threshold L - if 0 then maxim
       fprintf (stderr, "Average length %.1f\n", hTot/(double)nTot) ;
     }
 
-  updateDestroy (u) ;
+  pbwtCursorDestroy (u) ;
 }
 
 /***************** match new sequences into a reference PBWT ******************/
@@ -243,7 +243,7 @@ void matchSequencesIndexed (PBWT *p, FILE *fp)
   uchar **query = pbwtHaplotypes (q) ; /* make the query sequences */
   uchar **reference = pbwtHaplotypes (p) ; /* haplotypes for reference */
   uchar *x, *y ;                /* use for current query, and selected reference query */
-  Update *up = updateCreate (p->M, 0) ;
+  PbwtCursor *up = pbwtCursorCreate (p->M, 0) ;
   int **a, **d, **u ;		/* stored indexes */
   int e, f, g ;			/* start of match, and pbwt interval as in algorithm 5 */
   int e1, f1, g1 ;		/* next versions of the above, e' etc in algorithm 5 */
@@ -262,12 +262,12 @@ void matchSequencesIndexed (PBWT *p, FILE *fp)
     { n += unpack3 (arrp(p->yz,n,uchar), M, up->y, &p->c[k]) ;
       memcpy (a[k], up->a, M*sizeof(int)) ;
       memcpy (d[k], up->d, (M+1)*sizeof(int)) ;
-      updateForwardsADU (up, k) ;
+      pbwtCursorForwardsADU (up, k) ;
       memcpy (u[k], up->u, (M+1)*sizeof(int)) ;
     }
   memcpy (a[k], up->a, M*sizeof(int)) ;
   memcpy (d[k], up->d, (M+1)*sizeof(int)) ;
-  updateDestroy (up) ;
+  pbwtCursorDestroy (up) ;
 
   fprintf (stderr, "Made haplotypes and indices: ") ; timeUpdate () ;
 
@@ -368,7 +368,7 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
   int e1, f1, g1 ;		/* new values as in algorithm 5 e', f', g' */
   int ny = 0, c ;
   uchar *y ;
-  Update *u = updateCreate (M, 0) ;
+  PbwtCursor *u = pbwtCursorCreate (M, 0) ;
   MatchInfo *m ;
   uchar **reference ;		/* haplotypes for reference; only made when checking */
   int *oldA = myalloc (M, int) ;
@@ -398,7 +398,7 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
   for (k = 0 ; k < N ; ++k)
     { ny += unpack3 (arrp(p->yz,ny,uchar), M, u->y, &p->c[k]) ;
       memcpy (oldA, u->a, M*sizeof(int)) ;
-      updateForwardsADU (u, k) ;
+      pbwtCursorForwardsADU (u, k) ;
       			/* next loop over queries */
       for (j = 0 ; j < q->M ; ++j)
 	{ m = arrp(mInfo,j,MatchInfo) ;
@@ -476,7 +476,7 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
   for (j = 0 ; j < q->M ; ++j) free(query[j]) ; free (query) ;
   pbwtDestroy (q) ;
   free (oldA) ;
-  updateDestroy (u) ;
+  pbwtCursorDestroy (u) ;
   if (isCheck) { for (j = 0 ; j < p->M ; ++j) free(reference[j]) ; free (reference) ; }
 }
 
