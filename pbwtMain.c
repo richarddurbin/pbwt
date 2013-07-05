@@ -203,6 +203,7 @@ int main (int argc, char *argv[])
     timeUpdate() ;
   }
   if (p) pbwtDestroy(p);
+	fgetword(NULL);	// to keep valgrind happy, free malloced memory
   return 0;
 }
 

@@ -57,12 +57,18 @@ void *_mycalloc (int number, int size)
   return p ;
 }
 
-char *fgetword (FILE *f)
+char *fgetword (FILE *f)	// pass NULL to free alloced memory
 {
   int n = 0 ;
   static char *buf = 0 ;
   int bufSize = 64 ;
   char *cp ;
+	if (!f) 
+	{ 
+		if (buf) free(buf);
+		buf = NULL;
+		return NULL;
+	}
   if (!buf) buf = myalloc (bufSize, char) ;
   cp = buf ;
   while (!feof (f) && (*cp = getc (f)))
