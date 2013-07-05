@@ -1,5 +1,5 @@
 
-CFLAGS= -g
+CFLAGS= -g -O2
 
 all: pbwt
 

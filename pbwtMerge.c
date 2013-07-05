@@ -8,23 +8,24 @@
 typedef struct
 {
 	// all operations in-memory for now, buffered input in future?
-	int n;          // number of PBWTs
+	int n;				 // number of PBWTs
 	PBWT **pbwt;
-    int *cpos;      // current position of each PBWT (site index)
-    int mpos;       // minimum position across all PBWT (position)
-    Update **update;
-    int *unpacked;
+	int *cpos;		 // current position of each PBWT (site index)
+	int mpos;			 // minimum position across all PBWT (position)
+	char *mals;		 // alleles at the mpos (multiple records with different alleles can be present)
+	Update **update;
+	int *unpacked;
 }
 pbwt_reader_t;
 
-pbwt_reader_t *pbwt_reader_init(const char **fnames, int nfiles)
+static pbwt_reader_t *pbwt_reader_init(const char **fnames, int nfiles)
 {
 	pbwt_reader_t *reader = calloc(1,sizeof(pbwt_reader_t));
 	reader->n        = nfiles;
 	reader->pbwt     = malloc(sizeof(PBWT*)*nfiles);
-    reader->cpos     = malloc(sizeof(int)*nfiles);
-    reader->update   = malloc(sizeof(Update*)*nfiles);
-    reader->unpacked = malloc(sizeof(int)*nfiles);
+	reader->cpos     = malloc(sizeof(int)*nfiles);
+	reader->update   = malloc(sizeof(Update*)*nfiles);
+	reader->unpacked = malloc(sizeof(int)*nfiles);
 
 	int i;
 	for (i=0; i<nfiles; i++)
@@ -45,118 +46,167 @@ pbwt_reader_t *pbwt_reader_init(const char **fnames, int nfiles)
 		pbwtReadSites(reader->pbwt[i], fp);
 		fclose(fp);
 
-        reader->update[i] = updateCreate(reader->pbwt[i]->M, 0);
-        reader->unpacked[i] = 0;
-        reader->cpos[i] = 0;
-    }
-    for (i=1; i<nfiles; i++)
-    {
-        if ( strcmp(reader->pbwt[0]->chrom,reader->pbwt[i]->chrom) ) 
-            die("Different chromosomes: %s in %s vs %s in %s\n", reader->pbwt[0]->chrom,fnames[0],reader->pbwt[i]->chrom,fnames[i]);
-    }
+		reader->update[i] = updateCreate(reader->pbwt[i]->M, 0);
+		reader->unpacked[i] = 0;
+		reader->cpos[i] = 0;
+	}
+	for (i=1; i<nfiles; i++)
+	{
+		if ( strcmp(reader->pbwt[0]->chrom,reader->pbwt[i]->chrom) ) 
+			die("Different chromosomes: %s in %s vs %s in %s\n", reader->pbwt[0]->chrom,fnames[0],reader->pbwt[i]->chrom,fnames[i]);
+	}
 	return reader;
 }
 
-void pbwt_reader_destroy(pbwt_reader_t *reader)
+static void pbwt_reader_destroy(pbwt_reader_t *reader)
 {
 	int i;
 	for (i=0; i<reader->n; i++)
-    {
+	{
 		pbwtDestroy(reader->pbwt[i]);
-        updateDestroy(reader->update[i]);
-    }
+		updateDestroy(reader->update[i]);
+	}
 	free(reader->pbwt);
 	free(reader->update);
 	free(reader->unpacked);
-    free(reader->cpos);
+	free(reader->cpos);
 	free(reader);
 }
 
-// Return value: 0 if all PBWTs finished or minimum current position 
-int pbwt_reader_next(pbwt_reader_t *reader)
+// Return value: 0 if all PBWTs finished, otherwise the current position is returned
+static int pbwt_reader_next(pbwt_reader_t *reader, int nshared)
 {
-    int i, min_pos = INT_MAX;
-    for (i=0; i<reader->n; i++)
-    {  
-        PBWT *p = reader->pbwt[i];
-        int j   = reader->cpos[i];
-        Site *site = arrp(p->sites, j, Site);
+	int i, min_pos = INT_MAX;
+	char *min_als  = NULL;
 
-        // todo:
-        //  - check sequence names, for now assuming single block
-        //  - conflicting variations at the same position
+	// advance all readers, first looking at coordinates only
+	for (i=0; i<reader->n; i++)
+	{  
+		PBWT *p = reader->pbwt[i];
+		int j		= reader->cpos[i];
+		if ( j>=p->N ) continue;		// no more sites in this pbwt
 
-        while ( j < p->N && site->x <= reader->mpos  )
-            site = arrp(p->sites, ++j, Site);
-        reader->cpos[i] = j;
+		Site *site = arrp(p->sites, j, Site);
+		char *als  = dictName(p->variationDict, site->varD);
 
-        if ( j < p->N && site->x < min_pos ) min_pos = site->x;
-    }
-    reader->mpos = min_pos==INT_MAX ? 0 : min_pos;
-    return reader->mpos;
+		// assuming:
+		//	- one chromosome only (no checking sequence name)
+		//	- sorted alleles (strcmp() on als)
+		while ( j < p->N && site->x <= reader->mpos && (!reader->mals || strcmp(als,reader->mals)<=0) )
+		{
+			site = arrp(p->sites, j, Site);
+			als  = dictName(p->variationDict, site->varD);
+			reader->cpos[i] = j++;
+		}
+		if ( reader->cpos[i]+1 >= p->N && site->x == reader->mpos && (!reader->mals || !strcmp(als,reader->mals)) )
+		{
+			// this pbwt is positioned on the last site which has been read before
+			reader->cpos[i] = p->N;
+			continue;
+		}
+
+		if ( reader->cpos[i] < p->N && site->x < min_pos )
+		{
+			min_pos = site->x;
+			min_als = als;
+		}
+		if ( site->x==min_pos && (!min_als || strcmp(als,min_als)<0) ) min_als = als;
+	}
+	if ( min_pos==INT_MAX )
+	{
+		reader->mpos = 0;
+		reader->mals = NULL;
+	}
+	else
+	{
+		reader->mpos = min_pos;
+		reader->mals = min_als;
+	}
+	return reader->mpos;
 }
 
 PBWT *pbwtMerge(const char **fnames, int nfiles)
 {
 	pbwt_reader_t *reader = pbwt_reader_init(fnames, nfiles);
 
-    int nhaps = 0, i;
-    for (i=0; i<nfiles; i++) nhaps += reader->pbwt[i]->M;
-    PBWT *out_pbwt  = pbwtCreate(nhaps);
-    out_pbwt->yz    = arrayCreate(4096*32, uchar);
-    uchar *yz       = myalloc(nhaps, uchar);
-    Update *out_up  = updateCreate(nhaps, 0);
-    uchar *yseq     = myalloc(nhaps, uchar);
-    out_pbwt->sites = arrayReCreate(out_pbwt->sites, reader->pbwt[0]->N, Site);
-    out_pbwt->variationDict = dictCreate(32);
-    out_pbwt->chrom = strdup(reader->pbwt[0]->chrom);
+	int nhaps = 0, i;
+	for (i=0; i<nfiles; i++) nhaps += reader->pbwt[i]->M;
+	PBWT *out_pbwt  = pbwtCreate(nhaps);
+	out_pbwt->yz    = arrayCreate(4096*32, uchar);
+	uchar *yz       = myalloc(nhaps, uchar);
+	Update *out_up  = updateCreate(nhaps, 0);
+	uchar *yseq     = myalloc(nhaps, uchar);
+	out_pbwt->sites = arrayReCreate(out_pbwt->sites, reader->pbwt[0]->N, Site);
+	out_pbwt->variationDict = dictCreate(32);
+	out_pbwt->chrom = strdup(reader->pbwt[0]->chrom);
 
-    int pos, j;
-	while ( (pos=pbwt_reader_next(reader)) )
+	int pos, j;
+	while ( (pos=pbwt_reader_next(reader, nfiles)) )
 	{
-        char *cvar = NULL;
+		// Merge only records shared by all files
+		for (i=0; i<nfiles; i++)
+		{
+			PBWT *p		 = reader->pbwt[i];
+			Site *site = arrp(p->sites, reader->cpos[i], Site);
 
-        // read and merge
-        int ihap = 0;
-        for (i=0; i<nfiles; i++)
-        {
-            Update *u  = reader->update[i];
-            PBWT *p    = reader->pbwt[i];
-            Site *site = arrp(p->sites, reader->cpos[i], Site);
-            if ( site->x!=pos )
-            {
-                for (j=0; j<p->M; j++) yseq[ihap + j] = 0;  // missing site, using ref for now
-            }
-            else
-            {
-                reader->unpacked[i] += unpack3(arrp(p->yz,reader->unpacked[i],uchar), p->M, u->y, 0);
-                for (j=0; j<p->M; j++) yseq[ihap + u->a[j]] = u->y[j];
-                updateForwardsA(u);
-                if ( !cvar ) cvar = dictName(p->variationDict, site->varD);
-            }
-            ihap += p->M;
-        }
+			// Both position and alleles must match. This requires that the records are sorted by alleles.
 
-        // pack merged haplotypes
-        for (j=0; j<nhaps; j++)
-            out_up->y[j] = yseq[out_up->a[j]];
-        int nyPack = pack3(out_up->y, out_pbwt->M, yz);
-        for (j=0; j<nyPack; j++)
-            array(out_pbwt->yz,arrayMax(out_pbwt->yz),uchar) = yz[j];
-        updateForwardsA(out_up);
+			if ( site->x!=pos ) break;
+			char *als = dictName(p->variationDict, site->varD);
+			if ( strcmp(als,reader->mals) ) break;
+		}
+		if ( i!=nfiles ) 
+		{
+			// intersection: skip records which are not present in all files
+			for (i=0; i<nfiles; i++)
+			{
+				PBWT *p    = reader->pbwt[i];
+				Site *site = arrp(p->sites, reader->cpos[i], Site);
+				if ( site->x!=pos ) continue;
+				char *als = dictName(p->variationDict, site->varD);
+				if ( strcmp(als,reader->mals) ) continue;
 
-        // insert new site
-        arrayExtend(out_pbwt->sites, out_pbwt->N+1);
-        Site *site = arrayp(out_pbwt->sites, out_pbwt->N, Site);
-        site->x = pos;
-        dictAdd(out_pbwt->variationDict, cvar, &site->varD);
+				Update *u = reader->update[i];
+				reader->unpacked[i] += unpack3(arrp(p->yz,reader->unpacked[i],uchar), p->M, u->y, 0);
+				updateForwardsA(u);
+			}
+			continue;
+		}
 
-        out_pbwt->N++;
+		// read and merge
+		int ihap = 0;
+		for (i=0; i<nfiles; i++)
+		{
+			Update *u  = reader->update[i];
+			PBWT *p    = reader->pbwt[i];
+			Site *site = arrp(p->sites, reader->cpos[i], Site);
+			reader->unpacked[i] += unpack3(arrp(p->yz,reader->unpacked[i],uchar), p->M, u->y, 0);
+			for (j=0; j<p->M; j++) yseq[ihap + u->a[j]] = u->y[j];
+			updateForwardsA(u);
+			ihap += p->M;
+		}
+
+		// pack merged haplotypes
+		for (j=0; j<nhaps; j++)
+			out_up->y[j] = yseq[out_up->a[j]];
+		int nyPack = pack3(out_up->y, out_pbwt->M, yz);
+		for (j=0; j<nyPack; j++)
+			array(out_pbwt->yz,arrayMax(out_pbwt->yz),uchar) = yz[j];
+		updateForwardsA(out_up);
+
+		// insert new site
+		arrayExtend(out_pbwt->sites, out_pbwt->N+1);
+		Site *site = arrayp(out_pbwt->sites, out_pbwt->N, Site);
+		site->x = pos;
+		dictAdd(out_pbwt->variationDict, reader->mals, &site->varD);
+
+		out_pbwt->N++;
 	}
 
-    free(yseq);
-    updateDestroy(out_up);
-    pbwt_reader_destroy(reader);
+	free(yz);
+	free(yseq);
+	updateDestroy(out_up);
+	pbwt_reader_destroy(reader);
 	return out_pbwt;
 }
 
