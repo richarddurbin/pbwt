@@ -13,7 +13,7 @@ typedef struct
 	int *cpos;		 // current position of each PBWT (site index)
 	int mpos;			 // minimum position across all PBWT (position)
 	char *mals;		 // alleles at the mpos (multiple records with different alleles can be present)
-	Update **update;
+	PbwtCursor **cursor;
 	int *unpacked;
 }
 pbwt_reader_t;
@@ -24,7 +24,7 @@ static pbwt_reader_t *pbwt_reader_init(const char **fnames, int nfiles)
 	reader->n        = nfiles;
 	reader->pbwt     = malloc(sizeof(PBWT*)*nfiles);
 	reader->cpos     = malloc(sizeof(int)*nfiles);
-	reader->update   = malloc(sizeof(Update*)*nfiles);
+	reader->cursor   = malloc(sizeof(PbwtCursor*)*nfiles);
 	reader->unpacked = malloc(sizeof(int)*nfiles);
 
 	int i;
@@ -46,7 +46,7 @@ static pbwt_reader_t *pbwt_reader_init(const char **fnames, int nfiles)
 		pbwtReadSites(reader->pbwt[i], fp);
 		fclose(fp);
 
-		reader->update[i] = updateCreate(reader->pbwt[i]->M, 0);
+		reader->cursor[i] = pbwtCursorCreate(reader->pbwt[i]->M, 0);
 		reader->unpacked[i] = 0;
 		reader->cpos[i] = 0;
 	}
@@ -64,10 +64,10 @@ static void pbwt_reader_destroy(pbwt_reader_t *reader)
 	for (i=0; i<reader->n; i++)
 	{
 		pbwtDestroy(reader->pbwt[i]);
-		updateDestroy(reader->update[i]);
+		pbwtCursorDestroy(reader->cursor[i]);
 	}
 	free(reader->pbwt);
-	free(reader->update);
+	free(reader->cursor);
 	free(reader->unpacked);
 	free(reader->cpos);
 	free(reader);
@@ -131,12 +131,12 @@ PBWT *pbwtMerge(const char **fnames, int nfiles)
 
 	int nhaps = 0, i;
 	for (i=0; i<nfiles; i++) nhaps += reader->pbwt[i]->M;
-	PBWT *out_pbwt  = pbwtCreate(nhaps);
-	out_pbwt->yz    = arrayCreate(4096*32, uchar);
-	uchar *yz       = myalloc(nhaps, uchar);
-	Update *out_up  = updateCreate(nhaps, 0);
-	uchar *yseq     = myalloc(nhaps, uchar);
-	out_pbwt->sites = arrayReCreate(out_pbwt->sites, reader->pbwt[0]->N, Site);
+	PBWT *out_pbwt     = pbwtCreate(nhaps);
+	out_pbwt->yz       = arrayCreate(4096*32, uchar);
+	uchar *yz          = myalloc(nhaps, uchar);
+	PbwtCursor *cursor = pbwtCursorCreate(nhaps, 0);
+	uchar *yseq        = myalloc(nhaps, uchar);
+	out_pbwt->sites    = arrayReCreate(out_pbwt->sites, reader->pbwt[0]->N, Site);
 	out_pbwt->variationDict = dictCreate(32);
 	out_pbwt->chrom = strdup(reader->pbwt[0]->chrom);
 
@@ -166,9 +166,9 @@ PBWT *pbwtMerge(const char **fnames, int nfiles)
 				char *als = dictName(p->variationDict, site->varD);
 				if ( strcmp(als,reader->mals) ) continue;
 
-				Update *u = reader->update[i];
-				reader->unpacked[i] += unpack3(arrp(p->yz,reader->unpacked[i],uchar), p->M, u->y, 0);
-				updateForwardsA(u);
+				PbwtCursor *c = reader->cursor[i];
+				reader->unpacked[i] += unpack3(arrp(p->yz,reader->unpacked[i],uchar), p->M, c->y, 0);
+				pbwtCursorForwardsA(c);
 			}
 			continue;
 		}
@@ -177,22 +177,22 @@ PBWT *pbwtMerge(const char **fnames, int nfiles)
 		int ihap = 0;
 		for (i=0; i<nfiles; i++)
 		{
-			Update *u  = reader->update[i];
-			PBWT *p    = reader->pbwt[i];
-			Site *site = arrp(p->sites, reader->cpos[i], Site);
-			reader->unpacked[i] += unpack3(arrp(p->yz,reader->unpacked[i],uchar), p->M, u->y, 0);
-			for (j=0; j<p->M; j++) yseq[ihap + u->a[j]] = u->y[j];
-			updateForwardsA(u);
+			PbwtCursor *c = reader->cursor[i];
+			PBWT *p       = reader->pbwt[i];
+			Site *site    = arrp(p->sites, reader->cpos[i], Site);
+			reader->unpacked[i] += unpack3(arrp(p->yz,reader->unpacked[i],uchar), p->M, c->y, 0);
+			for (j=0; j<p->M; j++) yseq[ihap + c->a[j]] = c->y[j];
+			pbwtCursorForwardsA(c);
 			ihap += p->M;
 		}
 
 		// pack merged haplotypes
 		for (j=0; j<nhaps; j++)
-			out_up->y[j] = yseq[out_up->a[j]];
-		int nyPack = pack3(out_up->y, out_pbwt->M, yz);
+			cursor->y[j] = yseq[cursor->a[j]];
+		int nyPack = pack3(cursor->y, out_pbwt->M, yz);
 		for (j=0; j<nyPack; j++)
 			array(out_pbwt->yz,arrayMax(out_pbwt->yz),uchar) = yz[j];
-		updateForwardsA(out_up);
+		pbwtCursorForwardsA(cursor);
 
 		// insert new site
 		arrayExtend(out_pbwt->sites, out_pbwt->N+1);
@@ -205,7 +205,7 @@ PBWT *pbwtMerge(const char **fnames, int nfiles)
 
 	free(yz);
 	free(yseq);
-	updateDestroy(out_up);
+	pbwtCursorDestroy(cursor);
 	pbwt_reader_destroy(reader);
 	return out_pbwt;
 }
