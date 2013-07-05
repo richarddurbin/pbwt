@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: May  6 20:04 2013 (rd)
+ * Last edited: May 10 00:25 2013 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -27,12 +27,12 @@
 static void prettyPlot (PBWT *p, FILE *fp, int K)
 {
   int i, j, n = 0, M = p->M ;
-  Update *u = updateCreate (M, 0) ;
+  PbwtCursor *u = pbwtCursorCreate (M, 0) ;
   uchar **hap = pbwtHaplotypes (p) ;
 
   for (i = 0 ; i < K ; ++i)
     { n += unpack3 (arrp(p->yz,n,uchar), M, u->y, 0) ;
-      updateForwardsA (u) ;
+      pbwtCursorForwardsA (u) ;
     }
 
   for (j = 0 ; j < M ; ++j)
@@ -43,7 +43,7 @@ static void prettyPlot (PBWT *p, FILE *fp, int K)
 	putc (hap[u->a[j]][i++]?'1':'0', fp) ;
       putc ('\n',fp) ;
     }
-  updateDestroy (u) ;
+  pbwtCursorDestroy (u) ;
 }
 
 /************ AF distribution **************/
@@ -51,7 +51,7 @@ static void prettyPlot (PBWT *p, FILE *fp, int K)
 static void siteFrequencySpectrum (PBWT *p)
 {
   int i, j, n = 0, M = p->M, c ;
-  Update *u = updateCreate (M, 0) ;
+  PbwtCursor *u = pbwtCursorCreate (M, 0) ;
   Array hist = arrayCreate (p->M, int) ;
   int thresh[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9,
 		   10, 20, 30, 40, 50, 60, 70, 80, 90,
@@ -65,7 +65,7 @@ static void siteFrequencySpectrum (PBWT *p)
 
   for (i = 0 ; i < p->N ; ++i)
     { n += unpack3 (arrp(p->yz,n,uchar), M, u->y, &c) ;
-      updateForwardsA (u) ;
+      pbwtCursorForwardsA (u) ;
       ++array(hist,p->M-c,int) ;
     }
 

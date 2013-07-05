@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: May  6 19:41 2013 (rd)
+ * Last edited: May 10 00:20 2013 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -61,7 +61,7 @@ typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
   int *u ;
   int *b ;			/* for local operations - no long term meaning */
   int *e ;			/* for local operations - no long term meaning */
-} Update ;
+} PbwtCursor ;
 
 /* pbwt_core.c */
 
@@ -77,14 +77,14 @@ PBWT *pbwtSubRange (PBWT *pOld, int start, int end) ;
 void pbwtBuildReverse (PBWT *p) ;
 uchar **pbwtHaplotypes (PBWT *p) ;
 
-	/* operations to move forwards and backwards in the pbwt using the update structure */
+	/* operations to move forwards and backwards in the pbwt using the cursor structure */
 
-void updateInitialise (Update *u) ;
-Update *updateCreate (int M, int *aInit) ;
-void updateDestroy (Update *u) ;
-void updateForwardsA (Update *u) ; /* algorithm 1 in the manuscript */
-void updateBackwardsA (Update *u, int c) ; /* undo algorithm 1 */
-void updateForwardsADU (Update *u, int k) ; /* algorithm 2 in the manuscript */
+void pbwtCursorInitialise (PbwtCursor *u) ;
+PbwtCursor *pbwtCursorCreate (int M, int *aInit) ;
+void pbwtCursorDestroy (PbwtCursor *u) ;
+void pbwtCursorForwardsA (PbwtCursor *u) ; /* algorithm 1 in the manuscript */
+void pbwtCursorBackwardsA (PbwtCursor *u, int c) ; /* undo algorithm 1 */
+void pbwtCursorForwardsADU (PbwtCursor *u, int k) ; /* algorithm 2 in the manuscript */
 
 	/* low level operations on packed PBWT, argument yzp in these calls */
 

@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: May  6 23:56 2013 (rd)
+ * Last edited: May 10 00:25 2013 (rd)
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -245,11 +245,11 @@ PBWT *pbwtReadMacs (FILE *fp)
   int nxTot = 0, nyTot = 0 ;
   uchar *x, *yz, *y2 ;		/* original, sorted, compressed, uncompressed */
   int *a ;
-  Update *u ;
+  PbwtCursor *u ;
 
   parseMacsHeader (fp, &M, &L) ;
   p = pbwtCreate (M) ;
-  u = updateCreate (M, 0) ;
+  u = pbwtCursorCreate (M, 0) ;
   x = myalloc (M+1, uchar) ; x[M] = Y_SENTINEL ;	/* sentinel required for packing */
   yz = myalloc (M, uchar) ;
   y2 = myalloc (M, uchar) ;
@@ -261,7 +261,7 @@ PBWT *pbwtReadMacs (FILE *fp)
     { for (j = 0 ; j < M ; ++j) u->y[j] = x[u->a[j]] ; /* next character in sort order: BWT */
       nyPack = pack3 (u->y, M, yz) ;
       for (j = 0 ; j < nyPack ; ++j) array(p->yz,arrayMax(p->yz),uchar) = yz[j] ;
-      updateForwardsA (u) ;
+      pbwtCursorForwardsA (u) ;
       if (isCheck)
 	{ int nx0 = 0 ;
 	  nUnpack = unpack3 (yz, M, y2, &n0) ;
@@ -291,7 +291,7 @@ PBWT *pbwtReadMacs (FILE *fp)
   if (isStats)
     fprintf (stderr, "                xtot, ytot are\t%d\t%d\n", nxTot, nyTot) ;
 
-  free(x) ; free (yz) ; free (y2) ; updateDestroy (u) ;
+  free(x) ; free (yz) ; free (y2) ; pbwtCursorDestroy (u) ;
 
   return p ;
 }
@@ -366,19 +366,19 @@ PBWT *pbwtReadVcfq (FILE *fp)
   uchar *x, *yz ;		/* original, sorted, compressed */
   int *a ;
   Array xArray = arrayCreate (10000, uchar) ;
-  Update *u ;
+  PbwtCursor *u ;
 
   while (parseVcfqSite (&p, fp, xArray)) /* create p first time round */
     { if (!p->yz)		/* first line; p was just made! */
 	{ p->yz = arrayCreate(4096*32, uchar) ;
 	  yz = myalloc (p->M, uchar) ;
-	  u = updateCreate (p->M, 0) ;
+	  u = pbwtCursorCreate (p->M, 0) ;
 	}
       x = arrp(xArray,0,uchar) ;
       for (j = 0 ; j < p->M ; ++j) u->y[j] = x[u->a[j]] ;
       nyPack = pack3 (u->y, p->M, yz) ;
       for (j = 0 ; j < nyPack ; ++j) array(p->yz,arrayMax(p->yz),uchar) = yz[j] ;
-      updateForwardsA (u) ;
+      pbwtCursorForwardsA (u) ;
       if (nCheckPoint && !(p->N % nCheckPoint))
 	pbwtCheckPoint (p) ;
     }
@@ -387,7 +387,7 @@ PBWT *pbwtReadVcfq (FILE *fp)
   if (p->chrom) fprintf (stderr, " for chromosome %s", p->chrom) ;
   fprintf (stderr, ": M, N are\t%d\t%d; yz length is %d\n", p->M, p->N, arrayMax(p->yz)) ;
 
-  arrayDestroy(xArray) ; free (yz) ; updateDestroy (u) ;
+  arrayDestroy(xArray) ; free (yz) ; pbwtCursorDestroy (u) ;
 
   return p ;
 }
@@ -398,16 +398,16 @@ void pbwtWriteHaplotypes (FILE *fp, PBWT *p)
 {
   int i, j, n = 0, M = p->M ;
   uchar *hap = myalloc (M, uchar) ;
-  Update *u = updateCreate (M, 0) ;
+  PbwtCursor *u = pbwtCursorCreate (M, 0) ;
 
   for (i = 0 ; i < p->N ; ++i)
     { n += unpack3 (arrp(p->yz,n,uchar), M, u->y, 0) ;
       for (j = 0 ; j < M ; ++j) hap[u->a[j]] = u->y[j] ;
       for (j = 0 ; j < M ; ++j) putc (hap[j]?'1':'0', fp) ;
       putc ('\n', fp) ; fflush (fp) ;
-      updateForwardsA (u) ;
+      pbwtCursorForwardsA (u) ;
     }
-  free (hap) ; updateDestroy (u) ;
+  free (hap) ; pbwtCursorDestroy (u) ;
 
   fprintf (stderr, "written haplotype file: %d rows of %d\n", p->N, M) ;
 }

@@ -18,7 +18,7 @@ Phasing and imputation methods are currently under development.
 Richard Durbin <rd@sanger.ac.uk>, May 2013
 
 Brief usage instructions
-========================
+------------------------
 
 Typing
 
