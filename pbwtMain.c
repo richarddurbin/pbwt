@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: May 10 00:25 2013 (rd)
+ * Last edited: Oct 17 14:15 2013 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -103,6 +103,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -check                    do various checks\n") ;
       fprintf (stderr, "  -stats                    print stats depending on commands; writes to stdout\n") ;
       fprintf (stderr, "  -macs <file>              read MaCS output file; '-' for stdin\n") ;
+      fprintf (stderr, "  -readVcf <file>           read vcf or bcf file; '-' for stdin vcf only ; assume diploid!\n") ;
       fprintf (stderr, "  -vcfq <file>              read VCFQ file; '-' for stdin\n") ;
       fprintf (stderr, "  -haps <file>              write haplotype file; '-' for stdout\n") ;
       fprintf (stderr, "  -write <file>             write pbwt file; '-' for stdout\n") ;
@@ -158,6 +159,8 @@ int main (int argc, char *argv[])
       { FOPEN("haps","w") ; pbwtWriteHaplotypes (fp, p) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-read") && argc > 1)
       { if (p) pbwtDestroy (p) ; FOPEN("read","r") ; p = pbwtRead (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-readVcf") && argc > 1)
+      { if (p) pbwtDestroy (p) ; p = pbwtReadVcf (argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readSites") && argc > 1)
       { FOPEN("readSites","r") ; pbwtReadSites (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readSamples") && argc > 1)

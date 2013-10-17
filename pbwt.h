@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: May 10 00:20 2013 (rd)
+ * Last edited: Oct 17 14:16 2013 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -108,6 +108,10 @@ void pbwtReadSamples (PBWT *p, FILE *fp) ;
 PBWT *pbwtReadMacs (FILE *fp) ;
 PBWT *pbwtReadVcfq (FILE *fp) ;	/* reduced VCF style file made by vcf query */
 void pbwtWriteHaplotypes (FILE *fp, PBWT *p) ;
+
+/* pbwtHtslib.c */
+
+PBWT *pbwtReadVcf (char *filename) ;	/* read vcf/bcf using htslib */
 
 /* pbwt_match.c */
 
