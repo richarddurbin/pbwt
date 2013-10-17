@@ -1,7 +1,11 @@
 
-CFLAGS= -g
+CFLAGS= -g -O2
 
 all: pbwt
+
+.PHONY:test
+test:
+	./test/test.pl
 
 pbwt: pbwtMain.o pbwtCore.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o utils
 	gcc $(CFLAGS) -o pbwt pbwtMain.o pbwtCore.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o hash.o dict.o array.o utils.o -lm
