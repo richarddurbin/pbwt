@@ -1,5 +1,7 @@
 
 CFLAGS= -g
+HTSDIR = ../htslib
+HTSLIB = $(HTSDIR)/libhts.a
 
 all: pbwt
 
@@ -7,7 +9,7 @@ test:
 	./test/test.pl
 
 pbwt: pbwtMain.o pbwtCore.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o utils
-	gcc $(CFLAGS) -L../htslib -o pbwt pbwtMain.o pbwtCore.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o hash.o dict.o array.o utils.o -lhts -lm
+	gcc $(CFLAGS) -o pbwt pbwtMain.o pbwtCore.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o hash.o dict.o array.o utils.o $(HTSLIB) -lpthread -lz -lm
 
 pbwtMain.o: pbwtMain.c pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtMain.c
@@ -28,7 +30,7 @@ pbwtMerge.o: pbwtMerge.c pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtMerge.c
 
 pbwtHtslib.o: pbwtHtslib.c pbwt.h utils.h 
-	gcc $(CFLAGS) -I../htslib -c pbwtHtslib.c
+	gcc $(CFLAGS) -I$(HTSDIR) -c pbwtHtslib.c
 
 #################################
 
