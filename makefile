@@ -1,14 +1,13 @@
 
-CFLAGS= -g -O2
+CFLAGS= -g
 
 all: pbwt
 
-.PHONY:test
 test:
 	./test/test.pl
 
-pbwt: pbwtMain.o pbwtCore.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o utils
-	gcc $(CFLAGS) -o pbwt pbwtMain.o pbwtCore.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o hash.o dict.o array.o utils.o -lm
+pbwt: pbwtMain.o pbwtCore.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o utils
+	gcc $(CFLAGS) -L../htslib -o pbwt pbwtMain.o pbwtCore.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o hash.o dict.o array.o utils.o -lhts -lm
 
 pbwtMain.o: pbwtMain.c pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtMain.c
@@ -27,6 +26,9 @@ pbwtImpute.o: pbwtImpute.c pbwt.h utils.h
 
 pbwtMerge.o: pbwtMerge.c pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtMerge.c
+
+pbwtHtslib.o: pbwtHtslib.c pbwt.h utils.h 
+	gcc $(CFLAGS) -I../htslib -c pbwtHtslib.c
 
 #################################
 
@@ -48,4 +50,4 @@ utils.o: utils.c utils.h
 	gcc $(CFLAGS) -c utils.c
 
 clean:
-	rm -f *.o pbwt
+	rm -f *.o pbwt *~
