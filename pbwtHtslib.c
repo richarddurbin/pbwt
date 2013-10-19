@@ -5,7 +5,7 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Oct 17 12:51 2013 (rd)
+ * Last edited: Oct 19 14:52 2013 (rd)
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -32,17 +32,18 @@ PBWT *pbwtReadVcf (char *filename)	/* read vcf/bcf using htslib */
   while (bcf_sr_next_line (sr)) 
     { bcf1_t *line = bcf_sr_get_line(sr,0) ;
       const char* chrom = bcf_seqname(hr,line) ;
-      int pos = line->pos;                      // coordinates are 0-based
+      int pos = line->pos + 1 ;                      // coordinates are 0-based
       if ( line->n_allele !=2 ) continue;       // not a biallelic site
-      const char *ref = line->d.allele[0];
-      const char *alt = line->d.allele[1];
+      const char *ref = line->d.allele[0] ;
+      const char *alt = line->d.allele[1] ;
 
       printf("%s:%d %s %s", chrom,pos,ref,alt);
 
-      int ngt = bcf_get_genotypes(hr, line, &gt_arr, &mgt_arr); // get a copy of GTs
-      if ( !ngt ) continue;             // GT not present
-      ngt /= bcf_hdr_nsamples(hr);      // ngt is now the number of values per sample
-      for (i=0; i<bcf_hdr_nsamples(hr); i++)
+      // get a copy of GTs
+      int ngt = bcf_get_genotypes(hr, line, &gt_arr, &mgt_arr) ;
+      if (!ngt) continue ;             // GT not present
+      ngt /= bcf_hdr_nsamples (hr) ;      // ngt is now the number of values per sample
+      for (i = 0 ; i < bcf_hdr_nsamples (hr) ; i++)
       {
         // skip missing genotypes and haploid samples
         if ( gt_arr[i*ngt]==bcf_gt_missing ) continue;  // missing
