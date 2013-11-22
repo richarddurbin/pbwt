@@ -26,7 +26,7 @@
  * Exported functions:
  *              See header file: array.h (includes lots of macros)
  * HISTORY:
- * Last edited: May  5 10:56 2013 (rd)
+ * Last edited: Nov  9 13:28 2013 (rd)
  * * May  5 10:55 2013 (rd): New RD address rd@sanger.ac.uk
  * * Feb 14 11:21 2011 (rd): modified in 2009/10 by RD for stand-alone use
  * Created: Thu Dec 12 15:43:25 1989 (mieg)
@@ -182,7 +182,7 @@ char *uArray (Array a, int i)
 
 /***************/
 
-char    *uArrayBlock (Array a, int i, int n)
+char *uArrayBlock (Array a, int i, int n)
 {
   if (!arrayExists (a))
     die ("arrayBlock() called on bad array %lx", (long unsigned int)a) ;

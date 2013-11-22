@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: May 10 00:25 2013 (rd)
+ * Last edited: Nov 18 09:59 2013 (rd)
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -28,17 +28,20 @@ int nCheckPoint = 0 ;	/* if set non-zero write pbwt and sites files every n site
 
 void pbwtWrite (PBWT *p, FILE *fp) /* just writes compressed pbwt in yz */
 {
-  int n ;
-
   if (!p || !p->yz) die ("pbwtWrite called without a valid pbwt") ;
+  if (!p->aFstart || !p->aFend) die ("pbwtWrite called without start and end indexes") ;
 
-  n = arrayMax(p->yz) ;
-  if (fwrite ("PBWT", 1, 4, fp) != 4)
+  if (fwrite ("PBW2", 1, 4, fp) != 4) /* version 2, with start and end indexes */
     die ("error writing PBWT in pbwtWrite") ;
   if (fwrite (&p->M, sizeof(int), 1, fp) != 1)
     die ("error writing M in pbwtWrite") ;
   if (fwrite (&p->N, sizeof(int), 1, fp) != 1)
     die ("error writing N in pbwtWrite") ;
+  if (fwrite (p->aFstart, sizeof(int), p->M, fp) != p->M)
+    die ("error writing aFstart in pbwtWrite") ;
+  if (fwrite (p->aFend, sizeof(int), p->M, fp) != p->M)
+    die ("error writing aFend in pbwtWrite") ;
+  int n = arrayMax(p->yz) ;
   if (fwrite (&n, sizeof(int), 1, fp) != 1)
     die ("error writing n in pbwtWrite") ;
   if (fwrite (arrp(p->yz, 0, uchar), sizeof(uchar), arrayMax(p->yz), fp) != arrayMax(p->yz))
@@ -49,15 +52,13 @@ void pbwtWrite (PBWT *p, FILE *fp) /* just writes compressed pbwt in yz */
 
 void pbwtWriteSites (PBWT *p, FILE *fp)
 {
+  if (!p || !p->sites) die ("pbwtWriteSites called without sites") ;
+
   int i ;
-  Site *s ;
-
-  if (!p || !p->sites) die ("pbwtWriteSites called without a valid pbwt") ;
-
   for (i = 0 ; i < p->N ; ++i)
-    { s = arrp(p->sites, i, Site) ;
+    { Site *s = arrp(p->sites, i, Site) ;
       fprintf (fp, "%s\t%d", p->chrom ? p->chrom : ".", s->x) ;
-      if (p->variationDict) fprintf (fp, "\t%s", dictName (p->variationDict, s->varD)) ;
+      fprintf (fp, "\t%s", dictName (variationDict, s->varD)) ;
       fputc ('\n', fp) ;
     }
   if (ferror (fp)) die ("error writing sites file") ;
@@ -66,39 +67,105 @@ void pbwtWriteSites (PBWT *p, FILE *fp)
 	   arrp(p->sites, 0, Site)->x, arrp(p->sites, p->N-1, Site)->x) ;
 }
 
-static void pbwtCheckPoint (PBWT *p)
+void pbwtWriteSamples (PBWT *p, FILE *fp)
+{
+  if (!p || !p->samples) die ("pbwtWriteSamples called without samples") ;
+
+  int i ;
+  for (i = 0 ; i < p->M ; i += 2) /* assume diploid for now */
+    fprintf (fp, "%s\n", sampleName (arr(p->samples,i,int))) ;
+  if (ferror (fp)) die ("error writing sites file") ;
+
+  fprintf (stderr, "written %d samples\n", p->M/2) ;
+}
+
+void pbwtWriteMissing (PBWT *p, FILE *fp)
+{
+  if (!p || !p->zMissing) die ("pbwtWriteMissing called without data on missing") ;
+
+  int n = arrayMax(p->zMissing) ;
+  if (fwrite (&n, sizeof(int), 1, fp) != 1)
+    die ("error writing n in pbwtWriteMissing") ;
+  if (fwrite (arrp(p->zMissing, 0, uchar), sizeof(uchar), n, fp) != n)
+    die ("error writing zMissing in pbwtWriteMissing") ;
+  if (fwrite (arrp(p->missing, 0, int), sizeof(int), p->N, fp) != p->N)
+    die ("error writing missing in pbwtWriteMissing") ;
+
+  fprintf (stderr, "written %d chars compressed missing data\n", n) ;
+}
+
+void pbwtWriteReverse (PBWT *p, FILE *fp)
+{
+  if (!p || !p->zz) die ("pbwtWriteReverse called without reverse pbwt") ;
+
+  Array tz = p->yz ; p->yz = p->zz ;
+  int* tstart = p->aFstart ; p->aFstart = p->aRstart ;
+  int* tend = p->aFend ; p->aFend = p->aRend ;
+
+  fprintf (stderr, "reverse: ") ; pbwtWrite (p, fp) ;
+  
+  p->yz = tz ; p->aFstart = tstart ; p->aFend = tend ;
+}
+
+#define FOPEN_W(tag)  strcpy (fileNameLeaf, tag) ; if (!(fp = fopen (fileName, "w"))) die ("failed to open %s", fileName)
+
+void pbwtWriteAll (PBWT *p, char *fileNameRoot)
+{
+  char *fileName = myalloc (strlen (fileNameRoot) + 32, char) ;
+  strcpy (fileName, fileNameRoot) ;
+  strcat (fileName, ".") ;
+  char *fileNameLeaf = fileName + strlen(fileName) ;
+
+  FILE *fp ;
+  FOPEN_W("pbwt") ; pbwtWrite (p, fp) ; fclose (fp) ;
+  if (p->sites) { FOPEN_W("sites") ; pbwtWriteSites (p, fp) ; fclose (fp) ; }
+  if (p->samples) { FOPEN_W("samples") ; pbwtWriteSamples (p, fp) ; fclose (fp) ; }
+  if (p->missing) { FOPEN_W("missing") ; pbwtWriteMissing (p, fp) ; fclose (fp) ; }
+  if (p->zz) { FOPEN_W("reverse") ; pbwtWriteReverse (p, fp) ; fclose (fp) ; }
+
+  free (fileName) ;
+}
+
+void pbwtCheckPoint (PBWT *p)
 {
   static BOOL isA = TRUE ;
-  char fileName[20] ;
-  FILE *fp ;
+  char fileNameRoot[20] ;
 
-  sprintf (fileName, "check_%c.pbwt", isA ? 'A' : 'B') ;
-  if (!(fp = fopen (fileName, "w"))) die ("failed to open checkpoint file %s", fileName) ;
-  pbwtWrite (p, fp) ;
-  fclose (fp) ;
-
-  sprintf (fileName, "check_%c.sites", isA ? 'A' : 'B') ;
-  if (!(fp = fopen (fileName, "w"))) die ("failed to open checkpoint file %s", fileName) ;
-  pbwtWriteSites (p, fp) ;
-  fclose (fp) ;
+  sprintf (fileNameRoot, "check_%c", isA ? 'A' : 'B') ;
+  pbwtWriteAll (p, fileNameRoot) ;
 
   isA = !isA ;
 }
+
+/*******************************/
 
 PBWT *pbwtRead (FILE *fp) 
 {
   int m, n ;
   PBWT *p ;
   static char tag[5] = "test" ;
+  int version ;
 
-  if (fread (tag, 1, 4, fp) != 4 || (strcmp (tag, "PBWT") && strcmp (tag, "GBWT"))) /* early versions wrote GBWT */
-    die ("failed to recognise file type in pbwtRead - was it written by pbwt?") ;
-  if (fread (&m, sizeof(int), 1, fp) != 1)
-    die ("error reading n in pbwtRead") ;
-  if (fread (&n, sizeof(int), 1, fp) != 1)
-    die ("error reading n in pbwtRead") ;
+  if (fread (tag, 1, 4, fp) != 4) die ("failed to read 4 char tag - is file readable?") ;
+  if (!strcmp (tag, "PBW2")) version = 2 ; /* current version */
+  else if (!strcmp (tag, "PBWT")) version = 1 ; /* without start, end indexes */
+  else if (!strcmp (tag, "GBWT")) version = 0 ; /* earliest version */
+  else die ("failed to recognise file type %s in pbwtRead - was it written by pbwt?") ;
+
+  if (fread (&m, sizeof(int), 1, fp) != 1) die ("error reading m in pbwtRead") ;
+  if (fread (&n, sizeof(int), 1, fp) != 1) die ("error reading n in pbwtRead") ;
   p = pbwtCreate (m) ;
   p->N = n ;
+  if (version > 1)		/* read aFstart and aFend */
+    { p->aFstart = myalloc (m, int) ;
+      if (fread (p->aFstart, sizeof(int), m, fp) != m) die ("error reading aFstart in pbwtRead") ;
+      p->aFend = myalloc (m, int) ;
+      if (fread (p->aFend, sizeof(int), m, fp) != m) die ("error reading aFstart in pbwtRead") ;
+    }
+  else				/* set aFstart to 0..M-1, leave aFend empty */
+    { p->aFstart = myalloc (m, int) ;
+      int i ; for (i = 0 ; i < m ; ++i) p->aFstart[i] = i ;
+    }
   if (fread (&n, sizeof(int), 1, fp) != 1)
     die ("error reading pbwt file") ;
   p->yz = arrayCreate (n, uchar) ;
@@ -110,43 +177,41 @@ PBWT *pbwtRead (FILE *fp)
   return p ;
 }
 
-static BOOL readMatchChrom (PBWT *p, FILE *fp)
+static BOOL readMatchChrom (char **pChrom, FILE *fp)
 {
-  char *chrom = fgetword (fp) ;
+  char *newChrom = fgetword (fp) ;
 
-  if (strcmp (chrom, "."))
-    if (!p->chrom) 
-      p->chrom = strdup (chrom) ;
-    else if (strcmp (chrom, p->chrom))
+  if (strcmp (newChrom, "."))
+    if (!*pChrom) 
+      *pChrom = strdup (newChrom) ;
+    else if (strcmp (newChrom, *pChrom))
       return FALSE ;
   return TRUE ;
 }
 
-void pbwtReadSites (PBWT *p, FILE *fp)
+Array pbwtReadSitesFile (FILE *fp, char **chrom)
 {
-  int n = 0, i ;
-  char *chrom, c ;
+  char c ;
   Site *s ;
   int line = 1 ;
   Array varTextArray = arrayCreate (256, char) ;
+  Array sites = arrayCreate (4096, Site) ;
 
-  if (!p) die ("pbwtReadSites called without a valid pbwt") ;
-
-  p->sites = arrayReCreate (p->sites, p->N, Site) ;
   while (!feof(fp))
-    if (readMatchChrom (p, fp))	/* if p->chrom then match, else set if not "." */
+    if (readMatchChrom (chrom, fp))	/* if p->chrom then match, else set if not "." */
       { if (feof(fp)) break ;
-	s = arrayp(p->sites, n++, Site) ;
+	s = arrayp(sites, arrayMax(sites), Site) ;
 	s->x = 0 ; while (isdigit(c = fgetc(fp))) s->x = s->x*10 + (c-'0') ;
 	if (!feof(fp) && c != '\n')
 	  { if (!isspace (c)) die ("bad position line %d in sites file", line) ;
 	    while (isspace(c = fgetc(fp)) && c != '\n') ;
 	    if (c == '\n') die ("bad end of line at line %d in sites file", line) ;
-	    i = 0 ; array(varTextArray, i++, char) = c ;
-	    while ((c = fgetc(fp)) && c != '\n') array(varTextArray, i++, char) = c ;
+	    int i = 0 ; array(varTextArray, i++, char) = c ;
+	    while ((c = fgetc(fp)) && !isspace(c) && c != '\n') 
+	      array(varTextArray, i++, char) = c ;
 	    array(varTextArray, i, char) = 0 ;
-	    if (!p->variationDict) p->variationDict = dictCreate(32) ;
-	    dictAdd (p->variationDict, arrayp(varTextArray,0,char), &s->varD) ;
+	    dictAdd (variationDict, arrayp(varTextArray,0,char), &s->varD) ;
+	    while (c != '\n' && !feof(fp)) c = fgetc(fp) ;
 	  }
 	++line ;
       }
@@ -155,49 +220,124 @@ void pbwtReadSites (PBWT *p, FILE *fp)
 
   if (ferror (fp)) die ("error reading sites file") ;
   
-  if (n != p->N)
-    { fprintf (stderr, "sites file contains %d sites not %d as in pbwt - reject these sites\n",
-	       n, p->N) ;
-      arrayDestroy (p->sites) ; p->sites = 0 ;
-    }
-  else
-    fprintf (stderr, "read %d sites from file\n", n) ;
+  fprintf (stderr, "read %d sites on chromosome %s from file\n", arrayMax(sites), *chrom) ;
 
   arrayDestroy (varTextArray) ;
+  return sites ;
 }
 
-void pbwtReadSamples (PBWT *p, FILE *fp) /* for now assume all samples diploid */
+void pbwtReadSites (PBWT *p, FILE *fp)
+{
+  if (!p) die ("pbwtReadSites called without a valid pbwt") ;
+
+  p->sites = pbwtReadSitesFile (fp, &p->chrom) ;
+  if (arrayMax(p->sites) != p->N)
+    die ("sites file contains %d sites not %d as in pbwt", arrayMax(p->sites), p->N) ;
+}
+
+Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
+/* should add code to this to read father and mother and population
+   propose to use IMPUTE2 format for this */
 {
   char *name, c ;
   int line = 0 ;
-  int i = 0, n ;
   Array nameArray = arrayCreate (1024, char) ;
-
-  if (!p) die ("pbwtReadSamples called without a valid pbwt") ;
-
-  p->samples = arrayReCreate (p->samples, p->M/2, Site) ;
-  if (!p->sampleNameDict) p->sampleNameDict = dictCreate (p->M/2) ;
+  Array samples = arrayCreate (1024, int) ;
 
   while (!feof(fp))
-    { ++line ;
-      n = 0 ;
+    { int n = 0 ;
       while ((c = getc(fp)) && !isspace(c) && !feof (fp)) array(nameArray, n++, char) = c ;
       if (feof(fp)) break ;
-      if (!n) die ("no name line %d in samples file", line) ;
+      if (!n) die ("no name line %d in samples file", arrayMax(samples)+1) ;
       array(nameArray, n++, char) = 0 ;
-      dictAdd (p->sampleNameDict, arrp(nameArray,0,char), 
-	       &(arrayp(p->samples, i, Sample)->nameD)) ;
-      arrayp(p->samples, i+1, Sample)->nameD = arrp(p->samples, i, Sample)->nameD ;
-      i += 2 ;
+      /* next bit of code deals with header lines for IMPUTE2 samples file, so can read that */
+      if (!strcmp (arrp(nameArray,0,char), "ID_1") && !arrayMax(samples))
+	{ while ((c = getc(fp)) && c != '\n' && !feof(fp)) ; /* remove header line */
+	  while ((c = getc(fp)) && c != '\n' && !feof(fp)) ; /* and next line of zeroes?? */
+	  continue ;
+	}
+      array(samples,arrayMax(samples),int) = sampleAdd (arrp(nameArray,0,char), 0, 0, 0) ;
       /* now remove the rest of the line, for now */
       while (c != '\n' && !feof(fp)) c = getc(fp) ;
     }
-
-  fprintf (stderr, "read %d sample names\n", dictMax(p->sampleNameDict)) ;
-
-  if (i > p->M) die ("too many samples %d > %d in readSamples - for now assume diploid", i/2, p->M/2) ;
-
   arrayDestroy (nameArray) ;
+
+  fprintf (stderr, "read %d sample names\n", arrayMax(samples)) ;
+  if (isCheck)
+    { fprintf (stderr, "first five sample names are: ") ;
+      int i ; for (i = 0 ; i < 5 && i < arrayMax(samples) ; ++i)
+		fprintf (stderr, " %s", sampleName(arr(samples,i,int))) ;
+      putc ('\n', stderr) ;
+    }
+
+  return samples ;
+}
+
+void pbwtReadSamples (PBWT *p, FILE *fp)
+{
+  Array samples = pbwtReadSamplesFile (fp) ;
+  if (arrayMax(samples) != p->M/2) 
+    die ("wrong number of diploid samples: %d needed", p->M/2) ;
+  p->samples = arrayReCreate(p->samples, p->M, int) ;
+  int i ; 
+  for (i = 0 ; i < arrayMax(samples) ; ++i)
+    { array(p->samples, 2*i, int) = arr(samples, i, int) ;
+      array(p->samples, 2*i+1, int) = arr(samples, i, int) ;
+    }
+  arrayDestroy (samples) ;
+}
+
+void pbwtReadMissing (PBWT *p, FILE *fp)
+{
+  if (!p) die ("pbwtReadSamples called without a valid pbwt") ;
+
+  int n ; if (fread (&n, sizeof(int), 1, fp) != 1)
+    die ("error reading n in pbwtReadMissing") ;
+  p->zMissing = arrayReCreate (p->zMissing, n, uchar) ;
+  if (fread (arrp(p->zMissing, 0, uchar), sizeof(uchar), n, fp) != n)
+    die ("error reading zMissing in pbwtReadMissing") ;
+  array(p->zMissing, n-1, uchar) ; /* forces setting max correctly - not sure if needed */
+  p->missing = arrayReCreate (p->missing, p->N, int) ;
+  if (fread (arrp(p->missing, 0, int), sizeof(int), p->N, fp) != p->N)
+    die ("error reading missing in pbwtReadMissing") ;
+
+  fprintf (stderr, "read %d chars compressed missing data\n", n) ;
+}
+
+void pbwtReadReverse (PBWT *p, FILE *fp)
+{
+  if (!p) die ("pbwtReadReverse called without a valid pbwt") ;
+
+  PBWT *q = pbwtRead (fp) ;
+  if (q->M != p->M || q->N != p->N)
+    die ("M %d or N %d in reverse don't match %, %d in forward", q->M, q->N, p->M, p->N) ;
+  p->zz = q->yz ; q->yz = 0 ;
+  p->aRstart = q->aFstart ; q->aFstart = 0 ;
+  p->aRend = q->aFend ; q->aFend = 0 ;
+  pbwtDestroy (q) ;
+ }
+
+#define FOPEN_R(tag)  strcpy (fileNameLeaf, tag), (fp = fopen (fileName, "r"))
+
+PBWT *pbwtReadAll (char *fileNameRoot)
+{
+  PBWT *p ;
+
+  char *fileName = myalloc (strlen (fileNameRoot) + 32, char) ;
+  strcpy (fileName, fileNameRoot) ;
+  strcat (fileName, ".") ;
+  char *fileNameLeaf = fileName + strlen(fileName) ;
+
+  FILE *fp ;
+  if (FOPEN_R ("pbwt")) { p = pbwtRead (fp) ; fclose (fp) ; } 
+  else die ("failed to open %s", fileName) ;
+  if (FOPEN_R("sites")) { pbwtReadSites (p, fp) ; fclose (fp) ; }
+  if (FOPEN_R("samples")) { pbwtReadSamples (p, fp) ; fclose (fp) ; }
+  if (FOPEN_R("missing")) { pbwtReadMissing (p, fp) ; fclose (fp) ; }
+  if (FOPEN_R("reverse")) { pbwtReadReverse (p, fp) ; fclose (fp) ; }
+
+  free (fileName) ;
+  return p ;
 }
 
 /****************** MaCS file parsing *****************/
@@ -243,45 +383,21 @@ PBWT *pbwtReadMacs (FILE *fp)
   double L ;
   int i,j, nxPack, nyPack, nUnpack, n0 ;
   int nxTot = 0, nyTot = 0 ;
-  uchar *x, *yz, *y2 ;		/* original, sorted, compressed, uncompressed */
+  uchar *x ;
   int *a ;
   PbwtCursor *u ;
 
   parseMacsHeader (fp, &M, &L) ;
   p = pbwtCreate (M) ;
-  u = pbwtCursorCreate (M, 0) ;
-  x = myalloc (M+1, uchar) ; x[M] = Y_SENTINEL ;	/* sentinel required for packing */
-  yz = myalloc (M, uchar) ;
-  y2 = myalloc (M, uchar) ;
-
   p->sites = arrayCreate(4096, Site) ;
   p->yz = arrayCreate(4096*32, uchar) ;
   p->N = 0 ;
+  u = pbwtCursorCreate (p, TRUE, TRUE) ;
+  x = myalloc (M+1, uchar) ; x[M] = Y_SENTINEL ;	/* sentinel required for packing */
+
   while (parseMacsSite (fp, arrayp(p->sites,p->N,Site), M, L, x))
     { for (j = 0 ; j < M ; ++j) u->y[j] = x[u->a[j]] ; /* next character in sort order: BWT */
-      nyPack = pack3 (u->y, M, yz) ;
-      for (j = 0 ; j < nyPack ; ++j) array(p->yz,arrayMax(p->yz),uchar) = yz[j] ;
-      pbwtCursorForwardsA (u) ;
-      if (isCheck)
-	{ int nx0 = 0 ;
-	  nUnpack = unpack3 (yz, M, y2, &n0) ;
-	  for (j = 0 ; j < M ; j++)
-	    if (y2[j] != u->y[j])
-	      die ("Mismatch y2:%d != y:%d at %d line %d", y2[j], u->y[j], j, i) ;
-	  if (nUnpack != nyPack)
-	    die ("Unpack %d is not equal to pack %d line %d", nUnpack, nyPack, i) ;
-	  for (j = 0 ; j < M ; ++j) if (!x[j]) ++nx0 ;
-	  if (nx0 != n0)
-	    die ("Mismatch nx0:%d != n0:%d line %d", nx0, n0) ;
-      	}
-      if (isStats)
-	{ if (!isCheck) nUnpack = unpack3 (yz, M, y2, &n0) ;
-	  nxPack = pack3 (x, M, yz) ;
-	  printf ("Site\t%d\t%d\t%d\t%d\t%d\n", 
-		  p->N, arrp(p->sites,p->N,Site)->x, M-n0, nxPack, nyPack) ;
-	  nxTot += nxPack ;
-	  nyTot += nyPack ;
-      	}
+      pbwtCursorWriteForwards (u) ;
       p->N++ ;
       if (nCheckPoint && !(p->N % nCheckPoint))
 	pbwtCheckPoint (p) ;
@@ -291,7 +407,7 @@ PBWT *pbwtReadMacs (FILE *fp)
   if (isStats)
     fprintf (stderr, "                xtot, ytot are\t%d\t%d\n", nxTot, nyTot) ;
 
-  free(x) ; free (yz) ; free (y2) ; pbwtCursorDestroy (u) ;
+  free(x) ; pbwtCursorDestroy (u) ;
 
   return p ;
 }
@@ -313,7 +429,7 @@ static char* getVariation (FILE *fp)
   return arrp(a,0,char) ;
 }
 
-static BOOL parseVcfqSite (PBWT **pp, FILE *fp, Array x) /* parse VCFQ line */
+static BOOL parseVcfqLine (PBWT **pp, FILE *fp, Array x)
 {
   char c, *chrom, *var ;
   int pos, m, len ;
@@ -323,7 +439,7 @@ static BOOL parseVcfqSite (PBWT **pp, FILE *fp, Array x) /* parse VCFQ line */
   if (!p)			/* first call on a file - don't know M yet */
     chrom = strdup (fgetword (fp)) ;
   else
-    while (!feof (fp) && !readMatchChrom (p, fp))
+    while (!feof (fp) && !readMatchChrom (&p->chrom, fp))
       while (!feof (fp) && (getc (fp) != '\n')) ; /* ignore rest of line */
   if (feof (fp)) return 0 ;
 
@@ -347,48 +463,109 @@ static BOOL parseVcfqSite (PBWT **pp, FILE *fp, Array x) /* parse VCFQ line */
   if (!*pp)
     { p = *pp = pbwtCreate (m) ;
       if (strcmp (chrom, ".")) p->chrom = chrom ;
-      p->variationDict = dictCreate (32) ;
       p->sites = arrayCreate(4096, Site) ;
       array(x,p->M,uchar) = Y_SENTINEL ; /* sentinel required for packing */
     }
   s = arrayp(p->sites, arrayMax(p->sites), Site) ;
   s->x = pos ;
-  dictAdd (p->variationDict, var, &s->varD) ;
+  dictAdd (variationDict, var, &s->varD) ;
 
   ++p->N ;
   return TRUE ;
 }
 
-PBWT *pbwtReadVcfq (FILE *fp)
+typedef BOOL (*ParseLineFunc)(PBWT** pp, FILE *f, Array a) ;
+
+static PBWT *pbwtReadLineFile (FILE *fp, char* type, ParseLineFunc parseLine)
 {
   PBWT *p = 0 ;
-  int j, nyPack ;
-  uchar *x, *yz ;		/* original, sorted, compressed */
+  int j ;
+  uchar *x ;		/* original, sorted, compressed */
   int *a ;
   Array xArray = arrayCreate (10000, uchar) ;
   PbwtCursor *u ;
 
-  while (parseVcfqSite (&p, fp, xArray)) /* create p first time round */
+  while ((*parseLine) (&p, fp, xArray)) /* create p first time round */
     { if (!p->yz)		/* first line; p was just made! */
 	{ p->yz = arrayCreate(4096*32, uchar) ;
-	  yz = myalloc (p->M, uchar) ;
-	  u = pbwtCursorCreate (p->M, 0) ;
+	  u = pbwtCursorCreate (p, TRUE, TRUE) ;
 	}
       x = arrp(xArray,0,uchar) ;
       for (j = 0 ; j < p->M ; ++j) u->y[j] = x[u->a[j]] ;
-      nyPack = pack3 (u->y, p->M, yz) ;
-      for (j = 0 ; j < nyPack ; ++j) array(p->yz,arrayMax(p->yz),uchar) = yz[j] ;
-      pbwtCursorForwardsA (u) ;
-      if (nCheckPoint && !(p->N % nCheckPoint))
-	pbwtCheckPoint (p) ;
+      pbwtCursorWriteForwards (u) ;
+      if (nCheckPoint && !(p->N % nCheckPoint))	pbwtCheckPoint (p) ;
     }
 
-  fprintf (stderr, "read vcfq file") ;
+  fprintf (stderr, "read %s file", type) ;
   if (p->chrom) fprintf (stderr, " for chromosome %s", p->chrom) ;
   fprintf (stderr, ": M, N are\t%d\t%d; yz length is %d\n", p->M, p->N, arrayMax(p->yz)) ;
 
-  arrayDestroy(xArray) ; free (yz) ; pbwtCursorDestroy (u) ;
+  arrayDestroy(xArray) ; pbwtCursorDestroy (u) ;
 
+  return p ;
+}
+
+PBWT *pbwtReadVcfq (FILE *fp) { return pbwtReadLineFile (fp, "vcfq", parseVcfqLine) ; }
+
+/*************** read impute2 .gen format - contains sites not samples **********/
+
+static long int nGenMissing ;
+
+static BOOL parseGenLine (PBWT **pp, FILE *fp, Array x) /* based on parseVcfqLine() */
+{
+  char c, *chrom, *var ;
+  int pos, m, len ;
+  Site *s ;
+  PBWT *p = *pp ;
+
+  if (!p)			/* first call on a file - don't know M yet */
+    chrom = strdup (fgetword (fp)) ;
+  else if (!readMatchChrom (&p->chrom, fp))
+    if (feof (fp)) return FALSE ;
+    else die ("failed to match chromosome in parseGenLine") ;
+
+  pos = atoi (fgetword (fp)) ; fgetword (fp) ; /* ignore second position */
+  var = getVariation (fp) ; /* but need to change ' ' separator to '\t' */
+  char *cp = var ; while (*cp && *cp != ' ') ++cp ; if (*cp == ' ') *cp = '\t' ; else die ("missing separator in gen line") ;
+
+  m = 0 ; char term = ' ' ;
+  while (!feof(fp) && term != '\n')
+    { char c1 = getc(fp) ; if (c1 == '\n') break ; /* needed to handle trailing blank */
+      c1 -= '0' ; if (getc(fp) != ' ') die ("error in gen file at %d line %d", m, p ? p->N : 0) ;
+      char c2 = getc(fp) - '0'; if (getc(fp) != ' ') die ("error in gen file at %d line %d", m, p ? p->N : 0) ;
+      char c3 = getc(fp) - '0' ; term = getc(fp) ;
+      if (c1 + c2 + c3 == 0)	/* missing genotype */
+	{ c1 = 1 ; ++nGenMissing ; }
+      if (c1 + c2 + c3 != 1) 
+	die ("inconsistent genotype in gen file: %d %d %d at %d line %d", 
+	     c1, c2, c3, m, p ? p->N : 0) ;
+      if (c1) { array(x,m++,uchar) = 0 ; array(x,m++,uchar) = 0 ; }
+      else if (c2) { array(x,m++,uchar) = 0 ; array(x,m++,uchar) = 1 ; }
+      else /*c3 == 1 */ { array(x,m++,uchar) = 1 ; array(x,m++,uchar) = 1 ; }
+    }
+
+  if (feof (fp)) return FALSE ;
+  if (p && m != p->M) die ("length mismatch reading vcfq line") ;
+
+  if (!*pp)
+    { p = *pp = pbwtCreate (m) ;
+      if (strcmp (chrom, ".")) p->chrom = chrom ;
+      p->sites = arrayCreate(4096, Site) ;
+      array(x,p->M,uchar) = Y_SENTINEL ; /* sentinel required for packing */
+    }
+  s = arrayp(p->sites, arrayMax(p->sites), Site) ;
+  s->x = pos ;
+  dictAdd (variationDict, var, &s->varD) ;
+
+  ++p->N ;
+  return TRUE ;
+}
+
+PBWT *pbwtReadGen (FILE *fp) 
+{ 
+  nGenMissing = 0 ;
+  PBWT *p = pbwtReadLineFile (fp, "gen", parseGenLine) ; 
+  if (nGenMissing) fprintf (stderr, "%ld missing genotypes set to 00\n", nGenMissing) ;
   return p ;
 }
 
@@ -398,14 +575,13 @@ void pbwtWriteHaplotypes (FILE *fp, PBWT *p)
 {
   int i, j, n = 0, M = p->M ;
   uchar *hap = myalloc (M, uchar) ;
-  PbwtCursor *u = pbwtCursorCreate (M, 0) ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
 
   for (i = 0 ; i < p->N ; ++i)
-    { n += unpack3 (arrp(p->yz,n,uchar), M, u->y, 0) ;
-      for (j = 0 ; j < M ; ++j) hap[u->a[j]] = u->y[j] ;
+    { for (j = 0 ; j < M ; ++j) hap[u->a[j]] = u->y[j] ;
       for (j = 0 ; j < M ; ++j) putc (hap[j]?'1':'0', fp) ;
       putc ('\n', fp) ; fflush (fp) ;
-      pbwtCursorForwardsA (u) ;
+      pbwtCursorForwardsRead (u) ;
     }
   free (hap) ; pbwtCursorDestroy (u) ;
 

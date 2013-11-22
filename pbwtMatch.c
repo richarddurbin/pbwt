@@ -15,7 +15,7 @@
  * Description: match functions in pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: May 10 00:26 2013 (rd)
+ * Last edited: Nov 18 09:23 2013 (rd)
  * Created: Thu Apr  4 11:55:48 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -125,11 +125,11 @@ static void reportMaximalMatches1 (PbwtCursor *u, int k, BOOL isInternal)
 
 void pbwtLongMatches (PBWT *p, int L) /* reporting threshold L - if 0 then maximal */
 {
-  int k, n = 0 ;
-  PbwtCursor *u = pbwtCursorCreate (p->M, 0) ;
+  int k ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
 
   if (!p || !p->yz) die ("option -longWithin called without a PBWT") ;
-  if (L <= 0) die ("L %d for longWithin must be >0", L) ;
+  if (L < 0) die ("L %d for longWithin must be >= 0", L) ;
 
   if (isCheck) { checkHap = pbwtHaplotypes(p) ; Ncheck = p->N ; }
 
@@ -137,12 +137,11 @@ void pbwtLongMatches (PBWT *p, int L) /* reporting threshold L - if 0 then maxim
     matchLengthHist = arrayReCreate (matchLengthHist, 1000000, int) ;
 
   for (k = 0 ; k < p->N ; ++k)
-    { n += unpack3 (arrp(p->yz,n,uchar), p->M, u->y, 0) ;
-      if (L)
+    { if (L)
 	reportLongMatches2 (u, k-L, k, TRUE) ;
       else
 	reportMaximalMatches1 (u, k, TRUE) ;
-      pbwtCursorForwardsADU (u, k) ;
+      pbwtCursorForwardsReadADU (u, k) ;
     }
   if (L)
     reportLongMatches2 (u, p->N - L, p->N, FALSE) ;
@@ -243,11 +242,11 @@ void matchSequencesIndexed (PBWT *p, FILE *fp)
   uchar **query = pbwtHaplotypes (q) ; /* make the query sequences */
   uchar **reference = pbwtHaplotypes (p) ; /* haplotypes for reference */
   uchar *x, *y ;                /* use for current query, and selected reference query */
-  PbwtCursor *up = pbwtCursorCreate (p->M, 0) ;
+  PbwtCursor *up = pbwtCursorCreate (p, TRUE, TRUE) ;
   int **a, **d, **u ;		/* stored indexes */
   int e, f, g ;			/* start of match, and pbwt interval as in algorithm 5 */
   int e1, f1, g1 ;		/* next versions of the above, e' etc in algorithm 5 */
-  int i, j, k, n = 0, N = p->N, M = p->M ;
+  int i, j, k, N = p->N, M = p->M ;
   int totLen = 0, nTot = 0 ;
 
   if (q->N != p->N) die ("query length in matchSequences %d != PBWT length %d", q->N, p->N) ;
@@ -257,12 +256,12 @@ void matchSequencesIndexed (PBWT *p, FILE *fp)
   a = myalloc (N+1,int*) ; for (i = 0 ; i < N+1 ; ++i) a[i] = myalloc (p->M, int) ;
   d = myalloc (N+1,int*) ; for (i = 0 ; i < N+1 ; ++i) d[i] = myalloc (p->M+1, int) ;
   u = myalloc (N,int*) ; for (i = 0 ; i < N ; ++i) u[i] = myalloc (p->M+1, int) ;
-  p->c = myalloc (p->N, int) ;
+  int *cc = myalloc (p->N, int) ;
   for (k = 0 ; k < N ; ++k)
-    { n += unpack3 (arrp(p->yz,n,uchar), M, up->y, &p->c[k]) ;
-      memcpy (a[k], up->a, M*sizeof(int)) ;
+    { memcpy (a[k], up->a, M*sizeof(int)) ;
       memcpy (d[k], up->d, (M+1)*sizeof(int)) ;
-      pbwtCursorForwardsADU (up, k) ;
+      cc[k] = up->c ;
+      pbwtCursorForwardsReadADU (up, k) ;
       memcpy (u[k], up->u, (M+1)*sizeof(int)) ;
     }
   memcpy (a[k], up->a, M*sizeof(int)) ;
@@ -278,8 +277,8 @@ void matchSequencesIndexed (PBWT *p, FILE *fp)
       e = 0 ; f = 0 ; g = M ;
       for (k = 0 ; k < N ; ++k)
 	{               /* use classic FM updates to extend [f,g) interval to next position */
-	  f1 = x[k] ? p->c[k] + (f - u[k][f]) : u[k][f] ;
-	  g1 = x[k] ? p->c[k] + (g - u[k][g]) : u[k][g] ; 
+	  f1 = x[k] ? cc[k] + (f - u[k][f]) : u[k][f] ;
+	  g1 = x[k] ? cc[k] + (g - u[k][g]) : u[k][g] ; 
 	  		/* if the interval is non-zero we can just proceed */
 	  if (g1 > f1)
 	    { f = f1 ; g = g1 ; } /* no change to e */
@@ -318,6 +317,7 @@ void matchSequencesIndexed (PBWT *p, FILE *fp)
 	   nTot/(double)q->M, totLen/(double)nTot) ;
 
   /* cleanup */
+  free (cc) ;
   for (j = 0 ; j < q->M ; ++j) free(query[j]) ; free (query) ;
   pbwtDestroy (q) ;
   for (j = 0 ; j < p->M ; ++j) free(reference[j]) ; free (reference) ;
@@ -366,9 +366,9 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
   Array mInfo = arrayCreate (q->M, MatchInfo) ;
   int i, j, k, M = p->M, N = p->N ;
   int e1, f1, g1 ;		/* new values as in algorithm 5 e', f', g' */
-  int ny = 0, c ;
+  int c, *cc ;
   uchar *y ;
-  PbwtCursor *u = pbwtCursorCreate (M, 0) ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
   MatchInfo *m ;
   uchar **reference ;		/* haplotypes for reference; only made when checking */
   int *oldA = myalloc (M, int) ;
@@ -392,19 +392,18 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
       m->nz = arrayMax(p->zz) ;
 #endif
     }
-  if (!p->c) p->c = myalloc (N, int) ;
+  cc = myalloc (N, int) ;	/* used to store u->c values */
 
 			/* outer loop is now single sweep through pbwt */
   for (k = 0 ; k < N ; ++k)
-    { ny += unpack3 (arrp(p->yz,ny,uchar), M, u->y, &p->c[k]) ;
-      memcpy (oldA, u->a, M*sizeof(int)) ;
-      pbwtCursorForwardsADU (u, k) ;
+    { memcpy (oldA, u->a, M*sizeof(int)) ; cc[k] = u->c ; int ny = u->n ;
+      pbwtCursorForwardsReadADU (u, k) ; /* do this here because need new u */
       			/* next loop over queries */
       for (j = 0 ; j < q->M ; ++j)
 	{ m = arrp(mInfo,j,MatchInfo) ;
 			/* use classic FM updates to extend [f,g) interval to next position */
-	  f1 = m->x[k] ?  p->c[k] + (m->f - u->u[m->f]) : u->u[m->f] ;
-	  g1 = m->x[k] ?  p->c[k] + (m->g - u->u[m->g]) : u->u[m->g] ;
+	  f1 = m->x[k] ?  cc[k] + (m->f - u->u[m->f]) : u->u[m->f] ;
+	  g1 = m->x[k] ?  cc[k] + (m->g - u->u[m->g]) : u->u[m->g] ;
 	  		/* if the interval is non-zero we can just proceed */
 	  if (g1 > f1)
 	    { m->f = f1 ; m->g = g1 ; /* no change to e */
@@ -433,7 +432,7 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
 		    }
 		  else		/* have to track back f1 to e1 */
 		    { int ny2 = ny, kk = k, f2 = f1 ; uchar z ;
-		      do ny2 -= extendPackedBackwards (arrp(p->yz,ny2,uchar), M, &f2, p->c[kk], &z) ;
+		      do ny2 -= extendPackedBackwards (arrp(p->yz,ny2,uchar), M, &f2, cc[kk], &z) ;
 		      while (m->x[kk--] == z) ;
 		      e1 = kk + 2 ;
 		    }
@@ -447,7 +446,7 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
 		    }
 		  else		/* have to track back f1 to e1 */
 		    { int ny2 = ny, kk = k, f2 = f1 ; uchar z = m->x[k] ;
-		      do ny2 -= extendPackedBackwards (arrp(p->yz,ny2,uchar), M, &f2, p->c[kk], &z) ;
+		      do ny2 -= extendPackedBackwards (arrp(p->yz,ny2,uchar), M, &f2, cc[kk], &z) ;
 		      while (m->x[kk--] == z) ;
 		      e1 = kk + 2 ;
 		    }
@@ -475,7 +474,7 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
   		/* cleanup */
   for (j = 0 ; j < q->M ; ++j) free(query[j]) ; free (query) ;
   pbwtDestroy (q) ;
-  free (oldA) ;
+  free (oldA) ; free (cc) ;
   pbwtCursorDestroy (u) ;
   if (isCheck) { for (j = 0 ; j < p->M ; ++j) free(reference[j]) ; free (reference) ; }
 }
@@ -484,6 +483,7 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
    to program, and this implementation is incomplete.  I am not sure what the complexity is.
 */
 
+#ifdef HENGLI
 void matchSequencesHL (PBWT *p, FILE *fp)
 /* ********** INCOMPLETE !! ************ */
 {
@@ -553,5 +553,7 @@ void matchSequencesHL (PBWT *p, FILE *fp)
   if (isCheck)
     { for (j = 0 ; j < p->M ; ++j) free(haps[j]) ; free (haps) ; }
 }
+
+#endif	/* HENGLI */
 
 /******************* end of file *******************/

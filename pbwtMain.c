@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Oct 17 14:15 2013 (rd)
+ * Last edited: Nov 16 21:35 2013 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -26,16 +26,14 @@
 
 static void prettyPlot (PBWT *p, FILE *fp, int K)
 {
-  int i, j, n = 0, M = p->M ;
-  PbwtCursor *u = pbwtCursorCreate (M, 0) ;
+  int i, j ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
   uchar **hap = pbwtHaplotypes (p) ;
 
   for (i = 0 ; i < K ; ++i)
-    { n += unpack3 (arrp(p->yz,n,uchar), M, u->y, 0) ;
-      pbwtCursorForwardsA (u) ;
-    }
+    pbwtCursorForwardsRead (u) ;
 
-  for (j = 0 ; j < M ; ++j)
+  for (j = 0 ; j < p->M ; ++j)
     { for (i = K-100 ; i < K ; i++)
 	putc (hap[u->a[j]][i]?'1':'0', fp) ;
       putc (' ',fp) ; putc (hap[u->a[j]][i++]?'1':'0', fp) ; putc (' ',fp) ;
@@ -46,12 +44,42 @@ static void prettyPlot (PBWT *p, FILE *fp, int K)
   pbwtCursorDestroy (u) ;
 }
 
+/*********************************************************/
+
+static void exportSiteInfo (PBWT *p, FILE *fp, int f1, int f2)
+/* print out d[] and y[] for sites with f1 <= f < f2 */
+{
+  int i, j, f, n = 0 ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
+
+  for (i = 0 ; i < p->N ; ++i)
+    { f = p->M - u->c ;		/* number of 1s not 0s */
+      if (f1 <= f && f < f2)	/* then print it out */
+	{ for (j = 0 ; j < p->M ; ++j)
+	    fprintf (fp, "%d %d ", u->y[j], i - u->d[j]) ;
+	  fprintf (fp, "\n") ;
+	  ++n ;
+	}
+      pbwtCursorForwardsReadADU (u, i) ;
+    }
+  pbwtCursorDestroy (u) ;
+  fprintf (stderr, "%d rows exported with allele count f, %d <= f < %d\n", n, f1, f2) ;
+}
+
+/*******************************************/
+
+static void bioinformaticsReviewerExample (void)
+{
+  PBWT *p = pbwtCreate(4) ;
+  
+}
+
 /************ AF distribution **************/
 
 static void siteFrequencySpectrum (PBWT *p)
 {
-  int i, j, n = 0, M = p->M, c ;
-  PbwtCursor *u = pbwtCursorCreate (M, 0) ;
+  int i, j, n ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
   Array hist = arrayCreate (p->M, int) ;
   int thresh[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9,
 		   10, 20, 30, 40, 50, 60, 70, 80, 90,
@@ -64,9 +92,8 @@ static void siteFrequencySpectrum (PBWT *p)
   timeUpdate() ;
 
   for (i = 0 ; i < p->N ; ++i)
-    { n += unpack3 (arrp(p->yz,n,uchar), M, u->y, &c) ;
-      pbwtCursorForwardsA (u) ;
-      ++array(hist,p->M-c,int) ;
+    { ++array(hist, p->M - u->c, int) ;
+      pbwtCursorForwardsRead (u) ;
     }
 
   n = 0 ; j = 0 ;
@@ -102,31 +129,44 @@ int main (int argc, char *argv[])
       fprintf (stderr, "Commands:\n") ;
       fprintf (stderr, "  -check                    do various checks\n") ;
       fprintf (stderr, "  -stats                    print stats depending on commands; writes to stdout\n") ;
-      fprintf (stderr, "  -macs <file>              read MaCS output file; '-' for stdin\n") ;
-      fprintf (stderr, "  -readVcf <file>           read vcf or bcf file; '-' for stdin vcf only ; assume diploid!\n") ;
-      fprintf (stderr, "  -vcfq <file>              read VCFQ file; '-' for stdin\n") ;
-      fprintf (stderr, "  -haps <file>              write haplotype file; '-' for stdout\n") ;
-      fprintf (stderr, "  -write <file>             write pbwt file; '-' for stdout\n") ;
-      fprintf (stderr, "  -writeSites <file>        write sites file; '-' for stdout\n") ;
-      fprintf (stderr, "  -merge <file> ...         merge two or more pbwt files\n") ;
       fprintf (stderr, "  -read <file>              read pbwt file; '-' for stdin\n") ;
       fprintf (stderr, "  -readSites <file>         read sites file; '-' for stdin\n") ;
       fprintf (stderr, "  -readSamples <file>       read samples file; '-' for stdin\n") ;
-      fprintf (stderr, "  -checkpoint <n>           checkpoint writing every n sites\n") ;
+      fprintf (stderr, "  -readMissing <file>       read missing file; '-' for stdin\n") ;
+      fprintf (stderr, "  -readReverse <file>       read reverse file; '-' for stdin\n") ;
+      fprintf (stderr, "  -readAll <rootname>       read .pbwt and if present .sites, .samples, .missing\n") ;
+      fprintf (stderr, "  -readVcfGT <file>         read GTs from vcf or bcf file; '-' for stdin vcf only ; biallelic sites only - require diploid!\n") ;
+      fprintf (stderr, "  -readVcfPL <file>         read PLs from vcf or bcf file; '-' for stdin vcf only ; biallelic sites only - require diploid!\n") ;
+      fprintf (stderr, "  -readMacs <file>          read MaCS output file; '-' for stdin\n") ;
+      fprintf (stderr, "  -readVcfq <file>          read VCFQ file; '-' for stdin\n") ;
+      fprintf (stderr, "  -readGen <file>           read impute2 gen file; '-' for stdin\n") ;
+      fprintf (stderr, "  -checkpoint <n>           checkpoint every n sites while reading\n") ;
+      fprintf (stderr, "  -merge <file> ...         merge two or more pbwt files\n") ;
+      fprintf (stderr, "  -write <file>             write pbwt file; '-' for stdout\n") ;
+      fprintf (stderr, "  -writeSites <file>        write sites file; '-' for stdout\n") ;
+      fprintf (stderr, "  -writeSamples <file>      write samples file; '-' for stdout\n") ;
+      fprintf (stderr, "  -writeMissing <file>      write missing file; '-' for stdout\n") ;
+      fprintf (stderr, "  -writeReverse <file>      write reverse file; '-' for stdout\n") ;
+      fprintf (stderr, "  -writeAll <rootname>      write .pbwt and if present .sites, .samples, .missing\n") ;
+      fprintf (stderr, "  -haps <file>              write haplotype file; '-' for stdout\n") ;
       fprintf (stderr, "  -subsites <fmin> <frac>   subsample <frac> sites with AF > <fmin>\n") ;
       fprintf (stderr, "  -subsample <start> <n>    subsample <n> samples from index <start>\n") ;
       fprintf (stderr, "  -subrange <start> <end>   cut down to sites in [start,end)\n") ;
       fprintf (stderr, "  -corruptSites <p> <q>     randomise fraction q of positions at fraction p of sites, according to site frequency\n") ;
       fprintf (stderr, "  -corruptSamples <p> <q>   randomise fraction q of positions for fraction p of samples, according to site frequency\n") ;
+      fprintf (stderr, "  -selectSites <file>       select sites as in sites file\n") ;
+      fprintf (stderr, "  -selectSamples <file>     select samples as in samples file\n") ;
       fprintf (stderr, "  -longWithin <L>           find matches within set longer than L\n") ;
       fprintf (stderr, "  -maxWithin                find maximal matches within set\n") ;
-      fprintf (stderr, "  -maxNaive <file>          maximal match seqs in pbwt file to reference\n") ;
-      fprintf (stderr, "  -maxIndexed <file>        maximal match seqs in pbwt file to reference\n") ;
-      fprintf (stderr, "  -maxDynamic <file>        maximal match seqs in pbwt file to reference\n") ;
+      fprintf (stderr, "  -matchNaive <file>        maximal match seqs in pbwt file to reference\n") ;
+      fprintf (stderr, "  -matchIndexed <file>      maximal match seqs in pbwt file to reference\n") ;
+      fprintf (stderr, "  -matchDynamic <file>      maximal match seqs in pbwt file to reference\n") ;
       fprintf (stderr, "  -imputeExplore <n>        n'th impute test\n") ;
       fprintf (stderr, "  -phase <k> <n>            phase with method k and n sparse pbwts\n") ;
+      fprintf (stderr, "  -referencePhase <root>    phase new data against current pbwt as reference - only keep shared sites\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale)\n") ;
+      fprintf (stderr, "  -siteInfo <file> <kmin> <kmax> export PBWT information at sites with allele count kmin <= k < kmax\n") ;
       fprintf (stderr, "  -buildReverse             build reverse pbwt\n") ;
     }
 
@@ -138,10 +178,6 @@ int main (int argc, char *argv[])
       { isCheck = TRUE ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-stats"))
       { isStats = TRUE ; argc -= 1 ; argv += 1 ; }
-    else if (!strcmp (argv[0], "-macs") && argc > 1)
-      { if (p) pbwtDestroy (p) ; FOPEN("macs","r") ; p = pbwtReadMacs (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
-    else if (!strcmp (argv[0], "-vcfq") && argc > 1)
-      { if (p) pbwtDestroy (p) ; FOPEN("vcfq","r") ; p = pbwtReadVcfq (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-merge") && argc > 1)
     { 
         int i, nfiles = 0;
@@ -159,20 +195,44 @@ int main (int argc, char *argv[])
       { FOPEN("haps","w") ; pbwtWriteHaplotypes (fp, p) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-read") && argc > 1)
       { if (p) pbwtDestroy (p) ; FOPEN("read","r") ; p = pbwtRead (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
-    else if (!strcmp (argv[0], "-readVcf") && argc > 1)
-      { if (p) pbwtDestroy (p) ; p = pbwtReadVcf (argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readSites") && argc > 1)
       { FOPEN("readSites","r") ; pbwtReadSites (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readSamples") && argc > 1)
       { FOPEN("readSamples","r") ; pbwtReadSamples (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-readMissing") && argc > 1)
+      { FOPEN("readMissing","r") ; pbwtReadMissing (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-readReverse") && argc > 1)
+      { FOPEN("readReverse","r") ; pbwtReadReverse (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-readAll") && argc > 1)
+      { p = pbwtReadAll (argv[1]) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-readVcfGT") && argc > 1)
+      { if (p) pbwtDestroy (p) ; p = pbwtReadVcfGT (argv[1]) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-readVcfPL") && argc > 1)
+      { if (p) pbwtDestroy (p) ; p = pbwtReadVcfPL (argv[1]) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-readMacs") && argc > 1)
+      { if (p) pbwtDestroy (p) ; FOPEN("readMacs","r") ; p = pbwtReadMacs (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-readVcfq") && argc > 1)
+      { if (p) pbwtDestroy (p) ; FOPEN("readVcfq","r") ; p = pbwtReadVcfq (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-readGen") && argc > 1)
+      { if (p) pbwtDestroy (p) ; FOPEN("readGen","r") ; p = pbwtReadGen (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-write") && argc > 1)
       { FOPEN("write","w") ; pbwtWrite (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeSites") && argc > 1)
       { FOPEN("writeSites","w") ; pbwtWriteSites (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writeSamples") && argc > 1)
+      { FOPEN("writeSamples","w") ; pbwtWriteSamples (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writeMissing") && argc > 1)
+      { FOPEN("writeMissing","w") ; pbwtWriteMissing (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writeReverse") && argc > 1)
+      { FOPEN("writeReverse","w") ; pbwtWriteReverse (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writeAll") && argc > 1)
+      { pbwtWriteAll (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-checkpoint") && argc > 1)
       { nCheckPoint = atoi (argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-subsample") && argc > 2)
-      { p = pbwtSubSample (p, atoi(argv[1]), atoi(argv[2])) ; argc -= 3 ; argv += 3 ; }
+      { p = pbwtSubSampleInterval (p, atoi(argv[1]), atoi(argv[2])) ; argc -= 3 ; argv += 3 ; }
+    else if (!strcmp (argv[0], "-selectSamples") && argc > 2)
+      { FOPEN("selectSamples","r") ; p = pbwtSelectSamples (p, fp) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-subsites") && argc > 2)
       { p = pbwtSubSites (p, atof(argv[1]), atof(argv[2])) ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-subrange") && argc > 2)
@@ -181,16 +241,18 @@ int main (int argc, char *argv[])
       { p = pbwtCorruptSites (p, atof(argv[1]), atof(argv[2])) ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-corruptSamples") && argc > 2)
       { p = pbwtCorruptSamples (p, atof(argv[1]), atof(argv[2])) ; argc -= 3 ; argv += 3 ; }
+    else if (!strcmp (argv[0], "-buildReverse"))
+      { pbwtBuildReverse (p) ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-pretty") && argc > 2)
       { FOPEN("prettyPlot","w") ; prettyPlot (p, fp, atoi(argv[2])) ; FCLOSE ; argc -= 3 ; argv += 3 ; }
-    else if (!strcmp (argv[0], "-maximalWithin"))
+    else if (!strcmp (argv[0], "-siteInfo") && argc > 3)
+      { FOPEN("siteInfo","w") ; exportSiteInfo (p, fp, atoi(argv[2]), atoi(argv[3])) ; FCLOSE ; argc -= 4 ; argv += 4 ; }
+    else if (!strcmp (argv[0], "-sfs"))
+      { siteFrequencySpectrum (p) ; argc -= 1 ; argv += 1 ; }
+    else if (!strcmp (argv[0], "-maxWithin"))
       { pbwtLongMatches (p, 0) ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-longWithin") && argc > 1)
       { pbwtLongMatches (p, atoi(argv[1])) ; argc -= 2 ; argv += 2 ; }
-    else if (!strcmp (argv[0], "-buildReverse"))
-      { pbwtBuildReverse (p) ; argc -= 1 ; argv += 1 ; }
-    else if (!strcmp (argv[0], "-sfs"))
-      { siteFrequencySpectrum (p) ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-matchNaive") && argc > 1)
       { FOPEN("matchNaive","r") ; matchSequencesNaive (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-matchIndexed") && argc > 1)
@@ -201,13 +263,15 @@ int main (int argc, char *argv[])
       { imputeExplore (p, atoi(argv[1])) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-phase") && argc > 2)
       { p = phase (p, atoi(argv[1]), atoi(argv[2])) ; argc -= 3 ; argv += 3 ; }
+    else if (!strcmp (argv[0], "-referencePhase") && argc > 1)
+      { p = referencePhase (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else
       die ("unrecognised command %s\nType pbwt without arguments for help", *argv) ;
     timeUpdate() ;
   }
-  if (p) pbwtDestroy(p);
-	fgetword(NULL);	// to keep valgrind happy, free malloced memory
-  return 0;
+  if (p) pbwtDestroy(p) ;
+  fgetword (NULL) ;	// to keep valgrind happy, free malloced memory
+  return 0 ;
 }
 
 /******************* end of file *******************/

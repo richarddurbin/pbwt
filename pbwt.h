@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Oct 17 14:16 2013 (rd)
+ * Last edited: Nov 18 11:43 2013 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -31,89 +31,125 @@ typedef struct PBWTstruct {
   int M ;			/* number of samples */
   char* chrom ;			/* chromosome name */
   Array sites ;			/* array of Site */
-  DICT *variationDict ;		/* "xxx|yyy" where variation is from xxx to yyy in VCF */
-  Array samples ;		/* array of Sample */
-  DICT *sampleNameDict ;	/* as it says */
+  Array samples ;		/* array of int index into global samples */
   Array yz ;			/* compressed PBWT array of uchar */
+  int *aFstart, *aFend ;	/* start and end a[] index arrays for forwards cursor */
   Array zz ;			/* compressed reverse PBWT array of uchar */
-  int *za ;			/* this is the alphabetical sort order for the strings - made in buildReverse */
-  int *c ;			/* c[i] is number of 0s at site i */
+  int *aRstart, *aRend ;	/* start and end a[] index arrays for reverse cursor */
+  /* NB aRend is the lexicographic sort order for the data, and aFend the reverse lex order */
+  /* probably it is optimal to have aFstart == aRend and vice versa: to be done */
+  Array zMissing ;		/* compressed array of uchar - natural not sort order */
+  Array missing ;		/* site index into zMissing, 0 if no missing data at site */
 } PBWT ;
 
 /* philosophy is to be lazy about PBWT - only fill items for which we have info */
-/* NB using a DICT for variation means that identical variations use the same string */
 
 typedef struct SiteStruct {
   int x ;			/* position on chromosome */
   int varD ;			/* index in variationDict */
-  int f ;			/* number of 1s, < M */
 } Site ;
 
 typedef struct SampleStruct {
-  int nameD ;			/* index in sampleNameDict */
+  int nameD ;			/* index in sampleDict */
+  int father ;			/* index into samples */
+  int mother ;			/* index into samples */
+  int popD ;			/* index in populationDict */
 } Sample ;
 
 typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
   int M ;
-  uchar *y ;
-  int *a ;
-  int *d ;
-  int *u ;
+  Array z ;			/* packed byte array; if zero y needs loading from elsewhere */
+  int n ;			/* position in packed byte array */
+  BOOL isBlockEnd ;		/* TRUE if n is at end of next block, FALSE if at start */
+  uchar *y ;			/* current value in sort order */
+  int c ;			/* number of 0s in y */
+  int *a ;			/* index back to original order */
+  int *d ;			/* location of last match */
+  int *u ;			/* number of 0s up to and including this position */
   int *b ;			/* for local operations - no long term meaning */
   int *e ;			/* for local operations - no long term meaning */
 } PbwtCursor ;
 
-/* pbwt_core.c */
+/* pbwtCore.c */
 
 extern BOOL isCheck ;		/* when TRUE carry out various checks */
 extern BOOL isStats ;		/* when TRUE report stats in various places */
+extern DICT *variationDict ;	/* "xxx|yyy" where variation is from xxx to yyy in VCF */
+/* NB using a global DICT for variation means that identical variations use the same string */
 
 void pbwtInit (void) ;
 PBWT *pbwtCreate (int M) ;
 void pbwtDestroy (PBWT *p) ;
-PBWT *pbwtSubSample (PBWT *pOld, int start, int Mnew) ;
 PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac) ;
 PBWT *pbwtSubRange (PBWT *pOld, int start, int end) ;
 void pbwtBuildReverse (PBWT *p) ;
 uchar **pbwtHaplotypes (PBWT *p) ;
+PBWT *pbwtSelectSites (PBWT *pOld, Array sites) ;
 
 	/* operations to move forwards and backwards in the pbwt using the cursor structure */
 
-void pbwtCursorInitialise (PbwtCursor *u) ;
-PbwtCursor *pbwtCursorCreate (int M, int *aInit) ;
+PbwtCursor *pbwtCursorCreate (PBWT *p, BOOL isForwards, BOOL isStart) ;
+PbwtCursor *pbwtNakedCursorCreate (int M, int *aInit) ;
 void pbwtCursorDestroy (PbwtCursor *u) ;
 void pbwtCursorForwardsA (PbwtCursor *u) ; /* algorithm 1 in the manuscript */
-void pbwtCursorBackwardsA (PbwtCursor *u, int c) ; /* undo algorithm 1 */
+void pbwtCursorBackwardsA (PbwtCursor *u) ; /* undo algorithm 1 */
 void pbwtCursorForwardsADU (PbwtCursor *u, int k) ; /* algorithm 2 in the manuscript */
+void pbwtCursorForwardsRead (PbwtCursor *u) ; /* move forwards and read (unless at end) */
+void pbwtCursorForwardsReadADU (PbwtCursor *u, int k) ;
+void pbwtCursorReadBackwards (PbwtCursor *u) ; /* move backwards and read (unless at start) */
+void pbwtCursorWriteForwards (PbwtCursor *u) ; /* write then move forwards */
 
 	/* low level operations on packed PBWT, argument yzp in these calls */
 
 #define Y_SENTINEL 2			   /* needed to pack efficiently */
 int pack3 (uchar *yp, int M, uchar *yzp) ; /* pack M values from yp into yzp */
+int pack3arrayAdd (uchar *yp, int M, Array ayz) ; /* normally use this one */
 int unpack3 (uchar *yzp, int M, uchar *yp, int *n0) ; /* unpack M values from yzp into yp, return number of bytes used from yzp, if (n0) write number of 0s into *n0 */
 int packCountReverse (uchar *yzp, int M) ; /* return number of bytes to reverse one position */
 int extendMatchForwards (uchar *yzp, int M, uchar x, int *f, int *g) ; /* move hit interval f,g) forwards one position, matching x */
 int extendPackedForwards (uchar *yzp, int M, int *f, int c) ; /* move f forwards one position - c is number of 0s */
 int extendPackedBackwards (uchar *yzp, int M, int *f, int c, uchar *zp) ; /* move f backwards one position - write value into *zp if zp non-zero */
 
-/* pbwt_io.c */
+/* pbwtSample.c */
+
+void sampleInit (void) ;
+Sample *sample (int i) ;		/* give back Sample structure for sample i */
+int  sampleAdd (char* name, char *father, char *mother, char *pop) ;
+char* sampleName (int i) ;
+char* popName (int i) ;		/* give back population name for sample i */
+PBWT *pbwtSubSample (PBWT *pOld, Array select) ;
+PBWT *pbwtSubSampleInterval (PBWT *pOld, int start, int Mnew) ;
+PBWT *pbwtSelectSamples (PBWT *pOld, FILE *fp) ;
+
+/* pbwtIO.c */
 
 extern int nCheckPoint ;	/* if set non-zero write pbwt and sites files every n sites when parsing external files */
 
 void pbwtWrite (PBWT *p, FILE *fp) ; /* just writes packed PBWT p->yz */
-PBWT *pbwtRead (FILE *fp) ;
 void pbwtWriteSites (PBWT *p, FILE *fp) ;
+void pbwtWriteSamples (PBWT *p, FILE *fp) ;
+void pbwtWriteMissing (PBWT *p, FILE *fp) ;
+void pbwtWriteReverse (PBWT *p, FILE *fp) ;
+void pbwtWriteAll (PBWT *p, char *fileNameRoot) ;
+PBWT *pbwtRead (FILE *fp) ;
 void pbwtReadSites (PBWT *p, FILE *fp) ;
+Array pbwtReadSamplesFile (FILE *fp) ;
 void pbwtReadSamples (PBWT *p, FILE *fp) ;
+void pbwtReadMissing (PBWT *p, FILE *fp) ;
+void pbwtReadReverse (PBWT *p, FILE *fp) ;
+PBWT *pbwtReadAll (char *fileNameRoot) ; /* reads .pbwt, .sites, .samples, .missing  */
 PBWT *pbwtReadMacs (FILE *fp) ;
 PBWT *pbwtReadVcfq (FILE *fp) ;	/* reduced VCF style file made by vcf query */
+PBWT *pbwtReadGen (FILE *fp) ;	/* gen file as used by impute2 (unphased) */
 void pbwtWriteHaplotypes (FILE *fp, PBWT *p) ;
+void pbwtCheckPoint (PBWT *p) ;
 
 /* pbwtHtslib.c */
+/* all these functions also read and write samples and sites */
+PBWT *pbwtReadVcfGT (char *filename) ;	/* read GTs from vcf/bcf using htslib */
+PBWT *pbwtReadVcfPL (char *filename) ;	/* read PLs from vcf/bcf using htslib */
 
-PBWT *pbwtReadVcf (char *filename) ;	/* read vcf/bcf using htslib */
-
-/* pbwt_match.c */
+/* pbwtMatch.c - functions as in Bioinformatics paper */
 
 void pbwtLongMatches (PBWT *p, int L) ; /* internal matches longer than L, maximal if L=0 */
 void matchSequencesNaive (PBWT *p, FILE *fp) ; /* fp is a pbwt file of sequences to match */
@@ -121,10 +157,11 @@ void matchSequencesIndexed (PBWT *p, FILE *fp) ;
 void matchSequencesDynamic (PBWT *p, FILE *fp) ;
 void matchSequencesHL (PBWT *p, FILE *fp) ; /* incomplete */
 
-/* pbwt_impute.c */
+/* pbwtImpute.c */
 
 void imputeExplore (PBWT *p, int test) ;
 PBWT *phase (PBWT *p, int kMethod, int nSparse) ;
+PBWT *referencePhase (PBWT *p, char *fileNameRoot) ;
 PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange) ;
 PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange) ;
 

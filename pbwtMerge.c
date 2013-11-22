@@ -1,3 +1,4 @@
+/*  Last edited: Nov 16 18:31 2013 (rd) */
 #include "pbwt.h"
 
 #include <string.h>
@@ -22,10 +23,10 @@ static pbwt_reader_t *pbwt_reader_init(const char **fnames, int nfiles)
 {
 	pbwt_reader_t *reader = calloc(1,sizeof(pbwt_reader_t));
 	reader->n        = nfiles;
-	reader->pbwt     = malloc(sizeof(PBWT*)*nfiles);
-	reader->cpos     = malloc(sizeof(int)*nfiles);
-	reader->cursor   = malloc(sizeof(PbwtCursor*)*nfiles);
-	reader->unpacked = malloc(sizeof(int)*nfiles);
+	reader->pbwt     = myalloc(nfiles,PBWT*);
+	reader->cpos     = myalloc(nfiles,int);
+	reader->cursor   = myalloc(nfiles,PbwtCursor*);
+	reader->unpacked = myalloc(nfiles,int);
 
 	int i;
 	for (i=0; i<nfiles; i++)
@@ -46,7 +47,7 @@ static pbwt_reader_t *pbwt_reader_init(const char **fnames, int nfiles)
 		pbwtReadSites(reader->pbwt[i], fp);
 		fclose(fp);
 
-		reader->cursor[i] = pbwtCursorCreate(reader->pbwt[i]->M, 0);
+		reader->cursor[i] = pbwtNakedCursorCreate(reader->pbwt[i]->M, 0);
 		reader->unpacked[i] = 0;
 		reader->cpos[i] = 0;
 	}
@@ -87,7 +88,7 @@ static int pbwt_reader_next(pbwt_reader_t *reader, int nshared)
 		if ( j>=p->N ) continue;		// no more sites in this pbwt
 
 		Site *site = arrp(p->sites, j, Site);
-		char *als  = dictName(p->variationDict, site->varD);
+		char *als  = dictName(variationDict, site->varD);
 
 		// assuming:
 		//	- one chromosome only (no checking sequence name)
@@ -95,7 +96,7 @@ static int pbwt_reader_next(pbwt_reader_t *reader, int nshared)
 		while ( j < p->N && site->x <= reader->mpos && (!reader->mals || strcmp(als,reader->mals)<=0) )
 		{
 			site = arrp(p->sites, j, Site);
-			als  = dictName(p->variationDict, site->varD);
+			als  = dictName(variationDict, site->varD);
 			reader->cpos[i] = j++;
 		}
 		if ( reader->cpos[i]+1 >= p->N && site->x == reader->mpos && (!reader->mals || !strcmp(als,reader->mals)) )
@@ -133,11 +134,9 @@ PBWT *pbwtMerge(const char **fnames, int nfiles)
 	for (i=0; i<nfiles; i++) nhaps += reader->pbwt[i]->M;
 	PBWT *out_pbwt     = pbwtCreate(nhaps);
 	out_pbwt->yz       = arrayCreate(4096*32, uchar);
-	uchar *yz          = myalloc(nhaps, uchar);
-	PbwtCursor *cursor = pbwtCursorCreate(nhaps, 0);
+	PbwtCursor *cursor = pbwtNakedCursorCreate(nhaps, 0);
 	uchar *yseq        = myalloc(nhaps, uchar);
 	out_pbwt->sites    = arrayReCreate(out_pbwt->sites, reader->pbwt[0]->N, Site);
-	out_pbwt->variationDict = dictCreate(32);
 	out_pbwt->chrom = strdup(reader->pbwt[0]->chrom);
 
 	int pos, j;
@@ -152,7 +151,7 @@ PBWT *pbwtMerge(const char **fnames, int nfiles)
 			// Both position and alleles must match. This requires that the records are sorted by alleles.
 
 			if ( site->x!=pos ) break;
-			char *als = dictName(p->variationDict, site->varD);
+			char *als = dictName(variationDict, site->varD);
 			if ( strcmp(als,reader->mals) ) break;
 		}
 		if ( i!=nfiles ) 
@@ -163,7 +162,7 @@ PBWT *pbwtMerge(const char **fnames, int nfiles)
 				PBWT *p    = reader->pbwt[i];
 				Site *site = arrp(p->sites, reader->cpos[i], Site);
 				if ( site->x!=pos ) continue;
-				char *als = dictName(p->variationDict, site->varD);
+				char *als = dictName(variationDict, site->varD);
 				if ( strcmp(als,reader->mals) ) continue;
 
 				PbwtCursor *c = reader->cursor[i];
@@ -189,21 +188,18 @@ PBWT *pbwtMerge(const char **fnames, int nfiles)
 		// pack merged haplotypes
 		for (j=0; j<nhaps; j++)
 			cursor->y[j] = yseq[cursor->a[j]];
-		int nyPack = pack3(cursor->y, out_pbwt->M, yz);
-		for (j=0; j<nyPack; j++)
-			array(out_pbwt->yz,arrayMax(out_pbwt->yz),uchar) = yz[j];
+		pack3arrayAdd(cursor->y, out_pbwt->M, out_pbwt->yz);
 		pbwtCursorForwardsA(cursor);
 
 		// insert new site
 		arrayExtend(out_pbwt->sites, out_pbwt->N+1);
 		Site *site = arrayp(out_pbwt->sites, out_pbwt->N, Site);
 		site->x = pos;
-		dictAdd(out_pbwt->variationDict, reader->mals, &site->varD);
+		dictAdd(variationDict, reader->mals, &site->varD);
 
 		out_pbwt->N++;
 	}
 
-	free(yz);
 	free(yseq);
 	pbwtCursorDestroy(cursor);
 	pbwt_reader_destroy(reader);

@@ -16,7 +16,7 @@
  * Description: core utility functions
  * Exported functions:
  * HISTORY:
- * Last edited: May  5 12:25 2013 (rd)
+ * Last edited: Oct 30 23:36 2013 (rd)
  * Created: Thu Aug 15 18:32:26 1996 (rd)
  *-------------------------------------------------------------------
  */
@@ -63,12 +63,9 @@ char *fgetword (FILE *f)	// pass NULL to free alloced memory
   static char *buf = 0 ;
   int bufSize = 64 ;
   char *cp ;
-	if (!f) 
-	{ 
-		if (buf) free(buf);
-		buf = NULL;
-		return NULL;
-	}
+
+  if (!f) { if (buf) free(buf); buf = NULL; return NULL; }
+
   if (!buf) buf = myalloc (bufSize, char) ;
   cp = buf ;
   while (!feof (f) && (*cp = getc (f)))

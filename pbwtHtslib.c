@@ -5,7 +5,7 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Oct 19 14:52 2013 (rd)
+ * Last edited: Nov 16 16:59 2013 (rd)
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -14,73 +14,174 @@
 #include "pbwt.h"
 #include <htslib/synced_bcf_reader.h>
 
-PBWT *pbwtReadVcf (char *filename)	/* read vcf/bcf using htslib */
+static void readVcfSamples (PBWT *p, bcf_hdr_t *hr)
 {
-  PBWT *p ;
+  int i, k ;
+
+  p->samples = arrayCreate (p->M, int) ;
+  for (i = 0 ; i < p->M/2 ; ++i)
+    { int k = sampleAdd (hr->samples[i],0,0,0) ;
+      array(p->samples, 2*i, int) = k ; /* assume diploid - could be cleverer */
+      array(p->samples, 2*i+1, int) = k ;
+    }
+}
+
+static int variation (PBWT *p, const char *ref, const char *alt)
+{
+  static char *buf = 0 ;
+  static int buflen = 0 ;
+  if (!buf) { buflen = 64 ; buf = myalloc (buflen, char) ; }
+  int var ;
+  if (strlen (ref) + strlen (alt) + 2 > buflen) 
+    { do buflen *= 2 ; while (strlen (ref) + strlen (alt) + 2 > buflen) ;
+      free (buf) ; buf = myalloc (buflen, char) ;
+    }
+  sprintf (buf, "%s\t%s", ref, alt) ;
+  dictAdd (variationDict, buf, &var) ;
+  return var ;
+}
+
+PBWT *pbwtReadVcfGT (char *filename)	/* read GTs from vcf/bcf using htslib */
+{
   int i, j ;
 
   bcf_srs_t *sr = bcf_sr_init() ;
-  bcf_sr_add_reader (sr, filename) ;
+  if (!bcf_sr_add_reader (sr, filename)) die ("failed to open good vcf file\n") ;
 
   bcf_hdr_t *hr = sr->readers[0].header ;
-  p = pbwtCreate (bcf_hdr_nsamples(hr)*2) ; /* assume diploid! */
-  for (i = 0 ; i < p->M/2 ; ++i)
-    /* add sample hr->samples[i] */ ;
+  PBWT *p = pbwtCreate (bcf_hdr_nsamples(hr)*2) ; /* assume diploid! */
+  readVcfSamples (p, hr) ;
+  p->yz = arrayCreate(4096*32, uchar) ;
+  p->sites = arrayCreate (10000, Site) ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
+  uchar *x = myalloc (p->M, uchar) ;
 
-  int mgt_arr = 0, *gt_arr = NULL;
-  int mpl_arr = 0, *pl_arr = NULL;
+  uchar *xMissing = myalloc (p->M, uchar), *yMissing = myalloc(p->M+1, uchar) ;
+  yMissing[p->M] = Y_SENTINEL ;	/* needed for efficient packing */
+  long int nMissing = 0 ;
+  int nMissingSites = 0 ; 
+
+  int mgt_arr = 0, *gt_arr = NULL ;
   while (bcf_sr_next_line (sr)) 
     { bcf1_t *line = bcf_sr_get_line(sr,0) ;
       const char* chrom = bcf_seqname(hr,line) ;
-      int pos = line->pos + 1 ;                      // coordinates are 0-based
-      if ( line->n_allele !=2 ) continue;       // not a biallelic site
+      if (!p->chrom) p->chrom = strdup (chrom) ;
+      else if (strcmp (chrom, p->chrom)) break ;
+      int pos = line->pos + 1 ;		   // bcf coordinates are 0-based
+      if (line->n_allele != 2) continue ;  // not a biallelic site - skip these
       const char *ref = line->d.allele[0] ;
       const char *alt = line->d.allele[1] ;
 
-      printf("%s:%d %s %s", chrom,pos,ref,alt);
-
       // get a copy of GTs
       int ngt = bcf_get_genotypes(hr, line, &gt_arr, &mgt_arr) ;
-      if (!ngt) continue ;             // GT not present
-      ngt /= bcf_hdr_nsamples (hr) ;      // ngt is now the number of values per sample
-      for (i = 0 ; i < bcf_hdr_nsamples (hr) ; i++)
-      {
-        // skip missing genotypes and haploid samples
-        if ( gt_arr[i*ngt]==bcf_gt_missing ) continue;  // missing
-        if ( gt_arr[i*ngt+1]==bcf_gt_missing || gt_arr[i*ngt+1]==bcf_int32_vector_end ) continue; // missing or haploid
-        int al1 = bcf_gt_allele(gt_arr[i*ngt]);         // convert from BCF binary representation to 0 or 1
-        int al2 = bcf_gt_allele(gt_arr[i*ngt+1]);       //      "  "
-        assert( al1==0 || al1==1 );
-        assert( al2==0 || al2==1 );
+      if (ngt <= 0) continue ;	// it seems that -1 is used if GT is not in the FORMAT
+      if (ngt != p->M) die ("%d != %d GT values at %s:%d - not diploid?", 
+			    ngt, p->M, chrom, pos) ;
 
-        printf(" %d/%d", al1,al2);
-      }
+      memset (xMissing, 0, p->M) ;
+      int wasMissing = nMissing ;
+
+      /* copy the genotypes into array x[] */
+      for (i = 0 ; i < p->M ; i++)
+	{ if (gt_arr[i] == bcf_int32_vector_end) 
+	    die ("haploid genotype at %s:%d %d\n", chrom, pos, 1+i/2) ;
+	  if (gt_arr[i] == bcf_gt_missing)
+	    { x[i] = 0 ; /* use ref for now */
+	      xMissing[i] = 1 ;
+	      ++nMissing ;
+	    }
+	  else 
+	    x[i] = bcf_gt_allele(gt_arr[i]) ;  // convert from BCF binary to 0 or 1
+	  assert(x[i] == 0 || x[i] == 1) ;
+	}
+      /* and pack them into the PBWT */
+      for (j = 0 ; j < p->M ; ++j) u->y[j] = x[u->a[j]] ; /* next character in sort order: BWT */
+      pbwtCursorWriteForwards (u) ;
+
+      /* store missing information, if there was any */
+      if (nMissing > wasMissing)
+	{ if (!wasMissing)
+	    { p->zMissing = arrayCreate (10000, uchar) ;
+	      array(p->zMissing, 0, uchar) = 0 ; /* needed so missing[] has offset > 0 */
+	      p->missing = arrayCreate (1024, int) ;
+	    }
+	  array(p->missing, p->N, int) = arrayMax(p->zMissing) ;
+	  /* for (j = 0 ; j < p->M ; ++j) yMissing[j] = xMissing[u->a[j]] ; */
+	  pack3arrayAdd (xMissing, p->M, p->zMissing) ; /* NB original order, not pbwt sort */
+	  nMissingSites++ ;
+	}
+      else if (nMissing)
+	array(p->missing, p->N, int) = 0 ;
+
+      // add the site
+      Site *s = arrayp(p->sites, p->N++, Site) ;
+      s->x = pos ;
+      s->varD = variation (p, ref, alt) ;
+
+      if (nCheckPoint && !(p->N % nCheckPoint))	pbwtCheckPoint (p) ;
+    }
+
+  if (gt_arr) free (gt_arr) ;
+  bcf_sr_destroy (sr) ;
+  free (x) ; pbwtCursorDestroy (u) ;  
+  free (xMissing) ; free(yMissing) ;
+
+  fprintf (stderr, "read genotypes from %s\n", filename) ;
+  if (p->missing) fprintf (stderr, "%ld missing values at %d sites\n", 
+			   nMissing, nMissingSites) ;
+
+  return p ;
+}
+
+PBWT *pbwtReadVcfPL (char *filename)	/* read PLs from vcf/bcf using htslib */
+{
+  PBWT *p ;
+  int i, j, k = 0 ;
+
+  bcf_srs_t *sr = bcf_sr_init() ;
+  if (!bcf_sr_add_reader (sr, filename)) die ("failed to open good vcf file\n") ;
+
+  bcf_hdr_t *hr = sr->readers[0].header ;
+  p = pbwtCreate (bcf_hdr_nsamples(hr)*2) ; /* assume diploid! */
+  readVcfSamples (p, hr) ;
+
+  int mpl_arr = 0, *pl_arr = NULL;
+  while (bcf_sr_next_line (sr)) 
+    { ++k ;
+      bcf1_t *line = bcf_sr_get_line(sr,0) ;
+      const char* chrom = bcf_seqname(hr,line) ;
+      int pos = line->pos + 1 ;		   // bcf coordinates are 0-based
+      if (line->n_allele != 2) continue ;  // not a biallelic site
+      const char *ref = line->d.allele[0] ;
+      const char *alt = line->d.allele[1] ;
+
+      if (k <= 10) printf ("%s:%d %s %s", chrom, pos, ref, alt) ;
 
       // get a copy of the PL vectors
-      int npl = bcf_get_format_int(hr, line, "PL", &pl_arr, &mpl_arr);
-      if ( !npl ) continue;             // PL not present
-      npl /= bcf_hdr_nsamples(hr);     // number of values per samples
-      for (i=0; i<bcf_hdr_nsamples(hr); i++)    // iterate over samples
-      {
-        for (j=0; j<npl; j++)         // iterate over PL values (genotypes)
-        {
-          // check for shorter vectors (haploid genotypes amongst diploid genotypes)
-          if ( pl_arr[i*npl+j]==bcf_int32_vector_end ) break;
+      int npl = bcf_get_format_int(hr, line, "PL", &pl_arr, &mpl_arr) ;
+      if (npl)
+	{ npl /= bcf_hdr_nsamples(hr) ;	// number of values per samples
+	  if (npl != 3) die ("%s:%d not a diploid site", chrom, pos) ; // not diploid
+	  for (i = 0 ; i < bcf_hdr_nsamples(hr) ; i++) // iterate over samples
+	    {
+	      for (j = 0 ; j < npl ; j++) // iterate over PL values (genotypes)
+		{
+		  // check for shorter vectors (haploid genotypes amongst diploid genotypes)
+		  if (pl_arr[i*npl+j] == bcf_int32_vector_end) break ;
+		  // skip missing values
+		  if (pl_arr[i*npl+j] == bcf_int32_missing) continue ;
 
-          // skip missing values
-          if ( pl_arr[i*npl+j]==bcf_int32_missing ) continue;
-
-          // do something with j-th PL value
-          printf(" %d", pl_arr[i*npl+j]);
-        }
-      }
-
-      printf("\n");
+		  // do something with j-th PL value
+		  if (k <= 10 && i < 10) printf ("%c%d", j?'.':' ', pl_arr[i*npl+j]) ;
+		}
+	    }
+	}
+      if (k <= 10) printf("\n");
     }
-  free(gt_arr);
-  free(pl_arr);
-  bcf_sr_destroy(sr);
 
+  if (pl_arr) free (pl_arr) ;
+  bcf_sr_destroy (sr) ;
+  
   return p ;
 }
 
