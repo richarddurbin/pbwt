@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 22 18:41 2013 (rd)
+ * Last edited: Dec  8 01:58 2013 (rd)
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -571,64 +571,326 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
 
 /******* phase a new pbwt against the existing one as a reference *******/
 
+typedef struct { double alpha, beta ; } ScoreParams ;
+
+static inline ScoreParams scoreParams (PbwtCursor *u)
+{
+  ScoreParams sp ;
+  sp.alpha = 0.0 ;		/* looks like for gen10k 100 is marginally better */
+  sp.beta = 1.0 ;
+  return sp ;
+}
+
+static ScoreParams scoreParamsTheory (PbwtCursor *u)
+/* Vladimir says that p(0|1) = exp (-alpha - beta*d)  */
+/* log(p) is about -alpha - beta*d
+   log(1-p) is about -exp(-alpha - beta*d)
+   let x_j = 1 if a change, else 0
+   total log likelihood L = - sum_j x_j (alpha + beta*d_j) + (1-x_j) exp (-alpha - beta*d_j)
+   dL/dalpha = 0 gives sum_j x_j = sum_j (1-x_j) exp (-alpha - beta*d_j)
+   so alpha  = ln ((sum_j (1-x_j) exp (-beta*d_j))/sum_j x_j)
+   dL/dbeta  = 0 gives sum_j x_j d_j = sum_j (1-x_j) d_j exp (-alpha - beta*d_j)
+   substituting in alpha we get 
+   sum_j x_j d_j / sum_j x_j = sum_j (1-x_j) d_j exp(-beta*d_j) / sum_j (1-x_j) exp(-beta*d_j)
+*/
+{
+  ScoreParams sp ;
+  int j ;
+  double sum_dx = 0, sum_e, sum_de ; int sum_x = 0 ;
+
+  if (u->c == 0 || u->c == u->M) { sp.alpha = 0 ; sp.beta = 0 ; return sp ; }
+
+  for (j = 1 ; j < u->M ; ++j)
+    if (u->y[j] != u->y[j-1])
+      { sum_dx += u->d[j] ; ++sum_x ; }
+  double T = sum_dx / sum_x ;	/* target */
+  for (j = 1 ; j < u->M ; ++j)
+    if (u->y[j] == u->y[j-1])
+      ;
+
+  sp.alpha = log (sum_e / sum_x) ;
+      
+  return sp ;
+}
+
+/************ routines to manage matches of sequences into pbwts ************/
+
+typedef struct {
+  int i ;    /* the position in the target u->y that new sequence PRECEDES */
+  int dminus, dplus ;	/* the start of the match to current ref sequences i-1 and i */
+} MatchInfo ;
+
+/* NB when allocating MatchInfo use mycalloc() so dminus, dplus are initialised to 0 */
+
+static inline double matchRefScore (MatchInfo *m, PbwtCursor *u, ScoreParams *sp, int k)
+{
+  double score = 0 ;
+  if (m->i > 0) score += (2*u->y[m->i-1] - 1) * (sp->alpha + sp->beta * (k - m->dminus)) ;
+  if (m->i < u->M) score += (2*u->y[m->i] - 1) * (sp->alpha + sp->beta * (k - m->dplus)) ;
+  return score ;
+}
+
+static inline void matchUpdateD (MatchInfo *m, PbwtCursor *u, int x)
+{
+  int i ;
+  /* If x == y[i] then dplus does not change and we are done.
+     Otherwise, need to find next matching symbol. Similarly for dminus.
+  */
+  for (i = m->i-1 ; i >= 0 ; --i)
+    { if (u->y[i] == x) break ;
+      if (u->d[i] > m->dminus) m->dminus = u->d[i] ;
+    }
+  for (i = m->i ; i < u->M ; ++i)
+    { if (u->y[i] == x) break ;
+      if (u->d[i] > m->dplus) m->dplus = u->d[i] ;
+    }
+}
+
+static inline void matchUpdateI (MatchInfo *m, PbwtCursor *u, int x, int c)
+{
+  m->i = x ? c + m->i - u->u[m->i] : u->u[m->i] ; /* looks simple, doesn't it! */
+/* Consistency checks: m->i between 0 and M inclusive is the position just AFTER the query.
+   ufRef->u[i] is the number of 0s in y[] before position i.  
+   So if x == 0 and there are no 0s before i = m->i then m->i is mapped to 0 - good.
+   If x == 1 and there are no 1s then u[m->i] = m->i so m->i is mapped to c - good.
+   If x == 1 and all 1s are before m->i then m->i is mapped to M - good.
+   Mapping of 0 is correct, to 0 if 0 else c if 1 - good.
+   Mapping of M is correct, to c if 0 else M if 1, so long as u[M] is defined as c - good.
+   So it looks like this is all good.
+*/
+  if (isCheck) if (m->i < 0 || m->i > u->M) die ("out of bounds in matchUpdateI") ;
+}
+
+static void matchUpdate (MatchInfo *match, uchar *x, int M, PbwtCursor *u, int k)
+/* This is ugly because it incorporates the pbwt cursor update on u in the middle of 
+   updating match.  This is necessary because we need the old d[] but the new u[].
+   We could make things tighter by integrating the match and cursor updates, perhaps
+   even operating on the compressed space, but that is probably only viable for
+   single rather than multiple matches.
+*/
+{
+  int j ; MatchInfo *m ; uchar *xp ;
+
+  for (j = 0 ; j < M ; ++j) 
+    matchUpdateD (&match[j], u, x[j]) ;
+  int c = u->c ;			/* need to cache this before updating u - ugly */
+  pbwtCursorForwardsReadADU (u, k) ; /* need new u->u values to update m->i */
+  for (j = 0 ; j < M ; ++j)
+    matchUpdateI (&match[j], u, x[j], c) ;
+}
+
+static void matchIncrement (MatchInfo *mOld, MatchInfo *mNew, uchar *x, int M, PbwtCursor *u, int k)
+/* we need a different version for imputation which stores the new info in a new place */  
+{
+  int j ; MatchInfo *m ; uchar *xp ;
+
+  for (j = 0 ; j < M ; ++j) 
+    matchUpdateD (&mOld[j], u, x[j]) ;
+  int c = u->c ;			/* need to cache this before updating u - ugly */
+  pbwtCursorForwardsReadADU (u, k) ; /* need new u->u values to update m->i */
+  for (j = 0 ; j < M ; ++j)
+    matchUpdateI (&mOld[j], u, x[j], c) ;
+}
+
+/************** main function to phase against a reference ***************/
+
 PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
 {
+  fprintf (stderr, "phase against reference %s\n", fileNameRoot) ;
   if (!pOld || !pOld->yz || !pOld->sites) 
     die ("referencePhase called without existing pbwt with sites") ;
-  PBWT *pNew = pbwtReadAll (fileNameRoot) ;
-  if (!pNew->sites) die ("new pbwt %s in referencePhase has no sites", fileNameRoot) ;
-  if (strcmp(pNew->chrom,pOld->chrom))
-    die ("mismatching chom in referencePhase: old %s, new %s", pOld->chrom, pNew->chrom) ;
+  PBWT *pRef = pbwtReadAll (fileNameRoot) ;
+  if (!pRef->sites) die ("new pbwt %s in referencePhase has no sites", fileNameRoot) ;
+  if (strcmp(pOld->chrom,pRef->chrom))
+    die ("mismatching chrom in referencePhase: old %s, new %s", pRef->chrom, pOld->chrom) ;
 
   /* reduce both down to the intersecting sites */
-  pOld = pbwtSelectSites (pOld, pNew->sites) ;
-  if (!pOld->zz) pbwtBuildReverse (pOld) ; /* need reverse below */
-  pNew = pbwtSelectSites (pNew, pOld->sites) ;
+  pOld = pbwtSelectSites (pOld, pRef->sites, FALSE) ;
+  pRef = pbwtSelectSites (pRef, pOld->sites, FALSE) ;
+  if (!pOld->N) die ("no overlapping sites in referencePhase") ;
+  if (!pRef->zz) pbwtBuildReverse (pRef) ;	/* we need the reverse reference pbwt below */
 
-  /* now phase the new sites against the old sites */
-  PbwtCursor *ufOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;   /* forwards cursor on old */
-  PbwtCursor *ufNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;   /* forwards cursor on new */
-  PBWT *q = pbwtCreate (pNew->M) ; q->N = pNew->N ;	      /* will hold the new phasing */
-  q->yz = arrayCreate (arrayMax(pNew->yz), uchar) ;
-  PbwtCursor *uq = pbwtCursorCreate (q, TRUE, TRUE) ;
-  int *iq = myalloc (pNew->M, int) ; /* the position in y i'th new hap follow */
-  int *dq = mycalloc (pNew->M, int) ; /* start of match to following position */
-  uchar *x = myalloc (pNew->M, uchar) ;
-  uchar *yq = myalloc (pNew->M, uchar) ;
+/* Now phase the new sites against the old sites
+   We will pass forwards, then back, then forwards again.
+   All we store on the first two passes is the phasing score at each ambiguous genotype from
+   the left then right respectively, favouring 1/0 if the score is +ve, and 0/1 if the score 
+   is negative. 
+*/
+  /* declarations and initialisations */
+  int M = pOld->M ;
+  int j, k ;			    /* indices: new sample, site */
+  PbwtCursor *uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;   /* cursor on old */
+  PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;   /* cursor on new */
+  uchar *x = myalloc (M, uchar) ;   /* current uOld values in original sort order */
+  MatchInfo *match = mycalloc (M, MatchInfo) ;
+  for (j = 0 ; j < M ; ++j)	    /* initialise m->i[] randomly */
+    match[j].i = rand() * (double)pRef->M / RAND_MAX ;
+  Array *qScoreStack = myalloc (M, Array) ; /* score from left at phase-ambiguous genotypes */
+  for (j = 0 ; j < M ; j += 2)	    /* only need to store score for even positions */
+    qScoreStack[j] = arrayCreate (1024, double) ; 
+  ScoreParams sp ;
 
-  int i, j, k ;			/* site, new sample, old sample */
-  for (j = 0 ; j < pNew->M ; ++j) iq[j] = rand() * (double)pNew->M / RAND_MAX ;
-  for (k = 0 ; k < pOld->N ; ++k) /* loop forwards */
-    { for (j = 0 ; j < pNew->M ; ++j) x[ufNew->a[j]] = ufNew->y[j] ; /* extract genotype */
-      for (j = 0 ; j < pNew->M ; j += 2) /* step through in pairs and phase if necessary */
-	if (x[j] + x[j+1] == 1)	 /* need to phase */
-	  { 
+  /* first forwards loop */
+  for (k = 0 ; k < pRef->N ; ++k)
+    { for (j = 0 ; j < M ; ++j) /* extract genotype */
+	x[uOld->a[j]] = uOld->y[j] ;
+      sp = scoreParams (uRef) ;
+      for (j = 0 ; j < M ; j += 2) /* step through in pairs and phase if a heterozygote */
+	if (x[j] + x[j+1] == 1)
+	  { double score = matchRefScore (&match[j], uRef, &sp, k) ;
+	    score -= matchRefScore (&match[j+1], uRef, &sp, k) ;
+	    array(qScoreStack[j], arrayMax(qScoreStack[j]), double) = score ; /* store here */
+	    /* set phasing based on score - default when score == 0 to lexicographic order */
+	    if (score > 0) { x[j] = 1 ; x[j+1] = 0 ; } else { x[j] = 0 ; x[j+1] = 1 ; }
 	  }
-      int c = ufOld->c ;
-      for (j = 0 ; j < pNew->M ; ++j)
-	if (iq[j] < pNew->M) yq[j] = ufOld->y[iq[j]] ; else yq[j] = 2 ;
-      pbwtCursorForwardsReadADU (ufOld, k) ; /* need the new ufOld->u to update iq[]  */
-      for (j = 0 ; j < pNew->M ; ++j)
-	{ iq[j] = x[j] ? c + iq[j] - ufOld->u[iq[j]] : ufOld->u[iq[j]] ;
-/* Let's try to have iq between 0 and M inclusive be the position just AFTER the query.
-   ufOld->u[k] is the number of 0s in y[] before position k.  
-   So if x == 0 and there are no 0s before k = iq then iq is mapped to 0 - good.
-   If x == 1 and there are no 1s then u[iq] = iq so iq is mapped to c - good.
-   If x == 1 and all 1s are before iq then iq is mapped to M - good.
-   Mapping of M is correct, to c if 0 else M if 1, so long as u[M] is defined as c - yes.
-   What about dq[]?
-   If x[j] == y[ainv[iq[j]]] then dq[] does not change and we are done.
-   Otherwise, if x == 0 and y == 1 then 
- */
-	}
-      pbwtCursorForwardsRead (ufNew) ;
-      pbwtCursorWriteForwards (uq) ;
+
+      /* Update mapping into Ref: must do in two steps. Do this in a subroutine because
+         we will do it several times.  NB the major side effect to move forwards in uRef */
+      matchUpdate (match, x, M, uRef, k) ;
+      pbwtCursorForwardsRead (uOld) ;     /* finally move forwards in pOld */
+    }
+  fprintf (stderr, "first forward pass complete\n") ;
+
+  /* Now reverse, carrying out the equivalent actions, but phasing from both directions.
+     This time store the phasing score from the right.
+  */
+  Array *rScoreStack = myalloc (M, Array) ; /* stack for reverse scores at phase sites */
+  for (j = 0 ; j < M ; j += 2)
+    rScoreStack[j] = arrayCreate (arrayMax(qScoreStack[j]), double) ; 
+  for (j = 0 ; j < M ; ++j) match[j].dminus = match[j].dplus = 0 ; /* reset d* */
+  pbwtCursorDestroy (uRef) ; uRef = pbwtCursorCreate (pRef, FALSE, TRUE) ;
+  /* note run uRef in the reverse pbwt - second arg of pbwtCursorCreate() is FALSE */
+
+  for (k = 0 ; k < pRef->N ; ++k)
+    { pbwtCursorReadBackwards (uOld) ;
+      for (j = 0 ; j < M ; ++j) /* extract genotype */
+	x[uOld->a[j]] = uOld->y[j] ;
+      for (j = 0 ; j < M ; j += 2) /* step through in pairs and phase if necessary */
+	if (x[j] + x[j+1] == 1)	 /* need to phase - add new right score to stored left score */
+	  { double score = matchRefScore (&match[j], uRef, &sp, k) ;
+	    score -= matchRefScore (&match[j+1], uRef, &sp, k) ;
+	    array(rScoreStack[j], arrayMax(rScoreStack[j]), double) = score ; /* push onto rStoreStack */
+	    score += arr(qScoreStack[j], --arrayMax(qScoreStack[j]), double) ; /* pop off qStoreStack */
+	    if (score > 0) { x[j] = 1 ; x[j+1] = 0 ; } else { x[j] = 0 ; x[j+1] = 1 ; }
+	  }
+      matchUpdate (match, x, M, uRef, k) ;
+    }
+  fprintf (stderr, "reverse pass complete\n") ;
+
+ /* Now the final forward pass, building pNew */
+  for (j = 0 ; j < M ; ++j) match[j].dminus = match[j].dplus = 0 ; /* reset d* */
+  pbwtCursorDestroy (uRef) ; uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;
+  PBWT *pNew = pbwtCreate (M) ;
+  pNew->yz = arrayCreate (arrayMax(pOld->yz), uchar) ; pNew->N = pOld->N ;
+  PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
+
+  for (k = 0 ; k < pRef->N ; ++k)
+    { for (j = 0 ; j < M ; ++j) /* extract genotype */
+	x[uOld->a[j]] = uOld->y[j] ;
+      for (j = 0 ; j < M ; j += 2) /* step through in pairs and phase if necessary */
+	if (x[j] + x[j+1] == 1)	 /* need to phase - add new left score to stored right score */
+	  { double score = matchRefScore (&match[j], uRef, &sp, k) ;
+	    score -= matchRefScore (&match[j+1], uRef, &sp, k) ;
+	    score += arr(rScoreStack[j], --arrayMax(rScoreStack[j]), double) ;
+	    if (score > 0) { x[j] = 1 ; x[j+1] = 0 ; } else { x[j] = 0 ; x[j+1] = 1 ; }
+	  }
+      matchUpdate (match, x, M, uRef, k) ;
+      pbwtCursorForwardsRead (uOld) ;
+      for (j = 0 ; j < M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* write into pNew */
+      pbwtCursorWriteForwards (uNew) ;
+    }
+  pNew->aFend = myalloc (M, int) ; memcpy (pNew->aFend, uNew->a, M * sizeof(int)) ;
+
+  fprintf (stderr, "After final pass: ") ; phaseCompare (pOld, pNew) ;
+
+  pNew->sites = pOld->sites ; pOld->sites = 0 ;
+  pNew->samples = pOld->samples ; pOld->samples = 0 ;
+  pbwtDestroy (pRef) ; pbwtDestroy (pOld) ;
+  pbwtCursorDestroy (uRef) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
+  for (j = 0 ; j < M ; j += 2)
+    { arrayDestroy (qScoreStack[j]) ; arrayDestroy (rScoreStack[j]) ; }
+  free (match) ; free (x) ; free (qScoreStack) ; free (rScoreStack) ;
+  return pNew ;
+}
+
+/*********************************************************************************************/
+/**** standard genotype imputation - based heavily on referencePhase - should rationalise ****/
+
+PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot)
+{
+  /* Preliminaries */
+  fprintf (stderr, "impute against reference %s\n", fileNameRoot) ;
+  if (!pOld || !pOld->yz || !pOld->sites) 
+    die ("referencePhase called without existing pbwt with sites") ;
+  PBWT *pRef = pbwtReadAll (fileNameRoot) ;
+  if (!pRef->sites) die ("new pbwt %s in referencePhase has no sites", fileNameRoot) ;
+  if (strcmp(pOld->chrom,pRef->chrom))
+    die ("mismatching chrom in referencePhase: old %s, new %s", pRef->chrom, pOld->chrom) ;
+
+  /* identify the intersecting sites */
+  pOld = pbwtSelectSites (pOld, pRef->sites, FALSE) ;
+  if (!pOld->N) die ("no overlapping sites in referencePhase") ;
+  PBWT *pFrame = pbwtSelectSites (pRef, pOld->sites, TRUE) ; /* keep the full ref to impute to */
+  if (pFrame->N == pRef->N)
+    { fprintf (stderr, "No additional sites to impute in referenceImpute\n") ;
+      pbwtDestroy (pFrame) ; pbwtDestroy (pRef) ;
+      return pOld ;
+    }
+  pbwtBuildReverse (pFrame) ;	/* we need the reverse reference pbwt below */
+  if (!pOld->aFend) die ("pOld has no aFend in referenceImpute") ; /* we need this */
+
+/* Strategy: first pass back through the pbwts to build imputation information from right.
+   Then pass forwards building information from left and imputing from both.
+   The problem here is the potential size of the cache of right imputation information.
+   Full data size is N (length) * pOld->M.  Could be more sophisticated.
+*/
+  /* declarations and initialisations */
+  int M = pOld->M, N = pOld->N ;
+  int j, k, c ;			    /* indices: new sample, site, and cache for uFrame->c */
+  PbwtCursor *uFrame = pbwtCursorCreate (pFrame, FALSE, TRUE) ;   /* cursor on old */
+  PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, FALSE) ;   /* cursor on new */
+  uchar *x = myalloc (M, uchar) ;   /* current uOld values in original sort order */
+  MatchInfo **matchR = myalloc (N+1, MatchInfo*) ; /* impute info from right per site */
+  for (k = 0 ; k <= N ; ++k) matchR[k] = mycalloc (M, MatchInfo) ;
+  for (j = 0 ; j < M ; ++j)	    /* initialise matchR[N][].i randomly */
+    matchR[N][j].i = rand() * (double)pFrame->M / RAND_MAX ;
+
+  /* initial reverse pass */
+  for (k = 0 ; k < N ; ++k)
+    { pbwtCursorReadBackwards (uOld) ;
+      for (j = 0 ; j < M ; ++j)	x[uOld->a[j]] = uOld->y[j] ; /* extract genotype */
+      /* Update match, but unlike in referencePhase we store the new match in a new place */
+      matchIncrement (matchR[N-k], matchR[N-1-k], x, M, uFrame, k) ;
+    }
+  fprintf (stderr, "reverse pass complete\n") ;
+
+ /* Now the forward pass, building pNew */
+  pbwtCursorDestroy (uFrame) ; uFrame = pbwtCursorCreate (pFrame, TRUE, TRUE) ;
+  PBWT *pNew = pbwtCreate (M) ;
+  pNew->yz = arrayCreate (arrayMax(pOld->yz), uchar) ; pNew->N = pOld->N ;
+  PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
+  MatchInfo *matchL = mycalloc (M, MatchInfo) ;
+  for (j = 0 ; j < M ; ++j) matchL[j].i = matchR[0][j].i ; /* initialise from final matchR */
+  ScoreParams sp ;
+
+  for (k = 0 ; k < pRef->N ; ++k)
+    { for (j = 0 ; j < M ; ++j) x[uOld->a[j]] = uOld->y[j] ; /* extract genotype */
+      matchUpdate (matchL, x, M, uFrame, k) ;
+      pbwtCursorForwardsRead (uOld) ;
+      /* some imputation stuff in here.... */
+      for (j = 0 ; j < M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* write into pNew */
+      pbwtCursorWriteForwards (uNew) ;
     }
 
-  q->sites = pNew->sites ; pNew->sites = 0 ;
-  q->samples = pNew->samples ; pNew->samples = 0 ;
-  pbwtDestroy (pOld) ; pbwtDestroy (pNew) ;
-  return q ;
+  fprintf (stderr, "After final pass: ") ; phaseCompare (pOld, pNew) ;
+
+  pNew->sites = pOld->sites ; pOld->sites = 0 ;
+  pNew->samples = pOld->samples ; pOld->samples = 0 ;
+  pbwtDestroy (pFrame) ; pbwtDestroy (pOld) ;
+  pbwtCursorDestroy (uFrame) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
+  for (k = 0 ; k < N ; ++k) free (matchR[k]) ;
+  free (matchR) ; free (matchL) ;
+  return pNew ;
 }
 
 /*********** routines to corrupt data to explore robustness *************/

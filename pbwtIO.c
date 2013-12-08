@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 18 09:59 2013 (rd)
+ * Last edited: Dec  8 01:43 2013 (rd)
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -150,7 +150,7 @@ PBWT *pbwtRead (FILE *fp)
   if (!strcmp (tag, "PBW2")) version = 2 ; /* current version */
   else if (!strcmp (tag, "PBWT")) version = 1 ; /* without start, end indexes */
   else if (!strcmp (tag, "GBWT")) version = 0 ; /* earliest version */
-  else die ("failed to recognise file type %s in pbwtRead - was it written by pbwt?") ;
+  else die ("failed to recognise file type %s in pbwtRead - was it written by pbwt?", tag) ;
 
   if (fread (&m, sizeof(int), 1, fp) != 1) die ("error reading m in pbwtRead") ;
   if (fread (&n, sizeof(int), 1, fp) != 1) die ("error reading n in pbwtRead") ;
@@ -160,7 +160,7 @@ PBWT *pbwtRead (FILE *fp)
     { p->aFstart = myalloc (m, int) ;
       if (fread (p->aFstart, sizeof(int), m, fp) != m) die ("error reading aFstart in pbwtRead") ;
       p->aFend = myalloc (m, int) ;
-      if (fread (p->aFend, sizeof(int), m, fp) != m) die ("error reading aFstart in pbwtRead") ;
+      if (fread (p->aFend, sizeof(int), m, fp) != m) die ("error reading aFend in pbwtRead") ;
     }
   else				/* set aFstart to 0..M-1, leave aFend empty */
     { p->aFstart = myalloc (m, int) ;
@@ -173,7 +173,7 @@ PBWT *pbwtRead (FILE *fp)
   if (fread (arrp(p->yz, 0, uchar), sizeof(uchar), n, fp) != n)
     die ("error reading data in pbwt file") ;
 
-  fprintf (stderr, "read pbwt file %d bytes: M, N are %d, %d\n", n, p->M, p->N) ;
+  fprintf (stderr, "read pbwt %s file with %d bytes: M, N are %d, %d\n", tag, n, p->M, p->N) ;
   return p ;
 }
 

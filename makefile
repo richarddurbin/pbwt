@@ -8,14 +8,17 @@ all: pbwt
 test:
 	./test/test.pl
 
-pbwt: pbwtMain.o pbwtCore.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o utils
-	gcc $(CFLAGS) -o pbwt pbwtMain.o pbwtCore.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o hash.o dict.o array.o utils.o $(HTSLIB) -lpthread -lz -lm
+pbwt: pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o utils
+	gcc $(CFLAGS) -o pbwt pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o hash.o dict.o array.o utils.o $(HTSLIB) -lpthread -lz -lm
 
 pbwtMain.o: pbwtMain.c pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtMain.c
 
 pbwtCore.o: pbwtCore.c pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtCore.c
+
+pbwtSample.o: pbwtSample.c pbwt.h utils.h
+	gcc $(CFLAGS) -c pbwtSample.c
 
 pbwtIO.o: pbwtIO.c pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtIO.c

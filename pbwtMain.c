@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 16 21:35 2013 (rd)
+ * Last edited: Dec  7 19:40 2013 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -163,7 +163,8 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -matchDynamic <file>      maximal match seqs in pbwt file to reference\n") ;
       fprintf (stderr, "  -imputeExplore <n>        n'th impute test\n") ;
       fprintf (stderr, "  -phase <k> <n>            phase with method k and n sparse pbwts\n") ;
-      fprintf (stderr, "  -referencePhase <root>    phase new data against current pbwt as reference - only keep shared sites\n") ;
+      fprintf (stderr, "  -referencePhase <root>    phase current pbwt against reference whose root name is the argument - both pbwts need compatible sites! - only keep shared sites\n") ;
+      fprintf (stderr, "  -referenceImpute <root>   impute current pbwt into reference whose root name is the argument - need compatible sites - does not rephase either pbwt\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale)\n") ;
       fprintf (stderr, "  -siteInfo <file> <kmin> <kmax> export PBWT information at sites with allele count kmin <= k < kmax\n") ;
@@ -265,6 +266,8 @@ int main (int argc, char *argv[])
       { p = phase (p, atoi(argv[1]), atoi(argv[2])) ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-referencePhase") && argc > 1)
       { p = referencePhase (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-referenceImpute") && argc > 1)
+      { p = referenceImpute (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else
       die ("unrecognised command %s\nType pbwt without arguments for help", *argv) ;
     timeUpdate() ;

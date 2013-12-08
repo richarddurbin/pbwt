@@ -15,7 +15,7 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 18 15:50 2013 (rd)
+ * Last edited: Dec  7 21:45 2013 (rd)
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -42,6 +42,7 @@ PBWT *pbwtCreate (int M)
   PBWT *p = mycalloc (1, PBWT) ; /* cleared so elements default to 0 */
 
   p->M = M ;
+  p->aFstart = myalloc (M, int) ; int i ; for (i = 0 ; i < M ; ++i) p->aFstart[i] = i ;
 
   return p ;
 }
@@ -96,6 +97,7 @@ PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac)
 
   pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
+  pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ;
   return pNew ;
@@ -129,6 +131,7 @@ PBWT *pbwtSubRange (PBWT *pOld, int start, int end)
       pbwtCursorForwardsRead (uOld) ;
     }
 
+  pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ;
   return pNew ;
@@ -140,23 +143,21 @@ void pbwtBuildReverse (PBWT *p)
 {
   int i, j, M = p->M ;
   uchar *x = myalloc (M, uchar) ;
-  PbwtCursor *uF= pbwtCursorCreate (p, TRUE, TRUE) ;
-  uchar *yN1 = myalloc (M, uchar) ;
-  int *aN1 = myalloc (M, int) ;
+  PbwtCursor *uF ;
 
-  for (i = 0 ; i < p->N ; ++i)	/* first run forwards to the end */
-    pbwtCursorForwardsRead (uF) ;
+  if (p->aFend)
+    uF = pbwtCursorCreate (p, TRUE, FALSE) ;
+  else
+    { uF = pbwtCursorCreate (p, TRUE, TRUE) ;
+      for (i = 0 ; i < p->N ; ++i)	/* first run forwards to the end */
+	pbwtCursorForwardsRead (uF) ;
+      p->aFend = myalloc (M, int) ; memcpy (p->aFend, uF->a, M * sizeof(int)) ;
+    }
 
-  /* save uF->a, which is the reverse lexicographic order of the sequences */
-  if (!p->aFend) p->aFend = myalloc (M, int) ;
-  memcpy (p->aFend, uF->a, M * sizeof(int)) ;
-  /* use this also to start the reverse cursor - this gives better performance */
-  if (!p->aRstart) p->aRstart = myalloc (M, int) ;
-  memcpy (p->aRstart, uF->a, M * sizeof(int)) ;
-  
+  /* use p->aFend also to start the reverse cursor - this gives better performance */
+  if (!p->aRstart) p->aRstart = myalloc (M, int) ; memcpy (p->aRstart, uF->a, M * sizeof(int)) ;
   p->zz = arrayReCreate (p->zz, arrayMax(p->yz), uchar) ;
   PbwtCursor *uR = pbwtCursorCreate (p, FALSE, TRUE) ; /* will pick up aRstart */
-  fprintf (stderr, "uF->isBlockEnd = %d\n", uF->isBlockEnd) ;
   for (i = p->N ; i-- ; )
     { pbwtCursorReadBackwards (uF) ;
       for (j = 0 ; j < M ; ++j) x[uF->a[j]] = uF->y[j] ;
@@ -164,8 +165,7 @@ void pbwtBuildReverse (PBWT *p)
       pbwtCursorWriteForwards (uR) ;
     }
   /* save uR->a, which is the lexicographic order of the sequences */
-  if (!p->aRend) p->aRend = myalloc (M, int) ;
-  memcpy (p->aRend, uR->a, M * sizeof(int)) ;
+  if (!p->aRend) p->aRend = myalloc (M, int) ; memcpy (p->aRend, uR->a, M * sizeof(int)) ;
 
   fprintf (stderr, "built reverse PBWT - size %d\n", arrayMax(p->zz)) ;
 
@@ -408,9 +408,8 @@ PbwtCursor *pbwtNakedCursorCreate (int M, int *aInit)
   if (aInit) memcpy (u->a, aInit, M*sizeof(int)) ;
   else for (i = 0 ; i < M ; ++i) u->a[i] = i ;
   u->b = myalloc (M, int) ;
-  u->d = myalloc (M+1, int) ;
-  for (i = 0 ; i < u->M ; ++i) u->d[i] = 0 ; 
-  u->d[0] = 2 ; u->d[u->M] = 2 ;
+  u->d = mycalloc (M+1, int) ;
+  u->d[0] = 2 ; u->d[u->M] = 2 ; /* sentinel values */
   u->e = myalloc (M+1, int) ;
   u->u = myalloc (M+1, int) ;
   return u ;
@@ -418,7 +417,7 @@ PbwtCursor *pbwtNakedCursorCreate (int M, int *aInit)
 
 PbwtCursor *pbwtCursorCreate (PBWT *p, BOOL isForwards, BOOL isStart)
 {
-  if (isForwards && !p->yz || !isForwards && !p->zz) die ("something missing in cursorCreate") ;
+  if (isForwards && !p->yz || !isForwards && !p->zz) die ("data missing in cursorCreate") ;
   PbwtCursor *u ;
   if (isForwards && isStart) u = pbwtNakedCursorCreate (p->M, p->aFstart) ; 
   else if (isForwards && !isStart) u = pbwtNakedCursorCreate (p->M, p->aFend) ; 
@@ -561,7 +560,7 @@ void pbwtCursorWriteForwards (PbwtCursor *u) /* write then move forwards */
 
 /***************************************************/
 
-PBWT *pbwtSelectSites (PBWT *pOld, Array sites)
+PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
 {
   PBWT *pNew = pbwtCreate (pOld->M) ;
   int ip = 0, ia = 0, j ;
@@ -592,19 +591,25 @@ PBWT *pbwtSelectSites (PBWT *pOld, Array sites)
 	  pbwtCursorWriteForwards (uNew) ;
 	}
     }
-
-  if (pNew->N == pOld->N)	/* no change - keep pOld as pNew */
-    { pbwtDestroy (pNew) ;
-      pNew = pOld ;
-    }
-  else
-    { pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
-      pNew->samples = pOld->samples ; pOld->samples = 0 ;
-      pbwtDestroy (pOld) ;
-    }
+  pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;
 
   fprintf (stderr, "%d sites selected from %d, pbwt size for %d haplotypes is %d\n", 
 	   pNew->N, pOld->N, pNew->M, arrayMax(pNew->yz)) ;
+
+  if (isKeepOld)
+    { if (pOld->samples) pNew->samples = arrayCopy (pOld->samples) ;
+      if (pOld->chrom) pNew->chrom = strdup (pOld->chrom) ;
+    }
+  else				/* destroy one or the other */
+    if (pNew->N == pOld->N)	/* no change - keep pOld as pNew */
+      { pbwtDestroy (pNew) ;
+	pNew = pOld ;
+      }
+    else
+      { pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
+	pNew->samples = pOld->samples ; pOld->samples = 0 ;
+	pbwtDestroy (pOld) ;
+      }
 
   free(x) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   return pNew ;

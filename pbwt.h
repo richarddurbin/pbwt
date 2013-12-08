@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 18 11:43 2013 (rd)
+ * Last edited: Dec  7 19:47 2013 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -84,7 +84,7 @@ PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac) ;
 PBWT *pbwtSubRange (PBWT *pOld, int start, int end) ;
 void pbwtBuildReverse (PBWT *p) ;
 uchar **pbwtHaplotypes (PBWT *p) ;
-PBWT *pbwtSelectSites (PBWT *pOld, Array sites) ;
+PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld) ;
 
 	/* operations to move forwards and backwards in the pbwt using the cursor structure */
 
@@ -162,6 +162,7 @@ void matchSequencesHL (PBWT *p, FILE *fp) ; /* incomplete */
 void imputeExplore (PBWT *p, int test) ;
 PBWT *phase (PBWT *p, int kMethod, int nSparse) ;
 PBWT *referencePhase (PBWT *p, char *fileNameRoot) ;
+PBWT *referenceImpute (PBWT *p, char *fileNameRoot) ;
 PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange) ;
 PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange) ;
 
