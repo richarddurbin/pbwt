@@ -15,7 +15,7 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Dec  7 21:45 2013 (rd)
+ * Last edited: Dec 16 08:58 2013 (rd)
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -589,6 +589,67 @@ PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
 	  pbwtCursorForwardsRead (uOld) ;
 	  for (j = 0 ; j < pNew->M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
 	  pbwtCursorWriteForwards (uNew) ;
+	}
+    }
+  pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;
+
+  fprintf (stderr, "%d sites selected from %d, pbwt size for %d haplotypes is %d\n", 
+	   pNew->N, pOld->N, pNew->M, arrayMax(pNew->yz)) ;
+
+  if (isKeepOld)
+    { if (pOld->samples) pNew->samples = arrayCopy (pOld->samples) ;
+      if (pOld->chrom) pNew->chrom = strdup (pOld->chrom) ;
+    }
+  else				/* destroy one or the other */
+    if (pNew->N == pOld->N)	/* no change - keep pOld as pNew */
+      { pbwtDestroy (pNew) ;
+	pNew = pOld ;
+      }
+    else
+      { pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
+	pNew->samples = pOld->samples ; pOld->samples = 0 ;
+	pbwtDestroy (pOld) ;
+      }
+
+  free(x) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
+  return pNew ;
+}
+
+/***************************************************/
+
+PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld)
+{
+  PBWT *pNew = pbwtCreate (pOld->M) ;
+  int ip = 0, ia = 0, j ;
+  Site *sp = arrp(pOld->sites,ip,Site), *sa = arrp(sites,ia,Site) ;
+  PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
+  pNew->yz = arrayCreate (arrayMax(pOld->yz), uchar) ;
+  PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
+  uchar *x = myalloc (pNew->M, uchar) ;
+
+  pNew->sites = arrayCreate (arrayMax(sites), Site) ;
+  while (ip < pOld->N && ia < arrayMax(sites))
+    { if (sp->x < sa->x) 
+	{ array(pNew->sites,pNew->N++,Site) = *sp ;
+	  ++ip ; ++sp ;
+	  for (j = 0 ; j < pOld->M ; ++j) x[uOld->a[j]] = uOld->y[j] ;
+	  pbwtCursorForwardsRead (uOld) ;
+	  for (j = 0 ; j < pNew->M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
+	  pbwtCursorWriteForwards (uNew) ;
+	}
+      else if (sp->x > sa->x) { ++ia ; ++sa ; }
+      else if (sp->varD < sa->varD)
+	{ array(pNew->sites,pNew->N++,Site) = *sp ;
+	  ++ip ; ++sp ;
+	  for (j = 0 ; j < pOld->M ; ++j) x[uOld->a[j]] = uOld->y[j] ;
+	  pbwtCursorForwardsRead (uOld) ;
+	  for (j = 0 ; j < pNew->M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
+	  pbwtCursorWriteForwards (uNew) ;
+	}
+      else if (sp->varD > sa->varD) { ++ia ; ++sa ; }
+      else
+	{ ++ip ; ++sp ; ++ia ; ++sa ;
+	  pbwtCursorForwardsRead (uOld) ;
 	}
     }
   pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;

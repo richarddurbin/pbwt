@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Dec  8 01:43 2013 (rd)
+ * Last edited: Dec 16 17:45 2013 (rd)
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -403,6 +403,8 @@ PBWT *pbwtReadMacs (FILE *fp)
 	pbwtCheckPoint (p) ;
     }
 
+  p->aFend = myalloc (p->M, int) ; memcpy (p->aFend, u->a, p->M*sizeof(int)) ;
+
   fprintf (stderr, "read MaCS file: M, N are\t%d\t%d\n", M, p->N) ;
   if (isStats)
     fprintf (stderr, "                xtot, ytot are\t%d\t%d\n", nxTot, nyTot) ;
@@ -495,6 +497,8 @@ static PBWT *pbwtReadLineFile (FILE *fp, char* type, ParseLineFunc parseLine)
       pbwtCursorWriteForwards (u) ;
       if (nCheckPoint && !(p->N % nCheckPoint))	pbwtCheckPoint (p) ;
     }
+
+  p->aFend = myalloc (p->M, int) ; memcpy (p->aFend, u->a, p->M*sizeof(int)) ;
 
   fprintf (stderr, "read %s file", type) ;
   if (p->chrom) fprintf (stderr, " for chromosome %s", p->chrom) ;

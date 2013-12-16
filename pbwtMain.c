@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Dec  7 19:40 2013 (rd)
+ * Last edited: Dec 16 14:24 2013 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -155,6 +155,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -corruptSites <p> <q>     randomise fraction q of positions at fraction p of sites, according to site frequency\n") ;
       fprintf (stderr, "  -corruptSamples <p> <q>   randomise fraction q of positions for fraction p of samples, according to site frequency\n") ;
       fprintf (stderr, "  -selectSites <file>       select sites as in sites file\n") ;
+      fprintf (stderr, "  -removeSites <file>       remove sites as in sites file\n") ;
       fprintf (stderr, "  -selectSamples <file>     select samples as in samples file\n") ;
       fprintf (stderr, "  -longWithin <L>           find matches within set longer than L\n") ;
       fprintf (stderr, "  -maxWithin                find maximal matches within set\n") ;
@@ -236,6 +237,18 @@ int main (int argc, char *argv[])
       { FOPEN("selectSamples","r") ; p = pbwtSelectSamples (p, fp) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-subsites") && argc > 2)
       { p = pbwtSubSites (p, atof(argv[1]), atof(argv[2])) ; argc -= 3 ; argv += 3 ; }
+    else if (!strcmp (argv[0], "-selectSites") && argc > 2)
+      { FOPEN("selectSites","r") ; char *chr = 0 ; Array sites = pbwtReadSitesFile (fp, &chr) ;
+	if (strcmp (chr, p->chrom)) die ("chromosome mismatch in selectSites") ;
+	p = pbwtSelectSites (p, sites, FALSE) ; free (chr) ; arrayDestroy (sites) ;
+	argc -= 2 ; argv += 2 ; 
+      }
+    else if (!strcmp (argv[0], "-removeSites") && argc > 2)
+      { FOPEN("removeSites","r") ; char *chr = 0 ; Array sites = pbwtReadSitesFile (fp, &chr) ;
+	if (strcmp (chr, p->chrom)) die ("chromosome mismatch in removeSites") ;
+	p = pbwtRemoveSites (p, sites, FALSE) ; free (chr) ; arrayDestroy (sites) ;
+	argc -= 2 ; argv += 2 ; 
+      }
     else if (!strcmp (argv[0], "-subrange") && argc > 2)
       { p = pbwtSubRange (p, atoi(argv[1]), atoi(argv[2])) ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-corruptSites") && argc > 2)
@@ -268,6 +281,8 @@ int main (int argc, char *argv[])
       { p = referencePhase (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-referenceImpute") && argc > 1)
       { p = referenceImpute (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-genotypeCompare") && argc > 1)
+      { genotypeCompare (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else
       die ("unrecognised command %s\nType pbwt without arguments for help", *argv) ;
     timeUpdate() ;

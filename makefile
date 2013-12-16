@@ -11,6 +11,9 @@ test:
 pbwt: pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o utils
 	gcc $(CFLAGS) -o pbwt pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o hash.o dict.o array.o utils.o $(HTSLIB) -lpthread -lz -lm
 
+autozygExtract: autozygExtract.o
+	gcc $(CFLAGS) -o autozygExtract autozygExtract.o utils.o $(HTSLIB) -lpthread -lz -lm
+
 pbwtMain.o: pbwtMain.c pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtMain.c
 
@@ -34,6 +37,9 @@ pbwtMerge.o: pbwtMerge.c pbwt.h utils.h
 
 pbwtHtslib.o: pbwtHtslib.c pbwt.h utils.h 
 	gcc $(CFLAGS) -I$(HTSDIR) -c pbwtHtslib.c
+
+autozygExtract.o: autozygExtract.c
+	gcc $(CFLAGS) -I$(HTSDIR) -c autozygExtract.c
 
 #################################
 

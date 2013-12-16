@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Dec  7 19:47 2013 (rd)
+ * Last edited: Dec 16 14:24 2013 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -85,6 +85,7 @@ PBWT *pbwtSubRange (PBWT *pOld, int start, int end) ;
 void pbwtBuildReverse (PBWT *p) ;
 uchar **pbwtHaplotypes (PBWT *p) ;
 PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld) ;
+PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld) ;
 
 	/* operations to move forwards and backwards in the pbwt using the cursor structure */
 
@@ -132,6 +133,7 @@ void pbwtWriteMissing (PBWT *p, FILE *fp) ;
 void pbwtWriteReverse (PBWT *p, FILE *fp) ;
 void pbwtWriteAll (PBWT *p, char *fileNameRoot) ;
 PBWT *pbwtRead (FILE *fp) ;
+Array pbwtReadSitesFile (FILE *fp, char **chrom) ;
 void pbwtReadSites (PBWT *p, FILE *fp) ;
 Array pbwtReadSamplesFile (FILE *fp) ;
 void pbwtReadSamples (PBWT *p, FILE *fp) ;
@@ -163,6 +165,7 @@ void imputeExplore (PBWT *p, int test) ;
 PBWT *phase (PBWT *p, int kMethod, int nSparse) ;
 PBWT *referencePhase (PBWT *p, char *fileNameRoot) ;
 PBWT *referenceImpute (PBWT *p, char *fileNameRoot) ;
+void genotypeCompare (PBWT *p, char *fileNameRoot) ;
 PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange) ;
 PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange) ;
 
