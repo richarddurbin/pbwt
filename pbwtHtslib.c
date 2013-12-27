@@ -5,7 +5,7 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 16 16:59 2013 (rd)
+ * Last edited: Dec 27 18:54 2013 (sm15)
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -183,6 +183,101 @@ PBWT *pbwtReadVcfPL (char *filename)	/* read PLs from vcf/bcf using htslib */
   bcf_sr_destroy (sr) ;
   
   return p ;
+}
+
+void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
+{
+  htsFile *bcf_fp = NULL ;
+  bcf_hdr_t *bcf_hdr = NULL ;
+
+  // wb .. compressed BCF
+  // wbu .. uncompressed BCF
+  // wz .. compressed VCF
+  // w .. uncompressed VCF
+  // write out uncompressed VCF for the moment. BCF needs ##contig metadata complete in header
+  bcf_fp = hts_open(filename,"w");
+  if (!p) die ("pbwtWriteVcf called without a valid pbwt") ;
+  if (!p->sites) die ("pbwtWriteVcf called without sites") ;
+  int samples_known = 1 ;
+  if (!p->samples)
+    {
+      fprintf (stderr, "Warning: pbwtWriteVcf called without samples... using fake sample names PBWT0, PBWT1 etc...\n") ;
+      samples_known = 0 ;
+    }
+
+  // write header
+  bcf_hdr = bcf_hdr_init("w") ;
+  kstring_t str = {0,0,0} ;
+  ksprintf(&str, "##pbwtVersion=0.00+htslib-%s", hts_version()) ;
+  bcf_hdr_append(bcf_hdr, str.s) ;
+  free(str.s) ;
+  bcf_hdr_append(bcf_hdr, "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count in genotypes\">") ;
+  bcf_hdr_append(bcf_hdr, "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">") ;
+  bcf_hdr_append(bcf_hdr, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">") ;
+  
+  int i, j ;
+  for (i = 0 ; i < p->M/2 ; ++i)
+    {
+      if (samples_known)
+        bcf_hdr_add_sample(bcf_hdr, sampleName(arr(p->samples, 2*i, int))) ;
+      else
+        {
+          kstring_t sname = {0,0,0} ;
+          ksprintf(&sname, "PBWT%d", i) ;
+          bcf_hdr_add_sample(bcf_hdr, sname.s) ;
+          free(sname.s) ;
+        }
+    }
+  bcf_hdr_write(bcf_fp, bcf_hdr) ;
+
+  bcf1_t *bcf_rec = bcf_init1() ;
+  uchar *hap = myalloc (p->M, uchar) ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
+
+  for (i = 0 ; i < p->N ; ++i)
+    {
+      kstring_t rec = {0,0,0} ;
+      Site *s = arrp(p->sites, i, Site) ;
+      ksprintf(&rec, "%s\t%d\t.\t%s\t.\tPASS\t.\tGT", 
+        p->chrom ? p->chrom : ".", 
+        s->x, dictName(variationDict, s->varD));
+      for (j = 0 ; j < p->M ; ++j)
+        {
+          hap[u->a[j]] = u->y[j] ;
+        }
+      int ac[2] = {0,0};
+      for (j = 0 ; j < p->M ; j+=2)
+        {
+          // write out phased or unphased? phased flag could be stored in pbwt struct?
+          // could add PS or other FORMAT fields here?
+          // todo: handle missing data
+          ksprintf(&rec, "\t%d|%d", hap[j], hap[j+1]) ;
+          ac[hap[j]]++ ;
+          ac[hap[j+1]]++ ;
+        }
+      int an = ac[0] + ac[1] ;
+
+      // parse VCF record string into bcf record. 
+      // could be quicker to load directly into bcf, but this is easy
+      vcf_parse(&rec, bcf_hdr, bcf_rec) ; 
+
+      // example of adding INFO fields
+      bcf_update_info_int32(bcf_hdr, bcf_rec, "AC", &ac[1], 1) ;
+      bcf_update_info_int32(bcf_hdr, bcf_rec, "AN", &an, 1) ;
+
+      //write and progress
+      bcf_write1(bcf_fp, bcf_hdr, bcf_rec) ;
+      bcf_clear1(bcf_rec) ;
+      free(rec.s) ;
+      pbwtCursorForwardsRead(u) ;
+    }
+
+  // cleanup
+  free(hap) ;
+  pbwtCursorDestroy(u) ;
+  bcf_hdr_destroy(bcf_hdr) ;
+  bcf_destroy1(bcf_rec);
+  hts_close(bcf_fp) ;
 }
 
 /******* end of file ********/

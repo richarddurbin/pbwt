@@ -229,6 +229,8 @@ int main (int argc, char *argv[])
       { FOPEN("writeReverse","w") ; pbwtWriteReverse (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeAll") && argc > 1)
       { pbwtWriteAll (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writeVcf") && argc > 1)
+      { pbwtWriteVcf (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-checkpoint") && argc > 1)
       { nCheckPoint = atoi (argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-subsample") && argc > 2)
