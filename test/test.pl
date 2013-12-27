@@ -12,6 +12,7 @@ my $opts = parse_params();
 
 test_pbwt($opts, in=>'merge.1', out=>'merge.1.out');
 test_pbwt($opts, in=>'merge.2', out=>'merge.2.out');
+test_write_vcf($opts, in=>'merge.1', out=>'merge.1.vcf');
 test_merge($opts,in=>['merge.1','merge.2'],out=>'merge.12.out');
 test_merge_sites($opts,in=>['merge.1','merge.2'],out=>'merge.12.sites');
 
@@ -176,8 +177,14 @@ sub is_file_newer
 sub test_pbwt
 {
 	my ($opts,%args) = @_;
-	cmd("$$opts{bin}/pbwt -vcfq $$opts{path}/$args{in}.tab -write $$opts{tmp}/$args{in}.pbwt -writeSites $$opts{tmp}/$args{in}.sites 2>/dev/null");
+	cmd("$$opts{bin}/pbwt -readVcfq $$opts{path}/$args{in}.tab -write $$opts{tmp}/$args{in}.pbwt -writeSites $$opts{tmp}/$args{in}.sites 2>/dev/null");
 	test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -read $$opts{tmp}/$args{in}.pbwt -haps $$opts{tmp}/$args{out}");
+}
+
+sub test_write_vcf
+{
+    my ($opts,%args) = @_;
+    test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -read $$opts{tmp}/$args{in}.pbwt -readSites $$opts{tmp}/$args{in}.sites -writeVcf - 2>/dev/null | grep -v ^##pbwtVersion >$$opts{tmp}/$args{out}");
 }
 
 sub test_merge
