@@ -62,3 +62,6 @@ utils.o: utils.c utils.h
 
 clean:
 	rm -f *.o pbwt *~
+
+.PHONY: all test clean
+
