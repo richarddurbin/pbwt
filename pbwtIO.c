@@ -207,7 +207,7 @@ Array pbwtReadSitesFile (FILE *fp, char **chrom)
 	    while (isspace(c = fgetc(fp)) && c != '\n') ;
 	    if (c == '\n') die ("bad end of line at line %d in sites file", line) ;
 	    int i = 0 ; array(varTextArray, i++, char) = c ;
-	    while ((c = fgetc(fp)) && !isspace(c) && c != '\n') 
+	    while ((c = fgetc(fp)) && c != '\n') 
 	      array(varTextArray, i++, char) = c ;
 	    array(varTextArray, i, char) = 0 ;
 	    dictAdd (variationDict, arrayp(varTextArray,0,char), &s->varD) ;

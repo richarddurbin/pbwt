@@ -121,6 +121,8 @@ PBWT *pbwtReadVcfGT (char *filename)	/* read GTs from vcf/bcf using htslib */
       if (nCheckPoint && !(p->N % nCheckPoint))	pbwtCheckPoint (p) ;
     }
 
+  p->aFend = myalloc (p->M, int) ; memcpy (p->aFend, u->a, p->M*sizeof(int)) ;
+
   if (gt_arr) free (gt_arr) ;
   bcf_sr_destroy (sr) ;
   free (x) ; pbwtCursorDestroy (u) ;  

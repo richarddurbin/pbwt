@@ -200,6 +200,8 @@ PBWT *pbwtMerge(const char **fnames, int nfiles)
 		out_pbwt->N++;
 	}
 
+	out_pbwt->aFend = myalloc (out_pbwt->M, int) ; memcpy (out_pbwt->aFend, cursor->a, out_pbwt->M*sizeof(int)) ;
+
 	free(yseq);
 	pbwtCursorDestroy(cursor);
 	pbwt_reader_destroy(reader);
