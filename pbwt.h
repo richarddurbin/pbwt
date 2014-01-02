@@ -151,6 +151,7 @@ void pbwtCheckPoint (PBWT *p) ;
 /* all these functions also read and write samples and sites */
 PBWT *pbwtReadVcfGT (char *filename) ;	/* read GTs from vcf/bcf using htslib */
 PBWT *pbwtReadVcfPL (char *filename) ;	/* read PLs from vcf/bcf using htslib */
+void pbwtWriteVcf (PBWT *p, char *filename) ;  /* write vcf using htslib */
 
 /* pbwtMatch.c - functions as in Bioinformatics paper */
 

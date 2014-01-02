@@ -27,6 +27,13 @@ void sampleInit (void)
   samples = arrayCreate (4096, Sample) ;
 }
 
+void sampleDestroy (void)
+{
+  if (sampleDict) dictDestroy(sampleDict);
+  if (populationDict) dictDestroy(populationDict);
+  if (samples) arrayDestroy(samples);
+}
+
 Sample *sample (int i) 
 {
   if (i >= arrayMax(samples)) die ("sample index %d out of range %d", i, arrayMax(samples)) ;
