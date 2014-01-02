@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 16 14:24 2013 (rd)
+ * Last edited: Dec 17 15:39 2013 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -245,7 +245,7 @@ int main (int argc, char *argv[])
       }
     else if (!strcmp (argv[0], "-removeSites") && argc > 2)
       { FOPEN("removeSites","r") ; char *chr = 0 ; Array sites = pbwtReadSitesFile (fp, &chr) ;
-	if (strcmp (chr, p->chrom)) die ("chromosome mismatch in removeSites") ;
+	if (p->chrom && strcmp (chr, p->chrom)) die ("chromosome mismatch in removeSites") ;
 	p = pbwtRemoveSites (p, sites, FALSE) ; free (chr) ; arrayDestroy (sites) ;
 	argc -= 2 ; argv += 2 ; 
       }

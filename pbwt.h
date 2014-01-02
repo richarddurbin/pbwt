@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 16 14:24 2013 (rd)
+ * Last edited: Dec 21 23:33 2013 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -47,6 +47,7 @@ typedef struct PBWTstruct {
 typedef struct SiteStruct {
   int x ;			/* position on chromosome */
   int varD ;			/* index in variationDict */
+  double freq ;			/* frequency */
 } Site ;
 
 typedef struct SampleStruct {
@@ -157,6 +158,7 @@ void pbwtLongMatches (PBWT *p, int L) ; /* internal matches longer than L, maxim
 void matchSequencesNaive (PBWT *p, FILE *fp) ; /* fp is a pbwt file of sequences to match */
 void matchSequencesIndexed (PBWT *p, FILE *fp) ;
 void matchSequencesDynamic (PBWT *p, FILE *fp) ;
+void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int, int, int, int)) ;
 void matchSequencesHL (PBWT *p, FILE *fp) ; /* incomplete */
 
 /* pbwtImpute.c */

@@ -5,7 +5,7 @@
  * Description: functions for samples and populations
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 16 21:07 2013 (rd)
+ * Last edited: Dec 17 16:26 2013 (rd)
  * Created: Sat Nov  2 18:42:07 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -53,7 +53,7 @@ PBWT *pbwtSubSample (PBWT *pOld, Array select)
   PBWT *pNew = pbwtCreate (arrayMax(select)) ;
   int i, j, nOld = 0 ;
   uchar *x = myalloc (pNew->M, uchar), *yz = myalloc (pNew->M, uchar) ;
-  uchar *ainv = myalloc (pOld->M, uchar) ;
+  int *ainv = myalloc (pOld->M, int) ;
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
   pNew->N = pOld->N ; 
   pNew->yz = arrayCreate (pOld->N*8, uchar) ;
@@ -66,6 +66,7 @@ PBWT *pbwtSubSample (PBWT *pOld, Array select)
       pbwtCursorWriteForwards (uNew) ;
       pbwtCursorForwardsRead (uOld) ;
     }
+  pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;
 
   /* need to do this also for missing */
 

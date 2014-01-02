@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 16 14:36 2013 (rd)
+ * Last edited: Dec 30 09:57 2013 (rd)
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -555,6 +555,9 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
 	}
     }
 
+  /* store final order in aFend */
+  q->aFend = myalloc (M, int) ; memcpy (q->aFend, uq->a, M * sizeof(int)) ;
+
   /* compare new phasing to original and report switch rates */
   fprintf (stderr, "After forward pass: ") ; phaseCompare (p, q) ;
 
@@ -831,44 +834,24 @@ static inline double matchImputeScore (MatchInfo *m, PbwtCursor *uRef, PbwtCurso
   return score ;
 }
 
-PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot)
+static PBWT *referenceImpute1 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 {
-  /* Preliminaries */
-  fprintf (stderr, "impute against reference %s\n", fileNameRoot) ;
-  if (!pOld || !pOld->yz || !pOld->sites) 
-    die ("referencePhase called without existing pbwt with sites") ;
-  PBWT *pRef = pbwtReadAll (fileNameRoot) ;
-  if (!pRef->sites) die ("new pbwt %s in referencePhase has no sites", fileNameRoot) ;
-  if (strcmp(pOld->chrom,pRef->chrom))
-    die ("mismatching chrom in referencePhase: old %s, new %s", pRef->chrom, pOld->chrom) ;
-
-  /* identify the intersecting sites */
-  pOld = pbwtSelectSites (pOld, pRef->sites, FALSE) ;
-  if (!pOld->N) die ("no overlapping sites in referencePhase") ;
-  PBWT *pFrame = pbwtSelectSites (pRef, pOld->sites, TRUE) ; /* keep the full ref to impute to */
-  if (pFrame->N == pRef->N)
-    { fprintf (stderr, "No additional sites to impute in referenceImpute\n") ;
-      pbwtDestroy (pFrame) ; pbwtDestroy (pRef) ;
-      return pOld ;
-    }
-  pbwtBuildReverse (pFrame) ;	/* we need the reverse reference pbwt below */
-  if (!pOld->aFend) die ("pOld has no aFend in referenceImpute - your pbwt was made by a previous version of the code; buildReverse and resave the forwards pbwt") ;
-
-  if (isCheck) { fprintf (stderr, "After preliminaries: ") ; timeUpdate() ; }
-
 /* Strategy: first pass back through the pbwts to build imputation information from right.
    Then pass forwards building information from left and imputing from both.
    The problem here is the potential size of the cache of right imputation information.
    Full data size is N (length) * pOld->M.  Could be more sophisticated.
 */
+
+  fprintf (stderr, "REFERENCE IMPUTE 1: ") ;
+
   /* declarations and initialisations */
   int M = pOld->M, N = pOld->N ;
   int i, j, k ;		    /* indices: ref/frame, new sample, site */
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, FALSE) ;   /* cursor on old - run backwards on forwards pbwt (we just want the values, not the history, and may not have reverse) */
   PbwtCursor *uFrameR = pbwtCursorCreate (pFrame, FALSE, TRUE) ;   /* cursor on frame - run forwards on reverse pbwt*/
   MatchInfo **matchRstore = myalloc (N+1, MatchInfo*) ; /* impute info from right per site */
-  MatchInfo **matchR = matchRstore ;
   for (k = 0 ; k <= N ; ++k) matchRstore[k] = mycalloc (M, MatchInfo) ;
+  MatchInfo **matchR = matchRstore ;
   for (j = 0 ; j < M ; ++j)	    /* initialise first matchR[].i randomly */
     (*matchR)[j].i = rand() * (double)pFrame->M / RAND_MAX ;
   uchar *x = myalloc (M, uchar) ;   /* current uOld values in original sort order */
@@ -906,6 +889,7 @@ PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot)
 	}
       for (j = 0 ; j < M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* write into pNew */
       pbwtCursorWriteForwards (uNew) ;
+      arrp(pRef->sites,kRef,Site)->freq = (uRef->M - uRef->c) / (double) pRef->M ;
       pbwtCursorForwardsRead (uRef) ; ++kRef ;
     }
 
@@ -939,6 +923,7 @@ PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot)
 	    }
 	  for (j = 0 ; j < M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* write into pNew */
 	  pbwtCursorWriteForwards (uNew) ;
+	  arrp(pRef->sites,kRef,Site)->freq =  (uRef->M - uRef->c) / (double) pRef->M ;
 	  pbwtCursorForwardsRead (uRef) ; ++kRef ;
 	}
     }
@@ -953,17 +938,132 @@ PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot)
 	}
       for (j = 0 ; j < M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* write into pNew */
       pbwtCursorWriteForwards (uNew) ;
+      arrp(pRef->sites,kRef,Site)->freq =  (uRef->M - uRef->c) / (double) pRef->M ;
       pbwtCursorForwardsRead (uRef) ; ++kRef ;
     }
 
   pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;
 
-  pNew->sites = pOld->sites ; pOld->sites = 0 ;
+  pNew->sites = pRef->sites ; pRef->sites = 0 ; 
+  pNew->chrom = pRef->chrom ; pRef->chrom = 0 ;
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
-  pbwtDestroy (pFrame) ; pbwtDestroy (pOld) ;
   pbwtCursorDestroy (uFrameL) ; pbwtCursorDestroy (uFrameR) ;
-  pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
-  free (matchR) ; free (matchL) ; for (k = 0 ; k < N ; ++k) free (matchRstore[k]) ;
+  pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ; pbwtCursorDestroy (uRef) ;
+  free (aRefInv) ; free (matchL) ; 
+  for (k = 0 ; k < N ; ++k) free (matchRstore[k]) ; free (matchRstore) ;
+  return pNew ;
+}
+
+/*********************************************************************/
+
+typedef struct { int jRef ; int start ; int end ; } MatchSegment ;
+/* matches are semi-open [start,end) so length is end-start */
+
+static Array *maxMatch = 0 ;	/* of MatchSegment */
+
+static void reportMatch (int iq, int jRef, int start, int end)
+{
+  MatchSegment *ms = arrayp (maxMatch[iq], arrayMax(maxMatch[iq]), MatchSegment) ;
+  ms->jRef = jRef ; ms->start = start ; ms->end = end ;
+}
+
+static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
+/* require pOld and pFrame to have the same sites, and these are a subset of sites of pRef */
+{
+  int i, j, k ;
+
+  fprintf (stderr, "REFERENCE IMPUTE 2: ") ;
+
+  /* build the array of maximal matches into pFrame for each sequence in pOld */
+  maxMatch = myalloc (pOld->M, Array) ;
+  for (j = 0 ; j < pOld->M ; ++j) maxMatch[j] = arrayCreate (1024, MatchSegment) ;
+  matchSequencesSweep (pFrame, pOld, reportMatch) ; /* in pbwtMatch.c */
+  for (j = 0 ; j < pOld->M ; ++j)		    /* add terminating element to arrays */
+    { MatchSegment *ms = arrayp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
+      ms->jRef = ms[-1].jRef ; ms->end = pOld->N+1 ; ms->start = pOld->N ;
+    }
+
+  PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
+  PbwtCursor *uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;
+  PBWT *pNew = pbwtCreate (pOld->M) ;	/* this will hold the imputed sequence */
+  pNew->yz = arrayCreate (arrayMax(pOld->yz), uchar) ; pNew->N = pRef->N ;
+  PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
+  uchar *x = myalloc (pOld->M, uchar) ;   /* current uOld values in original sort order */
+  int *aRefInv = myalloc (pRef->M, int) ;  /* holds the inverse mapping from uRef->a[i] -> i */
+  int *firstSeg = mycalloc (pOld->M, int) ; /* position in maxMatch to start looking at */
+
+  int kOld = 0, kRef = 0 ;
+  while (kRef < pRef->N)
+    { if (arrp(pRef->sites,kRef,Site)->x == arrp(pFrame->sites,kOld,Site)->x)
+	{ pbwtCursorForwardsRead (uOld) ; ++kOld ;
+	  for (j = 0 ; j < pOld->M ; ++j)
+	    while (kOld >= arrp(maxMatch[j],firstSeg[j],MatchSegment)->end) ++firstSeg[j] ;
+	}
+      for (i = 0 ; i < pRef->M ; ++i) aRefInv[uRef->a[i]] = i ;
+      for (j = 0 ; j < pOld->M ; ++j)
+	{ /* need to look at overlapping matches */
+	  double bit = 0, sum = 0, score = 0 ;
+	  MatchSegment *m = arrp(maxMatch[j],firstSeg[j],MatchSegment) ;
+	  MatchSegment *mStop = arrp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
+	  while (m->start <= kOld && m < mStop)
+	    { bit = (kOld - m->start + 1) * (m->end - kOld) ; if (!bit) bit = 1 ;
+	      if (bit < 0)
+		die ("refImpute2 kRef %d kOld %d j %d m->start %d m->end %d firstSeg %d\n", 
+		     kRef, kOld, j, m->start, m->end, firstSeg[j]) ;
+	      sum += bit ;
+	      if (uRef->y[aRefInv[m->jRef]]) score += bit ;
+	      ++m ;
+	    }
+	  if (sum == 0) die ("refImpute2 sum==0 kRef %d kOld %d j %d\n", kRef, kOld, j) ;
+	  x[j] = (score/sum > 0.5) ? 1 : 0 ;
+	}
+      for (j = 0 ; j < pOld->M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* transfer to uNew */
+      pbwtCursorWriteForwards (uNew) ;
+      arrp(pRef->sites,kRef,Site)->freq = (uRef->M - uRef->c) / (double) pRef->M ;
+      pbwtCursorForwardsRead (uRef) ; ++kRef ;
+      if (isCheck && !(kRef % 10000)) fprintf (stderr, " %d %d\n", kRef, kOld) ;
+    }
+
+  pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;
+
+  pNew->sites = pRef->sites ; pRef->sites = 0 ; 
+  pNew->chrom = pRef->chrom ; pRef->chrom = 0 ;
+  pNew->samples = pOld->samples ; pOld->samples = 0 ;
+  pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uRef) ; pbwtCursorDestroy (uNew) ;
+  free (aRefInv) ; free (firstSeg) ;
+  for (j = 0 ; j < pOld->M ; ++j) free (maxMatch[j]) ; free (maxMatch) ;
+  return pNew ;
+}
+
+/*********************************************************************/
+
+PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot)
+{
+  /* Preliminaries */
+  fprintf (stderr, "impute against reference %s\n", fileNameRoot) ;
+  if (!pOld || !pOld->yz || !pOld->sites) 
+    die ("referenceImpute called without existing pbwt with sites") ;
+  PBWT *pRef = pbwtReadAll (fileNameRoot) ;
+  if (!pRef->sites) die ("new pbwt %s in referencePhase has no sites", fileNameRoot) ;
+  if (strcmp(pOld->chrom,pRef->chrom))
+    die ("mismatching chrom in referenceImpute: old %s, new %s", pRef->chrom, pOld->chrom) ;
+
+  /* identify the intersecting sites */
+  pOld = pbwtSelectSites (pOld, pRef->sites, FALSE) ;
+  if (!pOld->N) die ("no overlapping sites in referenceImpute") ;
+  PBWT *pFrame = pbwtSelectSites (pRef, pOld->sites, TRUE) ; /* keep the full ref to impute to */
+  if (pFrame->N == pRef->N)
+    { fprintf (stderr, "No additional sites to impute in referenceImpute\n") ;
+      pbwtDestroy (pFrame) ; pbwtDestroy (pRef) ;
+      return pOld ;
+    }
+  pbwtBuildReverse (pFrame) ;	/* we need the reverse reference pbwt below */
+  if (!pOld->aFend) die ("pOld has no aFend in referenceImpute - your pbwt was made by a previous version of the code; buildReverse and resave the forwards pbwt") ;
+
+  fprintf (stderr, "Imputation preliminaries: ") ; timeUpdate() ;
+
+  PBWT *pNew = referenceImpute2 (pOld, pRef, pFrame) ;
+  pbwtDestroy (pOld) ; pbwtDestroy (pFrame) ; pbwtDestroy (pRef) ;
   return pNew ;
 }
 
@@ -988,6 +1088,7 @@ void genotypeCompare (PBWT *p, char *fileNameRoot)
 
   for (k = 0 ; k < p->N ; ++k)
   { double f = (p->M - u->c) / (double)p->M ; 
+    if (arrp (p->sites,k,Site)->freq) f = arrp (p->sites,k,Site)->freq ;
     for (ff = 0 ; f*100 > fBound[ff] ; ++ff) ;
     for (j = 0 ; j < p->M ; ++j) { x[u->a[j]] = u->y[j] ; xRef[uRef->a[j]] = uRef->y[j] ; }
     for (j = 0 ; j < p->M ; j += 2) ++n[ff][3*(x[j]+x[j+1]) + xRef[j]+xRef[j+1]] ;
@@ -1013,6 +1114,12 @@ void genotypeCompare (PBWT *p, char *fileNameRoot)
     }
 
   pbwtCursorDestroy (u) ; pbwtCursorDestroy (uRef) ; pbwtDestroy (pRef) ;
+}
+
+/*********************************************************************/
+
+void imputeEvaluate (PBWT *p, char *fileNameRoot)
+{
 }
 
 /*********** routines to corrupt data to explore robustness *************/

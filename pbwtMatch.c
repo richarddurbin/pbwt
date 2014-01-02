@@ -15,7 +15,7 @@
  * Description: match functions in pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 18 09:23 2013 (rd)
+ * Last edited: Dec 28 00:30 2013 (rd)
  * Created: Thu Apr  4 11:55:48 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -25,7 +25,8 @@
 /************ finding long (or maximal) matches within the set ************/
 
 static Array matchLengthHist = 0 ;
-static uchar **checkHap ;	/* section global for checking only */
+static uchar **checkHapsA ;	/* section global for checking only */
+static uchar **checkHapsB ;	/* section global for checking only */
 static int Ncheck ;		/* section global for checking only */
 
 static void checkMatchMaximal (uchar *x, uchar *y, int start, int end, int N)
@@ -46,8 +47,13 @@ static void reportMatch (int ai, int bi, int start, int end)
   if (start == end) return ;
   printf ("MATCH\t%d\t%d\t%d\t%d\t%d\n", ai, bi, start, end, end-start) ;
 
+  /* following is text originally used for new sequence matching
+  printf ("MATCH query %d to reference %d from %d to %d length %d\n",
+          ai, bi, start, end, end - start) ;
+  */
+
   if (isCheck)			/* check match is a real match and maximal */
-    checkMatchMaximal (checkHap[ai], checkHap[bi], start, end, Ncheck) ;
+    checkMatchMaximal (checkHapsA[ai], checkHapsB[bi], start, end, Ncheck) ;
 }
 
 static void reportLongMatches1 (PbwtCursor *u, int T, int k) /* algorithm 3 */
@@ -131,7 +137,7 @@ void pbwtLongMatches (PBWT *p, int L) /* reporting threshold L - if 0 then maxim
   if (!p || !p->yz) die ("option -longWithin called without a PBWT") ;
   if (L < 0) die ("L %d for longWithin must be >= 0", L) ;
 
-  if (isCheck) { checkHap = pbwtHaplotypes(p) ; Ncheck = p->N ; }
+  if (isCheck) { checkHapsA = checkHapsB = pbwtHaplotypes(p) ; Ncheck = p->N ; }
 
   if (isStats)
     matchLengthHist = arrayReCreate (matchLengthHist, 1000000, int) ;
@@ -163,6 +169,8 @@ void pbwtLongMatches (PBWT *p, int L) /* reporting threshold L - if 0 then maxim
     }
 
   pbwtCursorDestroy (u) ;
+  if (isCheck) 
+    { int j ; for (j = 0 ; j < p->M ; ++j) free (checkHapsA[j]) ; free (checkHapsA) ; }
 }
 
 /***************** match new sequences into a reference PBWT ******************/
@@ -189,6 +197,8 @@ void matchSequencesNaive (PBWT *p, FILE *fp) /* fp is a pbwt file of sequences t
 
   fprintf (stderr, "Made haplotypes: ") ; timeUpdate () ;
 
+  if (isCheck) { checkHapsA = query ; checkHapsB = reference ; Ncheck = p->N ; }
+
   /* go query by query */
   for (j = 0 ; j < q->M ; ++j)
     { x = query[j] ;
@@ -214,11 +224,8 @@ void matchSequencesNaive (PBWT *p, FILE *fp) /* fp is a pbwt file of sequences t
       for (k = 0 ; k < p->N ; ++k)
 	if (bestSeq[k] != iBest)
 	  { iBest = bestSeq[k] ;
-	    printf ("MATCH query %d to reference %d from %d to %d length %d\n",
-		    j, iBest, k, bestEnd[k], bestEnd[k] - k) ;
+	    reportMatch (j, iBest, k, bestEnd[k]) ;
 	    ++nTot ; totLen += bestEnd[k] - k ;
-	    if (isCheck)
-	      checkMatchMaximal (query[j], reference[iBest], k, bestEnd[k], N) ;
 	  }
     }
 
@@ -270,6 +277,8 @@ void matchSequencesIndexed (PBWT *p, FILE *fp)
 
   fprintf (stderr, "Made haplotypes and indices: ") ; timeUpdate () ;
 
+  if (isCheck) { checkHapsA = query ; checkHapsB = reference ; Ncheck = p->N ; }
+
   /* match each query in turn */
 
   for (j = 0 ; j < q->M ; ++j)
@@ -284,10 +293,7 @@ void matchSequencesIndexed (PBWT *p, FILE *fp)
 	    { f = f1 ; g = g1 ; } /* no change to e */
 	  else		/* we have reached a maximum - need to report and update e, f*,g* */
 	    { for (i = f ; i < g ; ++i)		/* first report matches */
-		{ printf ("MATCH query %d to reference %d from %d to %d length %d\n",
-			  j, a[k][i], e, k, k-e) ;
-		  if (isCheck) checkMatchMaximal (x, reference[a[k][i]], e, k, N) ;
-		}
+		reportMatch (j, a[k][i], e, k) ;
 	      ++nTot ; totLen += k-e ;
 	      		/* then update e,f,g */
 	      e1 = d[k+1][f1] - 1 ; /* y[f1] and y[f1-1] diverge here, so upper bound for e */
@@ -306,10 +312,7 @@ void matchSequencesIndexed (PBWT *p, FILE *fp)
 	}
       /* report the maximal matches to the end */
       for (i = f ; i < g ; ++i)
-	{ printf ("MATCH query %d to reference %d from %d to %d length %d\n",
-		  j, a[k][i], e, k, k-e) ;
-	  if (isCheck) checkMatchMaximal (x, reference[a[k][i]], e, k, N) ;
-	}
+	reportMatch (j, a[k][i], e, k) ;
       ++nTot ; totLen += k-e ;
     }
 
@@ -340,6 +343,15 @@ typedef struct {
 } MatchInfo ;
 
 void matchSequencesDynamic (PBWT *p, FILE *fp)
+{
+  PBWT *q = pbwtRead (fp) ;	/* q for "query" of course */
+
+  matchSequencesSweep (p, q, reportMatch) ;
+
+  pbwtDestroy (q) ;
+}
+
+void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int start, int end))
 /* Rather than keep a[][], d[][], u[][] in memory, which can be very costly, here we update
    them in one sweep through the data. This makes the algorithm O(MN) sadly, but only
    O((M+Q)N) where Q is the number of queries, not O(MNQ) as the naive method.  
@@ -361,7 +373,6 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
    not done.
 */
 {
-  PBWT *q = pbwtRead (fp) ;	/* q for "query" of course */
   uchar **query = pbwtHaplotypes (q) ; /* make the sequences */
   Array mInfo = arrayCreate (q->M, MatchInfo) ;
   int i, j, k, M = p->M, N = p->N ;
@@ -377,7 +388,9 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
   if (q->N != p->N) die ("query length in matchSequences %d != PBWT length %d", q->N, p->N) ;
 
   if (isCheck)
-    reference = pbwtHaplotypes (p) ; /* expensive for big reference (same as naive) */
+    { reference = pbwtHaplotypes (p) ; /* expensive for big reference (same as naive) */
+      checkHapsA = query ; checkHapsB = reference ; Ncheck = p->N ;
+    }
 
 #ifdef USE_REVERSE
   buildReverse (p) ;
@@ -417,10 +430,7 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
 	    }
 	  else		/* we have reached a maximum - need to report and update e, f*,g* */
 	    { for (i = m->f ; i < m->g ; ++i)		/* first report matches */
-		{ printf ("MATCH query %d to reference %d from %d to %d length %d\n",
-			  j, oldA[i], m->e, k, k-m->e) ;
-		  if (isCheck) checkMatchMaximal (m->x, reference[oldA[i]], m->e, k, N) ;
-		}
+		(*report)(j, oldA[i], m->e, k) ;
 	      ++nTot ; totLen += k - m->e ;
 	      		/* then update e,f,g */
 	      e1 = u->d[f1] - 1 ; /* initial upper bound for e1 */
@@ -461,10 +471,7 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
   for (j = 0 ; j < q->M ; ++j)
     { m = arrp(mInfo,j,MatchInfo) ;
       for (i = m->f ; i < m->g ; ++i)
-	{ printf ("MATCH query %d to reference %d from %d to %d length %d\n",
-		  j, u->a[i], m->e, N, N - m->e) ;
-	  if (isCheck) checkMatchMaximal (m->x, reference[u->a[i]], m->e, N, N) ;
-	}
+	(*report)(j, u->a[i], m->e, N) ;
       ++nTot ; totLen += N - m->e ;
     }
 
@@ -473,7 +480,6 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
 
   		/* cleanup */
   for (j = 0 ; j < q->M ; ++j) free(query[j]) ; free (query) ;
-  pbwtDestroy (q) ;
   free (oldA) ; free (cc) ;
   pbwtCursorDestroy (u) ;
   if (isCheck) { for (j = 0 ; j < p->M ; ++j) free(reference[j]) ; free (reference) ; }
