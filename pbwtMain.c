@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 17 15:39 2013 (rd)
+ * Last edited: Jan  6 15:35 2014 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -166,6 +166,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -phase <k> <n>            phase with method k and n sparse pbwts\n") ;
       fprintf (stderr, "  -referencePhase <root>    phase current pbwt against reference whose root name is the argument - both pbwts need compatible sites! - only keep shared sites\n") ;
       fprintf (stderr, "  -referenceImpute <root>   impute current pbwt into reference whose root name is the argument - need compatible sites - does not rephase either pbwt\n") ;
+      fprintf (stderr, "  -genotypeCompare <root>   compare genotypes with those from referencewhose root name is the argument - need compatible sites\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale)\n") ;
       fprintf (stderr, "  -siteInfo <file> <kmin> <kmax> export PBWT information at sites with allele count kmin <= k < kmax\n") ;
