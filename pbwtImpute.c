@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 30 09:57 2013 (rd)
+ * Last edited: Jan 17 17:22 2014 (rd)
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -397,6 +397,7 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
 	    }
 	}
 
+
       if (isCheck)		/* flip uq->zz round into r and compare to p */
 	{ PBWT *r = pbwtCreate (M) ; r->N = N ;
 	  r->yz = q->zz ; pbwtBuildReverse (r) ; r->yz = r->zz ; r->zz = 0 ;
@@ -557,6 +558,9 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
 
   /* store final order in aFend */
   q->aFend = myalloc (M, int) ; memcpy (q->aFend, uq->a, M * sizeof(int)) ;
+
+  /* destroy reverse PBWT, which is not the reverse of the forwards one at this point */
+  free (q->zz) ; q->zz = 0 ;
 
   /* compare new phasing to original and report switch rates */
   fprintf (stderr, "After forward pass: ") ; phaseCompare (p, q) ;
