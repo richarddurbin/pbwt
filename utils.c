@@ -16,7 +16,7 @@
  * Description: core utility functions
  * Exported functions:
  * HISTORY:
- * Last edited: Oct 30 23:36 2013 (rd)
+ * Last edited: Jan 31 17:51 2014 (rd)
  * Created: Thu Aug 15 18:32:26 1996 (rd)
  *-------------------------------------------------------------------
  */
@@ -37,6 +37,20 @@ void die (char *format, ...)
   va_end (args) ;
 
   exit (-1) ;
+}
+
+void warn (char *format, ...)
+{
+  static int count = 0 ; 
+  va_list args ;
+
+  va_start (args, format) ;
+  fprintf (stderr, "ERROR: ") ;
+  vfprintf (stderr, format, args) ;
+  fprintf (stderr, "\n") ;
+  va_end (args) ;
+
+  if (++count > 9) die ("too many errors") ;
 }
 
 int totalAllocated = 0 ;

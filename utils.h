@@ -19,7 +19,7 @@
  * Description: includes standard system headers and own headers
  * Exported functions:
  * HISTORY:
- * Last edited: May  5 11:04 2013 (rd)
+ * Last edited: Jan 31 17:45 2014 (rd)
  * Created: Wed Jan  5 16:13:48 2011 (rd)
  *-------------------------------------------------------------------
  */
@@ -41,6 +41,7 @@ typedef char BOOL ;
 #include "hash.h"
 
 void die (char *format, ...) ;
+void warn (char *format, ...) ;
 #define myalloc(n,type)	(type*)_myalloc((n)*sizeof(type))
 void *_myalloc (int size) ;
 #define mycalloc(n,type) (type*)_mycalloc(n,sizeof(type))
