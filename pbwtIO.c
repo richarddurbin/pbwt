@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 16 17:45 2013 (rd)
+ * Last edited: Jan 26 22:17 2014 (rd)
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -23,6 +23,8 @@
 #include "pbwt.h"
 
 int nCheckPoint = 0 ;	/* if set non-zero write pbwt and sites files every n sites when parsing external files */
+
+BOOL isWriteImputeRef = FALSE ;	/* modifies WriteSites() and WriteHaplotypes() for impute  */
 
 /* basic function to store packed PBWT */
 
@@ -57,7 +59,10 @@ void pbwtWriteSites (PBWT *p, FILE *fp)
   int i ;
   for (i = 0 ; i < p->N ; ++i)
     { Site *s = arrp(p->sites, i, Site) ;
-      fprintf (fp, "%s\t%d", p->chrom ? p->chrom : ".", s->x) ;
+      if (isWriteImputeRef)
+	fprintf (fp, "site%d\t%d", i+1, s->x) ;
+      else
+	fprintf (fp, "%s\t%d", p->chrom ? p->chrom : ".", s->x) ;
       fprintf (fp, "\t%s", dictName (variationDict, s->varD)) ;
       fputc ('\n', fp) ;
     }
@@ -154,8 +159,7 @@ PBWT *pbwtRead (FILE *fp)
 
   if (fread (&m, sizeof(int), 1, fp) != 1) die ("error reading m in pbwtRead") ;
   if (fread (&n, sizeof(int), 1, fp) != 1) die ("error reading n in pbwtRead") ;
-  p = pbwtCreate (m) ;
-  p->N = n ;
+  p = pbwtCreate (m, n) ;
   if (version > 1)		/* read aFstart and aFend */
     { p->aFstart = myalloc (m, int) ;
       if (fread (p->aFstart, sizeof(int), m, fp) != m) die ("error reading aFstart in pbwtRead") ;
@@ -388,10 +392,8 @@ PBWT *pbwtReadMacs (FILE *fp)
   PbwtCursor *u ;
 
   parseMacsHeader (fp, &M, &L) ;
-  p = pbwtCreate (M) ;
+  p = pbwtCreate (M, 0) ;
   p->sites = arrayCreate(4096, Site) ;
-  p->yz = arrayCreate(4096*32, uchar) ;
-  p->N = 0 ;
   u = pbwtCursorCreate (p, TRUE, TRUE) ;
   x = myalloc (M+1, uchar) ; x[M] = Y_SENTINEL ;	/* sentinel required for packing */
 
@@ -402,8 +404,7 @@ PBWT *pbwtReadMacs (FILE *fp)
       if (nCheckPoint && !(p->N % nCheckPoint))
 	pbwtCheckPoint (p) ;
     }
-
-  p->aFend = myalloc (p->M, int) ; memcpy (p->aFend, u->a, p->M*sizeof(int)) ;
+  pbwtCursorToAFend (u, p) ;
 
   fprintf (stderr, "read MaCS file: M, N are\t%d\t%d\n", M, p->N) ;
   if (isStats)
@@ -463,7 +464,7 @@ static BOOL parseVcfqLine (PBWT **pp, FILE *fp, Array x)
   if (p && m != p->M) die ("length mismatch reading vcfq line") ;
 
   if (!*pp)
-    { p = *pp = pbwtCreate (m) ;
+    { p = *pp = pbwtCreate (m, 0) ;
       if (strcmp (chrom, ".")) p->chrom = chrom ;
       p->sites = arrayCreate(4096, Site) ;
       array(x,p->M,uchar) = Y_SENTINEL ; /* sentinel required for packing */
@@ -497,8 +498,7 @@ static PBWT *pbwtReadLineFile (FILE *fp, char* type, ParseLineFunc parseLine)
       pbwtCursorWriteForwards (u) ;
       if (nCheckPoint && !(p->N % nCheckPoint))	pbwtCheckPoint (p) ;
     }
-
-  p->aFend = myalloc (p->M, int) ; memcpy (p->aFend, u->a, p->M*sizeof(int)) ;
+  pbwtCursorToAFend (u, p) ;
 
   fprintf (stderr, "read %s file", type) ;
   if (p->chrom) fprintf (stderr, " for chromosome %s", p->chrom) ;
@@ -517,47 +517,40 @@ static long int nGenMissing ;
 
 static BOOL parseGenLine (PBWT **pp, FILE *fp, Array x) /* based on parseVcfqLine() */
 {
-  char c, *chrom, *var ;
-  int pos, m, len ;
-  Site *s ;
   PBWT *p = *pp ;
 
-  if (!p)			/* first call on a file - don't know M yet */
-    chrom = strdup (fgetword (fp)) ;
-  else if (!readMatchChrom (&p->chrom, fp))
-    if (feof (fp)) return FALSE ;
-    else die ("failed to match chromosome in parseGenLine") ;
+  fgetword(fp) ; fgetword(fp) ;	/* ignore first two name fields */
 
-  pos = atoi (fgetword (fp)) ; fgetword (fp) ; /* ignore second position */
-  var = getVariation (fp) ; /* but need to change ' ' separator to '\t' */
-  char *cp = var ; while (*cp && *cp != ' ') ++cp ; if (*cp == ' ') *cp = '\t' ; else die ("missing separator in gen line") ;
+  int pos = atoi (fgetword (fp)) ;
+  char *var = getVariation (fp) ; /* but need to change ' ' separator to '\t' */
+  if (feof (fp)) return FALSE ;
+  char *cp = var ; while (*cp && *cp != ' ') ++cp ; if (*cp == ' ') *cp = '\t' ; else die ("missing separator in line %d, var is %d", p?p->N:0, var) ;
 
-  m = 0 ; char term = ' ' ;
-  while (!feof(fp) && term != '\n')
-    { char c1 = getc(fp) ; if (c1 == '\n') break ; /* needed to handle trailing blank */
-      c1 -= '0' ; if (getc(fp) != ' ') die ("error in gen file at %d line %d", m, p ? p->N : 0) ;
-      char c2 = getc(fp) - '0'; if (getc(fp) != ' ') die ("error in gen file at %d line %d", m, p ? p->N : 0) ;
-      char c3 = getc(fp) - '0' ; term = getc(fp) ;
-      if (c1 + c2 + c3 == 0)	/* missing genotype */
-	{ c1 = 1 ; ++nGenMissing ; }
-      if (c1 + c2 + c3 != 1) 
-	die ("inconsistent genotype in gen file: %d %d %d at %d line %d", 
-	     c1, c2, c3, m, p ? p->N : 0) ;
-      if (c1) { array(x,m++,uchar) = 0 ; array(x,m++,uchar) = 0 ; }
-      else if (c2) { array(x,m++,uchar) = 0 ; array(x,m++,uchar) = 1 ; }
-      else /*c3 == 1 */ { array(x,m++,uchar) = 1 ; array(x,m++,uchar) = 1 ; }
+  int m = 0, nscan ;
+  while (!feof(fp))
+    { char c = getc(fp) ; if (c == '\n') break ; else if (!isspace(c)) ungetc (c, fp) ;
+      float f0, f1, f2 ;
+      if ((nscan = fscanf (fp, "%f %f %f", &f0, &f1, &f2) != 3)) 
+	die ("bad line %d, %d floats found, m %d, pos %d, var %s", p ? p->N : 0, nscan, m, pos, var) ;
+      if (f0 + f1 + f2 == 0)	/* missing genotype */
+	{ f0 = 1 ; ++nGenMissing ; }
+      if (f0 + f1 + f2 < 0.98) 
+	die ("inconsistent genotype in gen file: %f %f %f at %d line %d", 
+	     f0, f1, f2, m, p ? p->N : 0) ;
+      if (f0 > f1 && f0 > f2) { array(x,m++,uchar) = 0 ; array(x,m++,uchar) = 0 ; }
+      else if (f1 > f2) { array(x,m++,uchar) = 0 ; array(x,m++,uchar) = 1 ; }
+      else /* f2 is largest */ { array(x,m++,uchar) = 1 ; array(x,m++,uchar) = 1 ; }
     }
 
   if (feof (fp)) return FALSE ;
   if (p && m != p->M) die ("length mismatch reading vcfq line") ;
 
   if (!*pp)
-    { p = *pp = pbwtCreate (m) ;
-      if (strcmp (chrom, ".")) p->chrom = chrom ;
+    { p = *pp = pbwtCreate (m, 0) ;
       p->sites = arrayCreate(4096, Site) ;
       array(x,p->M,uchar) = Y_SENTINEL ; /* sentinel required for packing */
     }
-  s = arrayp(p->sites, arrayMax(p->sites), Site) ;
+  Site *s = arrayp(p->sites, arrayMax(p->sites), Site) ;
   s->x = pos ;
   dictAdd (variationDict, var, &s->varD) ;
 
@@ -565,10 +558,11 @@ static BOOL parseGenLine (PBWT **pp, FILE *fp, Array x) /* based on parseVcfqLin
   return TRUE ;
 }
 
-PBWT *pbwtReadGen (FILE *fp) 
+PBWT *pbwtReadGen (FILE *fp, char *chrom) 
 { 
   nGenMissing = 0 ;
   PBWT *p = pbwtReadLineFile (fp, "gen", parseGenLine) ; 
+  p->chrom = strdup (chrom) ;
   if (nGenMissing) fprintf (stderr, "%ld missing genotypes set to 00\n", nGenMissing) ;
   return p ;
 }
@@ -583,13 +577,86 @@ void pbwtWriteHaplotypes (FILE *fp, PBWT *p)
 
   for (i = 0 ; i < p->N ; ++i)
     { for (j = 0 ; j < M ; ++j) hap[u->a[j]] = u->y[j] ;
-      for (j = 0 ; j < M ; ++j) putc (hap[j]?'1':'0', fp) ;
+      for (j = 0 ; j < M ; ++j) 
+	{ if (isWriteImputeRef && j > 0) putc (' ', fp) ;
+	  putc (hap[j]?'1':'0', fp) ;
+	}
       putc ('\n', fp) ; fflush (fp) ;
       pbwtCursorForwardsRead (u) ;
     }
   free (hap) ; pbwtCursorDestroy (u) ;
 
   fprintf (stderr, "written haplotype file: %d rows of %d\n", p->N, M) ;
+}
+
+/*************** write IMPUTE files ********************/
+
+void pbwtWriteImputeRef (PBWT *p, char *fileNameRoot)
+{
+  char *fileName = myalloc (strlen (fileNameRoot) + 32, char) ;
+  strcpy (fileName, fileNameRoot) ;
+  strcat (fileName, ".") ;
+  char *fileNameLeaf = fileName + strlen(fileName) ;
+  FILE *fp ;
+
+  isWriteImputeRef = TRUE ;
+
+  FOPEN_W("imputeHaps") ; pbwtWriteHaplotypes (fp, p) ; fclose (fp) ;
+
+  FOPEN_W("imputeLegend") ; 
+  fprintf (fp, "rsID\tposition\ta0\ta1\n") ; /* header line */
+  pbwtWriteSites (p, fp) ; fclose (fp) ;
+
+  isWriteImputeRef = FALSE ;
+
+  free (fileName) ;
+}
+
+void pbwtWriteImputeHapsG (PBWT *p, FILE *fp)
+{
+  if (!p || !p->sites) die ("pbwtWriteImputeHaps called without sites") ;
+
+  int i, j ;
+  uchar *hap = myalloc (p->M, uchar) ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
+
+  for (i = 0 ; i < p->N ; ++i)
+    { Site *s = arrp(p->sites, i, Site) ;
+      fprintf (fp, "site%d\tsite%d\t%d", i+1, i+1, s->x) ;
+      fprintf (fp, "\t%s", dictName (variationDict, s->varD)) ;
+      
+      for (j = 0 ; j < p->M ; ++j) hap[u->a[j]] = u->y[j] ;
+      for (j = 0 ; j < p->M ; ++j) putc (' ', fp), putc (hap[j]?'1':'0', fp) ;
+      putc ('\n', fp) ; fflush (fp) ;
+      pbwtCursorForwardsRead (u) ;
+    }
+
+  free (hap) ; pbwtCursorDestroy (u) ;
+}
+
+void pbwtWriteGen (PBWT *p, FILE *fp)
+{
+  if (!p || !p->sites) die ("pbwtWriteImputeHaps called without sites") ;
+
+  int i, j ;
+  uchar *hap = myalloc (p->M, uchar) ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
+
+  for (i = 0 ; i < p->N ; ++i)
+    { Site *s = arrp(p->sites, i, Site) ;
+      fprintf (fp, "site%d\tsite%d\t%d", i+1, i+1, s->x) ;
+      fprintf (fp, "\t%s", dictName (variationDict, s->varD)) ;
+      
+      for (j = 0 ; j < p->M ; ++j) hap[u->a[j]] = u->y[j] ;
+      for (j = 0 ; j < p->M ; j+=2) 
+	if (hap[j] + hap[j+1] == 0) fprintf (fp, " 1 0 0") ;
+	else if (hap[j] + hap[j+1] == 1) fprintf (fp, " 0 1 0") ;
+	else fprintf (fp, " 0 0 1") ;
+      putc ('\n', fp) ; fflush (fp) ;
+      pbwtCursorForwardsRead (u) ;
+    }
+
+  free (hap) ; pbwtCursorDestroy (u) ;
 }
 
 /******************* end of file *******************/

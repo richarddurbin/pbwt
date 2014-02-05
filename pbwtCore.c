@@ -15,7 +15,7 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 16 08:58 2013 (rd)
+ * Last edited: Jan 29 09:03 2014 (rd)
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -37,11 +37,11 @@ void pbwtInit (void)
   sampleInit () ;
 }
 
-PBWT *pbwtCreate (int M)
+PBWT *pbwtCreate (int M, int N)
 {
   PBWT *p = mycalloc (1, PBWT) ; /* cleared so elements default to 0 */
 
-  p->M = M ;
+  p->M = M ; p->N = N ;
   p->aFstart = myalloc (M, int) ; int i ; for (i = 0 ; i < M ; ++i) p->aFstart[i] = i ;
 
   return p ;
@@ -66,12 +66,11 @@ void pbwtDestroy (PBWT *p)
 PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac)
 {
   int M = pOld->M ;
-  PBWT *pNew = pbwtCreate (M) ;
+  PBWT *pNew = pbwtCreate (M, 0) ;
   int i, j, k, thresh = M*(1-fmin)  ;
   double bit = 0.0 ;
   uchar *x ;
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
-  pNew->yz = arrayCreate (pNew->N*8, uchar) ;
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
 
   if (!pOld || !pOld->yz) die ("subsites without an existing pbwt") ;
@@ -92,12 +91,12 @@ PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac)
 	}  
       pbwtCursorForwardsRead (uOld) ;
     }
+  pbwtCursorToAFend (uNew, pNew) ;
 
   fprintf (stderr, "subsites with fmin %f, frac %f leaves %d sites\n", fmin, frac, pNew->N) ;
 
   pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
-  pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ;
   return pNew ;
@@ -106,11 +105,10 @@ PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac)
 PBWT *pbwtSubRange (PBWT *pOld, int start, int end)
 {
   int M = pOld->M ;
-  PBWT *pNew = pbwtCreate (M) ;
+  PBWT *pNew = pbwtCreate (M, 0) ;
   int i, j, k ;
   uchar *x ;
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
-  pNew->yz = arrayCreate (pNew->N*8, uchar) ;
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
 
   if (!pOld || !pOld->yz) die ("subrange without an existing pbwt") ;
@@ -130,8 +128,8 @@ PBWT *pbwtSubRange (PBWT *pOld, int start, int end)
 	}  
       pbwtCursorForwardsRead (uOld) ;
     }
+  pbwtCursorToAFend (uNew, pNew) ;
 
-  pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ;
   return pNew ;
@@ -151,7 +149,7 @@ void pbwtBuildReverse (PBWT *p)
     { uF = pbwtCursorCreate (p, TRUE, TRUE) ;
       for (i = 0 ; i < p->N ; ++i)	/* first run forwards to the end */
 	pbwtCursorForwardsRead (uF) ;
-      p->aFend = myalloc (M, int) ; memcpy (p->aFend, uF->a, M * sizeof(int)) ;
+      pbwtCursorToAFend (uF, p) ;
     }
 
   /* use p->aFend also to start the reverse cursor - this gives better performance */
@@ -305,6 +303,8 @@ int packCountReverse (uchar *yzp, int M) /* return number of bytes to reverse 1 
   return yzp0 - yzp ;
 }
 
+#define EATBYTE z = *yzp++ ; n = p3decode[z & 0x7f] ; m += n ; z >>= 7 ; nc[z] += n
+
 int extendMatchForwards (uchar *yzp, int M, uchar x, int *f, int *g)    
 		/* x is value to match, [f,g) are start, end of interval */
 /* update *f and *g to new match interval, return number of bytes used from yzp */
@@ -314,7 +314,6 @@ int extendMatchForwards (uchar *yzp, int M, uchar x, int *f, int *g)
   /* macro for inner loop to move along array */
   uchar z, *yzp0 = yzp ;
   int n = 0 ;
-#define EATBYTE z = *yzp++ ; n = p3decode[z & 0x7f] ; m += n ; z >>= 7 ; nc[z] += n
 
   /* first f */
   nc[0] = nc[1] = 0 ;
@@ -346,20 +345,17 @@ int extendMatchForwards (uchar *yzp, int M, uchar x, int *f, int *g)
   return yzp - yzp0 ;
 }
 
-int extendPackedForwards (uchar *yzp, int M, int *f, int c)
+int extendPackedForwards (uchar *yzp, int M, int *f, uchar *zp)
 {
   int m = 0, nc[2], n ;
   uchar z, *yzp0 = yzp ;
 
   nc[0] = nc[1] = 0 ;
-  while (m <= *f)		/* find the block containing *f */
-    { n = p3decode[*yzp++ & 0x7f] ; z >>= 7 ;
-      m += n ; nc[z] += n ;
-    }
+  while (m <= *f) { EATBYTE ; }	/* find the block containing *f */
   *f += nc[z] - m ;	        /* equivalent to *f = nc[z] - (m - *f) */
-  if (z) *f += c ;		/* add on c because in block of 1s which follows 0s */
-
-  while (m < M) m += p3decode[*yzp++ & 0x7f] ; 	/* complete reading the column */
+  *zp = z ;			/* save the value */
+  while (m < M) { EATBYTE ; }	/* complete the column */
+  if (*zp) *f += nc[0] ;	/* add on c because in block of 1s which follows 0s */
 
   return yzp - yzp0 ;
 }
@@ -375,20 +371,14 @@ int extendPackedBackwards (uchar *yzp, int M, int *f, int c, uchar *zp)
 
   m = 0 ; nc[0] = nc[1] = 0 ;
   if (*f < c)			/* it was a 0 */
-    { while (nc[0] <= *f)
-	{ n = p3decode[(z = *yzp++) & 0x7f] ; z >>= 7 ;
-	  m += n ; nc[z] += n ;
-	}
+    { while (nc[0] <= *f) { EATBYTE ; }
       *f += nc[1] ;	        /* equivalent to *f = m - (nc[0] - *f) */
-      if (zp) *zp = 0 ;
+      *zp = 0 ;
     }
   else				/* it was a 1 */
-    { while (nc[1] <= *f-c)
-	{ n = p3decode[(z = *yzp++) & 0x7f] ; z >>= 7 ;
-	  m += n ; nc[z] += n ;
-	}
+    { while (nc[1] <= *f-c) { EATBYTE ; }
       *f += nc[0] - c ;	        /* equivalent to *f = m - (nc[1] - (*f-c)) */
-      if (zp) *zp = 1 ;
+      *zp = 1 ;
     }
   				/* we don't need to finish the block this time */
   return yzp0 - yzp1 ;
@@ -409,7 +399,7 @@ PbwtCursor *pbwtNakedCursorCreate (int M, int *aInit)
   else for (i = 0 ; i < M ; ++i) u->a[i] = i ;
   u->b = myalloc (M, int) ;
   u->d = mycalloc (M+1, int) ;
-  u->d[0] = 2 ; u->d[u->M] = 2 ; /* sentinel values */
+  u->d[0] = 1 ; u->d[u->M] = 1 ; /* sentinel values */
   u->e = myalloc (M+1, int) ;
   u->u = myalloc (M+1, int) ;
   return u ;
@@ -417,7 +407,8 @@ PbwtCursor *pbwtNakedCursorCreate (int M, int *aInit)
 
 PbwtCursor *pbwtCursorCreate (PBWT *p, BOOL isForwards, BOOL isStart)
 {
-  if (isForwards && !p->yz || !isForwards && !p->zz) die ("data missing in cursorCreate") ;
+  if (isForwards && !p->yz) p->yz = arrayCreate (1<<20, uchar) ;
+  if (!isForwards && !p->zz) p->zz = arrayCreate (1<<20, uchar) ;
   PbwtCursor *u ;
   if (isForwards && isStart) u = pbwtNakedCursorCreate (p->M, p->aFstart) ; 
   else if (isForwards && !isStart) u = pbwtNakedCursorCreate (p->M, p->aFend) ; 
@@ -558,15 +549,20 @@ void pbwtCursorWriteForwards (PbwtCursor *u) /* write then move forwards */
   pbwtCursorForwardsA (u) ;
 }
 
+void pbwtCursorToAFend (PbwtCursor *u, PBWT *p) /* utility to copy final u->a to p->aFend */
+{
+  if (!p->aFend) p->aFend = myalloc (p->M, int) ; 
+  memcpy (p->aFend, u->a, p->M*sizeof(int)) ;
+}
+
 /***************************************************/
 
 PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
 {
-  PBWT *pNew = pbwtCreate (pOld->M) ;
+  PBWT *pNew = pbwtCreate (pOld->M, 0) ;
   int ip = 0, ia = 0, j ;
   Site *sp = arrp(pOld->sites,ip,Site), *sa = arrp(sites,ia,Site) ;
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
-  pNew->yz = arrayCreate (arrayMax(pOld->yz), uchar) ;
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
   uchar *x = myalloc (pNew->M, uchar) ;
 
@@ -591,7 +587,7 @@ PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
 	  pbwtCursorWriteForwards (uNew) ;
 	}
     }
-  pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;
+  pbwtCursorToAFend (uNew, pNew) ;
 
   fprintf (stderr, "%d sites selected from %d, pbwt size for %d haplotypes is %d\n", 
 	   pNew->N, pOld->N, pNew->M, arrayMax(pNew->yz)) ;
@@ -619,11 +615,10 @@ PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
 
 PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld)
 {
-  PBWT *pNew = pbwtCreate (pOld->M) ;
+  PBWT *pNew = pbwtCreate (pOld->M, 0) ;
   int ip = 0, ia = 0, j ;
   Site *sp = arrp(pOld->sites,ip,Site), *sa = arrp(sites,ia,Site) ;
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
-  pNew->yz = arrayCreate (arrayMax(pOld->yz), uchar) ;
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
   uchar *x = myalloc (pNew->M, uchar) ;
 
@@ -652,7 +647,7 @@ PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld)
 	  pbwtCursorForwardsRead (uOld) ;
 	}
     }
-  pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;
+  pbwtCursorToAFend (uNew, pNew) ;
 
   fprintf (stderr, "%d sites selected from %d, pbwt size for %d haplotypes is %d\n", 
 	   pNew->N, pOld->N, pNew->M, arrayMax(pNew->yz)) ;

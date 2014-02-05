@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Jan  6 15:35 2014 (rd)
+ * Last edited: Jan 29 09:10 2014 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -64,14 +64,6 @@ static void exportSiteInfo (PBWT *p, FILE *fp, int f1, int f2)
     }
   pbwtCursorDestroy (u) ;
   fprintf (stderr, "%d rows exported with allele count f, %d <= f < %d\n", n, f1, f2) ;
-}
-
-/*******************************************/
-
-static void bioinformaticsReviewerExample (void)
-{
-  PBWT *p = pbwtCreate(4) ;
-  
 }
 
 /************ AF distribution **************/
@@ -139,7 +131,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -readVcfPL <file>         read PLs from vcf or bcf file; '-' for stdin vcf only ; biallelic sites only - require diploid!\n") ;
       fprintf (stderr, "  -readMacs <file>          read MaCS output file; '-' for stdin\n") ;
       fprintf (stderr, "  -readVcfq <file>          read VCFQ file; '-' for stdin\n") ;
-      fprintf (stderr, "  -readGen <file>           read impute2 gen file; '-' for stdin\n") ;
+      fprintf (stderr, "  -readGen <file> <chrom>   read impute2 gen file - must set chrom\n") ;
       fprintf (stderr, "  -checkpoint <n>           checkpoint every n sites while reading\n") ;
       fprintf (stderr, "  -merge <file> ...         merge two or more pbwt files\n") ;
       fprintf (stderr, "  -write <file>             write pbwt file; '-' for stdout\n") ;
@@ -148,6 +140,8 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -writeMissing <file>      write missing file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeReverse <file>      write reverse file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeAll <rootname>      write .pbwt and if present .sites, .samples, .missing\n") ;
+      fprintf (stderr, "  -writeImputeRef <rootname> write .imputeHaps and .imputeLegend\n") ;
+      fprintf (stderr, "  -writeImputeHapsG <file>  write haplotype file for IMPUTE -known_haps_g\n") ;
       fprintf (stderr, "  -haps <file>              write haplotype file; '-' for stdout\n") ;
       fprintf (stderr, "  -subsites <fmin> <frac>   subsample <frac> sites with AF > <fmin>\n") ;
       fprintf (stderr, "  -subsample <start> <n>    subsample <n> samples from index <start>\n") ;
@@ -167,6 +161,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -referencePhase <root>    phase current pbwt against reference whose root name is the argument - both pbwts need compatible sites! - only keep shared sites\n") ;
       fprintf (stderr, "  -referenceImpute <root>   impute current pbwt into reference whose root name is the argument - need compatible sites - does not rephase either pbwt\n") ;
       fprintf (stderr, "  -genotypeCompare <root>   compare genotypes with those from referencewhose root name is the argument - need compatible sites\n") ;
+      fprintf (stderr, "  -imputeMissing            impute data marked as missing\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale)\n") ;
       fprintf (stderr, "  -siteInfo <file> <kmin> <kmax> export PBWT information at sites with allele count kmin <= k < kmax\n") ;
@@ -216,8 +211,8 @@ int main (int argc, char *argv[])
       { if (p) pbwtDestroy (p) ; FOPEN("readMacs","r") ; p = pbwtReadMacs (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readVcfq") && argc > 1)
       { if (p) pbwtDestroy (p) ; FOPEN("readVcfq","r") ; p = pbwtReadVcfq (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
-    else if (!strcmp (argv[0], "-readGen") && argc > 1)
-      { if (p) pbwtDestroy (p) ; FOPEN("readGen","r") ; p = pbwtReadGen (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-readGen") && argc > 2)
+      { if (p) pbwtDestroy (p) ; FOPEN("readGen","r") ; p = pbwtReadGen (fp, argv[2]) ; FCLOSE ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-write") && argc > 1)
       { FOPEN("write","w") ; pbwtWrite (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeSites") && argc > 1)
@@ -230,6 +225,12 @@ int main (int argc, char *argv[])
       { FOPEN("writeReverse","w") ; pbwtWriteReverse (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeAll") && argc > 1)
       { pbwtWriteAll (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writeImputeRef") && argc > 1)
+      { pbwtWriteImputeRef (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writeImputeHapsG") && argc > 1)
+      { FOPEN("writeImputeHaps","w") ; pbwtWriteImputeHapsG (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writeGen") && argc > 1)
+      { FOPEN("writeGen","w") ; pbwtWriteGen (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeVcf") && argc > 1)
       { pbwtWriteVcf (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-checkpoint") && argc > 1)
@@ -286,6 +287,8 @@ int main (int argc, char *argv[])
       { p = referenceImpute (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-genotypeCompare") && argc > 1)
       { genotypeCompare (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-imputeMissing"))
+      { p = imputeMissing (p) ; argc -= 1 ; argv += 1 ; }
     else
       die ("unrecognised command %s\nType pbwt without arguments for help", *argv) ;
     timeUpdate() ;

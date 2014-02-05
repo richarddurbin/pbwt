@@ -5,7 +5,7 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 27 18:54 2013 (sm15)
+ * Last edited: Jan 26 22:20 2014 (rd)
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -49,9 +49,8 @@ PBWT *pbwtReadVcfGT (char *filename)	/* read GTs from vcf/bcf using htslib */
   if (!bcf_sr_add_reader (sr, filename)) die ("failed to open good vcf file\n") ;
 
   bcf_hdr_t *hr = sr->readers[0].header ;
-  PBWT *p = pbwtCreate (bcf_hdr_nsamples(hr)*2) ; /* assume diploid! */
+  PBWT *p = pbwtCreate (bcf_hdr_nsamples(hr)*2, 0) ; /* assume diploid! */
   readVcfSamples (p, hr) ;
-  p->yz = arrayCreate(4096*32, uchar) ;
   p->sites = arrayCreate (10000, Site) ;
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
   uchar *x = myalloc (p->M, uchar) ;
@@ -120,8 +119,7 @@ PBWT *pbwtReadVcfGT (char *filename)	/* read GTs from vcf/bcf using htslib */
 
       if (nCheckPoint && !(p->N % nCheckPoint))	pbwtCheckPoint (p) ;
     }
-
-  p->aFend = myalloc (p->M, int) ; memcpy (p->aFend, u->a, p->M*sizeof(int)) ;
+  pbwtCursorToAFend (u, p) ;
 
   if (gt_arr) free (gt_arr) ;
   bcf_sr_destroy (sr) ;
@@ -144,7 +142,7 @@ PBWT *pbwtReadVcfPL (char *filename)	/* read PLs from vcf/bcf using htslib */
   if (!bcf_sr_add_reader (sr, filename)) die ("failed to open good vcf file\n") ;
 
   bcf_hdr_t *hr = sr->readers[0].header ;
-  p = pbwtCreate (bcf_hdr_nsamples(hr)*2) ; /* assume diploid! */
+  p = pbwtCreate (bcf_hdr_nsamples(hr)*2, 0) ; /* assume diploid! */
   readVcfSamples (p, hr) ;
 
   int mpl_arr = 0, *pl_arr = NULL;

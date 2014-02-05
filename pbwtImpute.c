@@ -12,15 +12,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *-------------------------------------------------------------------
- * Description:
+ * Description: phasing and imputation functions in pbwt package, 
+                plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 17 17:22 2014 (rd)
+ * Last edited: Feb  5 14:50 2014 (rd)
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
 
 #include "pbwt.h"
+
+static void genotypeComparePbwt (PBWT *p, PBWT *q) ; /* forward declaration */
 
 /************************* IMPUTATION AND PHASING *************************/
 
@@ -295,7 +298,7 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
 
   phaseInit (N) ;		/* sets up some lookup tables */
 
-  q = pbwtCreate (M) ; q->yz = arrayCreate (arrayMax(p->yz), uchar) ; q->N = N ;
+  q = pbwtCreate (M, N) ;
 
   if (is2way)		/* build reverse model first */
     { double goodSiteThresh = 1.0 ;
@@ -399,7 +402,7 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
 
 
       if (isCheck)		/* flip uq->zz round into r and compare to p */
-	{ PBWT *r = pbwtCreate (M) ; r->N = N ;
+	{ PBWT *r = pbwtCreate (M, N) ;
 	  r->yz = q->zz ; pbwtBuildReverse (r) ; r->yz = r->zz ; r->zz = 0 ;
 	  fprintf (stderr, "After reverse pass: ") ; phaseCompare (p, r) ;
 	  pbwtDestroy (r) ;
@@ -555,9 +558,7 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
 #endif
 	}
     }
-
-  /* store final order in aFend */
-  q->aFend = myalloc (M, int) ; memcpy (q->aFend, uq->a, M * sizeof(int)) ;
+  pbwtCursorToAFend (uq, q) ;
 
   /* destroy reverse PBWT, which is not the reverse of the forwards one at this point */
   free (q->zz) ; q->zz = 0 ;
@@ -624,7 +625,7 @@ static ScoreParams scoreParamsTheory (PbwtCursor *u)
 /************ routines to manage matches of sequences into pbwts ************/
 
 typedef struct {
-  int i ;    /* the position in the target u->y that new sequence PRECEDES */
+  int i ;    /* the position in the reference uRef->y that new sequence PRECEDES */
   int dminus, dplus ;	/* the start of the match to current ref sequences i-1 and i */
 } MatchInfo ;
 
@@ -686,26 +687,14 @@ static void matchUpdate (MatchInfo *match, uchar *xx, int M, PbwtCursor *u, int 
 
 /************** main function to phase against a reference ***************/
 
-PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
+static PBWT *referencePhase1 (PBWT *pOld, PBWT *pRef)
 {
-  fprintf (stderr, "phase against reference %s\n", fileNameRoot) ;
-  if (!pOld || !pOld->yz || !pOld->sites) 
-    die ("referencePhase called without existing pbwt with sites") ;
-  PBWT *pRef = pbwtReadAll (fileNameRoot) ;
-  if (!pRef->sites) die ("new pbwt %s in referencePhase has no sites", fileNameRoot) ;
-  if (strcmp(pOld->chrom,pRef->chrom))
-    die ("mismatching chrom in referencePhase: old %s, new %s", pRef->chrom, pOld->chrom) ;
-
-  /* reduce both down to the intersecting sites */
-  pOld = pbwtSelectSites (pOld, pRef->sites, FALSE) ;
-  pRef = pbwtSelectSites (pRef, pOld->sites, FALSE) ;
-  if (!pOld->N) die ("no overlapping sites in referencePhase") ;
   if (!pRef->zz) pbwtBuildReverse (pRef) ;	/* we need the reverse reference pbwt below */
 
 /* Now phase the new sites against the old sites
    We will pass forwards, then back, then forwards again.
    All we store on the first two passes is the phasing score at each ambiguous genotype from
-   the left then right respectively, favouring 1/0 if the score is +ve, and 0/1 if the score 
+   the left then right respectively, favouring 1/0 if the score is positive, and 0/1 if the score 
    is negative. 
 */
   /* declarations and initialisations */
@@ -713,7 +702,7 @@ PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
   int j, k ;			    /* indices: new sample, site */
   PbwtCursor *uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;   /* cursor on old */
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;   /* cursor on new */
-  uchar *x = myalloc (M, uchar) ;   /* current uOld values in original sort order */
+  uchar *x = myalloc (M, uchar) ;   /* current uOld values in original (unsorted) order */
   MatchInfo *match = mycalloc (M, MatchInfo) ;
   for (j = 0 ; j < M ; ++j)	    /* initialise m->i[] randomly */
     match[j].i = rand() * (double)pRef->M / RAND_MAX ;
@@ -730,6 +719,7 @@ PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
       for (j = 0 ; j < M ; j += 2) /* step through in pairs and phase if a heterozygote */
 	if (x[j] + x[j+1] == 1)
 	  { double score = matchPhaseScore (&match[j], uRef, &sp, k) ;
+	    /* for (kk = 0 ; kk < nSparse ; ++kk) score += matchPhaseScore (&matchSparse[kk][j], uRefSparse[kk], &sp, k/nSparse) ; */
 	    array(qScoreStack[j], arrayMax(qScoreStack[j]), double) = score ; /* store here */
 	    /* set phasing based on score - default when score == 0 to lexicographic order */
 	    if (score > 0) { x[j] = 1 ; x[j+1] = 0 ; } else { x[j] = 0 ; x[j+1] = 1 ; }
@@ -738,6 +728,7 @@ PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
       /* Update mapping into Ref: must do in two steps. Do this in a subroutine because
          we will do it several times.  NB the major side effect to move forwards in uRef */
       matchUpdate (match, x, M, uRef, k) ;
+      /* if (nSparse) { kk = k % nsparse ; matchUpdate (matchSparse[kk], x, M, uRefSparse[k], k/nSparse) ; } */
       pbwtCursorForwardsRead (uOld) ;     /* finally move forwards in pOld */
     }
   fprintf (stderr, "first forward pass complete\n") ;
@@ -770,8 +761,7 @@ PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
  /* Now the final forward pass, building pNew */
   for (j = 0 ; j < M ; ++j) match[j].dminus = match[j].dplus = 0 ; /* reset d* */
   pbwtCursorDestroy (uRef) ; uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;
-  PBWT *pNew = pbwtCreate (M) ;
-  pNew->yz = arrayCreate (arrayMax(pOld->yz), uchar) ; pNew->N = pOld->N ;
+  PBWT *pNew = pbwtCreate (M, pOld->N) ;
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
 
   for (k = 0 ; k < pRef->N ; ++k)
@@ -788,13 +778,8 @@ PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
       for (j = 0 ; j < M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* write into pNew */
       pbwtCursorWriteForwards (uNew) ;
     }
-  pNew->aFend = myalloc (M, int) ; memcpy (pNew->aFend, uNew->a, M * sizeof(int)) ;
+  pbwtCursorToAFend (uNew, pNew) ;
 
-  fprintf (stderr, "After final pass: ") ; phaseCompare (pOld, pNew) ;
-
-  pNew->sites = pOld->sites ; pOld->sites = 0 ;
-  pNew->samples = pOld->samples ; pOld->samples = 0 ;
-  pbwtDestroy (pRef) ; pbwtDestroy (pOld) ;
   pbwtCursorDestroy (uRef) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   for (j = 0 ; j < M ; j += 2)
     { arrayDestroy (qScoreStack[j]) ; arrayDestroy (rScoreStack[j]) ; }
@@ -802,8 +787,187 @@ PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
   return pNew ;
 }
 
+/****************** phase using maximal matches at homozygous sites  ****************/
+
+typedef struct { int jRef ; int start ; int end ; } MatchSegment ;
+/* matches are semi-open [start,end) so length is end-start */
+
+static Array *maxMatch = 0 ;	/* of MatchSegment */
+
+static void reportMatch (int iq, int jRef, int start, int end)
+{
+  MatchSegment *ms = arrayp (maxMatch[iq], arrayMax(maxMatch[iq]), MatchSegment) ;
+  ms->jRef = jRef ; ms->start = start ; ms->end = end ;
+}
+
+static PBWT *referencePhase2 (PBWT *pOld, PBWT *pRef)
+{
+  /* Strategy of this approach is to make two passes through the data.
+     The first one will make for each input sequence in pOld a set of maximal 
+     match segments in pRef at sites that are homozygous in the input sequence.
+     The second evaluates whether to flip consecutive sites or not at het sites
+     guided by a weighted sum of information from overlapping match segments.
+     This method is O(pRef->N * pRef->M * pOld->M) time and O(pRef->M * pOld->M) space,
+     rather than previous methods that are O(pRef->N * (pRef->M + pOld->M)) time
+     I think, though with a worse constant.
+  */
+  int i, j, k ;
+  uchar *xOld = myalloc (pOld->M, uchar) ;   /* pOld values in original sort order */
+  uchar *xRef = myalloc (pRef->M, uchar) ;   /* pRef values in original sort order */
+  PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
+  PbwtCursor *uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;
+  maxMatch = myalloc (pOld->M, Array) ; /* remember maxMatch is a package global */
+  for (j = 0 ; j < pOld->M ; j+=2) maxMatch[j] = arrayCreate (1024, MatchSegment) ;
+
+  /* first pass: build maxMatch from homologous sites */
+  /* use the strategy in matchSequencesSweep() */
+  PbwtCursor **uHom = myalloc (pOld->M, PbwtCursor*) ;
+  for (j = 0 ; j < pOld->M ; j+=2) uHom[j] = pbwtNakedCursorCreate (pRef->M, 0) ;
+  int *f = mycalloc (uOld->M, int) ; /* first location in uHom[j] of longest match to j'th query */
+  int *d = mycalloc (uOld->M, int) ; /* start of longest match to j'th query */
+  for (k = 0 ; k < pOld->N ; ++k)
+    { for (j = 0 ; j < pOld->M ; ++j) xOld[uOld->a[j]] = uOld->y[j] ;
+      for (j = 0 ; j < pRef->M ; ++j) xRef[uRef->a[j]] = uRef->y[j] ;
+      for (j = 0 ; j < pOld->M ; j += 2)
+	{ int xx ;
+	  if (xOld[j] == xOld[j+1]) /* homozygote */
+	    { int xx = xOld[j] ;
+	      for (i = 0 ; i < pRef->M ; ++i) uHom[j]->y[i] = xRef[uHom[j]->a[i]] ;
+	      if (uHom[j]->y[f[j]] != xx) /* ie match does not extend */
+		{ int iPlus = f[j] ;
+		  while (++iPlus < pRef->M && uHom[j]->d[iPlus] <= d[j])
+		    if (uHom[j]->y[iPlus] == xx) { f[j] = iPlus ; goto DONE ; }
+		  /* if not, then report these matches */
+		  for (i = f[j] ; i < iPlus ; ++i) reportMatch (j, uHom[j]->a[i], d[j], k) ;
+		  /* then find new top longest match that can be extended */
+		  /* extend out interval [iMinus, iPlus] until we find this best match */
+		  int iMinus = f[j] ; /* an index into *uHom[j] less than f[j] */
+		  int dPlus = (iPlus < pRef->M) ? uHom[j]->d[iPlus] : k+1 ;
+		  int dMinus = uHom[j]->d[iMinus] ;
+		  while (TRUE)
+		    if (dMinus <= dPlus)
+		      { i = -1 ;	/* impossible value */
+			while (uHom[j]->d[iMinus] <= dMinus) /* d[0]=k+1 stops underflow */
+			  if (uHom[j]->y[--iMinus] == xx) i = iMinus ;
+			if (i >= 0) { f[j] = i ; d[j] = dMinus ; goto DONE ; }
+			dMinus = uHom[j]->d[iMinus] ;
+		      }
+		    else		/* dPlus < dMinus */
+		      { while (iPlus < pRef->M && uHom[j]->d[iPlus] <= dPlus)
+			  if (uHom[j]->y[iPlus] == xx) { f[j] = iPlus ; d[j] = dPlus ; goto DONE ; }
+			  else ++iPlus ;
+			dPlus = (iPlus == uRef->M) ? k : uHom[j]->d[iPlus] ;
+			if (!iMinus && iPlus == uRef->M) 
+			  die ("no match to query %d value %d at site %d", j, xx, k) ;
+		      }
+		}
+	    DONE: ;
+	      /* next move forwards cursor and update match location */
+	      int cc = uHom[j]->c ; pbwtCursorForwardsADU (uHom[j], k) ;
+	      f[j] = xx ? cc + (f[j] - uHom[j]->u[f[j]]) : uHom[j]->u[f[j]] ;
+	    }
+	}
+      pbwtCursorForwardsRead (uOld) ;
+      pbwtCursorForwardsRead (uRef) ;
+    }
+
+  pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uRef) ;
+  for (j = 0 ; j < pOld->M ; j+=2) free (uHom[j]) ; free (uHom) ;
+
+  fprintf (stderr, "phaseReference homozygote match pass complete: ") ; timeUpdate() ;
+
+  /* now second pass: phase using matches at homozygous sites
+     and encode the rephased haps back into pNew */
+  PBWT *pNew = pbwtCreate (pOld->M, pOld->N) ;
+  PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
+  uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
+  uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;
+  uchar **xRefStore = mycalloc (pRef->N, uchar*) ; /* store of xRef columns if Count > 0 */
+  int *xRefCount = mycalloc (pRef->N, int) ;       /* count of active links to Store */
+  int *kLast = myalloc (pOld->M, int) ;     /* k position of last het */
+  for (j = 0 ; j < pOld->M ; ++j) kLast[j] = -1 ;
+  uchar *xLast = mycalloc (pOld->M, uchar) ; /* for even j, the value at the last het */
+  int *firstSeg = mycalloc (pOld->M, int) ;
+  for (k = 0 ; k < pOld->N ; ++k)
+    { for (j = 0 ; j < pOld->M ; ++j) xOld[uOld->a[j]] = uOld->y[j] ;
+      for (j = 0 ; j < pRef->M ; ++j) xRef[uRef->a[j]] = uRef->y[j] ;
+      for (j = 0 ; j < pOld->M ; j += 2)
+	if (xOld[j] != xOld[j+1])
+	  { if (kLast[j] > -1)	/* phase it unless it is the first het */
+	      { double bit, sum = 0, score = 0 ;
+		uchar *xRefLast = xRefStore[kLast[j]] ;
+		/* loop over match segments, making weighted sum of how many flip */
+		MatchSegment *m = arrp(maxMatch[j],firstSeg[j],MatchSegment) ;
+		MatchSegment *mStop = arrp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
+		while (m->end <= k && m < mStop) { ++m ; ++firstSeg[j] ; }
+		while (m->start <= k && m < mStop)
+		  { bit = (k - m->start + 1) * (m->end - k) ; if (!bit) bit = 1 ;
+		    sum += bit ;
+		    if (xRef[m->jRef] != xRefLast[m->jRef]) score += bit ;
+		    ++m ;
+		  }
+		/* here is the actual phasing */
+		if (score/sum > 0.5)
+		  { xOld[j+1] = xLast[j] ; xOld[j] = 1 - xOld[j+1] ; xLast[j] = xOld[j] ; }
+		else
+		  { xOld[j] = xLast[j] ; xOld[j+1] = 1 - xOld[j] ; }
+		/* decrement the stored Ref counter and free if necessary */
+		if (!--xRefCount[kLast[j]]) free (xRefStore[kLast[j]]) ;
+	      }
+	    kLast[j] = k ;
+	    /* increment the stored Ref counter, and store if necessary */
+	    if (!xRefCount[k]++) 
+	      { xRefStore[k] = myalloc (pRef->M, uchar) ; 
+		memcpy (xRefStore[k], xRef, pRef->M) ;
+	      }
+	  }
+      for (j = 0 ; j < pOld->M ; ++j) uNew->y[j] = xOld[uNew->a[j]] ;
+      pbwtCursorWriteForwards (uNew) ;
+      pbwtCursorForwardsRead (uOld) ;
+      pbwtCursorForwardsRead (uRef) ;
+    }
+  pbwtCursorToAFend (uNew, pNew) ;
+
+  free (xOld) ; free (xRef) ;
+  pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uRef) ; pbwtCursorDestroy (uNew) ;
+  for (j = 0 ; j < pOld->M ; j+=2) free (maxMatch[j]) ; free (maxMatch) ;
+  for (k = 0 ; k < pRef->N ; ++k) if (xRefCount[k]) free (xRefStore[k]) ; free (xRefStore) ;
+  free (xRefCount) ; free (xLast) ; free (firstSeg) ;
+  return pNew ;
+}
+
+/************* top level selector for referencePhase *****************/
+
+PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
+{
+  fprintf (stderr, "phase against reference %s\n", fileNameRoot) ;
+  if (!pOld || !pOld->yz || !pOld->sites) 
+    die ("referencePhase called without existing pbwt with sites") ;
+  PBWT *pRef = pbwtReadAll (fileNameRoot) ;
+  if (!pRef->sites) die ("new pbwt %s in referencePhase has no sites", fileNameRoot) ;
+  if (strcmp(pOld->chrom,pRef->chrom))
+    die ("mismatching chrom in referencePhase: old %s, new %s", pRef->chrom, pOld->chrom) ;
+
+  /* reduce both down to the intersecting sites */
+  pOld = pbwtSelectSites (pOld, pRef->sites, FALSE) ;
+  pRef = pbwtSelectSites (pRef, pOld->sites, FALSE) ;
+  if (!pOld->N) die ("no overlapping sites in referencePhase") ;
+
+  fprintf (stderr, "Phase preliminaries: ") ; timeUpdate() ;
+
+  PBWT *pNew = referencePhase2 (pOld, pRef) ;
+  fprintf (stderr, "Phasing complete: ") ; timeUpdate() ;
+  fprintf (stderr, "After phasing: ") ; phaseCompare (pNew, pOld) ;
+
+  pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
+  pNew->sites = pOld->sites ; pOld->sites = 0 ;
+  pNew->samples = pOld->samples ; pOld->samples = 0 ;
+  pbwtDestroy (pOld) ; pbwtDestroy (pRef) ;
+  return pNew ;
+}
+
 /*********************************************************************************************/
-/**** standard genotype imputation - based heavily on referencePhase - should rationalise ****/
+/**** standard genotype imputation - based heavily on referencePhase1 - should rationalise ***/
 
 static void matchUpdateNext (MatchInfo **pMatch, uchar *xx, int M, PbwtCursor *u, int k)
 /* same as matchUpdate but for imputation we store the new info in the next array of MatchInfo */  
@@ -874,8 +1038,7 @@ static PBWT *referenceImpute1 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
   PbwtCursor *uFrameL = pbwtCursorCreate (pFrame, TRUE, TRUE) ; /* now run forwards on forwards pbwt */
   MatchInfo *matchL = mycalloc (M, MatchInfo) ;
   for (j = 0 ; j < M ; ++j) matchL[j].i = (*matchR)[j].i ; /* initialise from final matchR */
-  PBWT *pNew = pbwtCreate (M) ;	/* this will hold the imputed sequence */
-  pNew->yz = arrayCreate (arrayMax(pOld->yz), uchar) ; pNew->N = pRef->N ;
+  PBWT *pNew = pbwtCreate (M, pRef->N) ;	/* this will hold the imputed sequence */
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
   PbwtCursor *uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;
   int *aRefInv = myalloc (M, int) ;  /* holds the inverse mapping from uRef->a[i] -> i */
@@ -945,12 +1108,8 @@ static PBWT *referenceImpute1 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
       arrp(pRef->sites,kRef,Site)->freq =  (uRef->M - uRef->c) / (double) pRef->M ;
       pbwtCursorForwardsRead (uRef) ; ++kRef ;
     }
+  pbwtCursorToAFend (uNew, pNew) ;
 
-  pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;
-
-  pNew->sites = pRef->sites ; pRef->sites = 0 ; 
-  pNew->chrom = pRef->chrom ; pRef->chrom = 0 ;
-  pNew->samples = pOld->samples ; pOld->samples = 0 ;
   pbwtCursorDestroy (uFrameL) ; pbwtCursorDestroy (uFrameR) ;
   pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ; pbwtCursorDestroy (uRef) ;
   free (aRefInv) ; free (matchL) ; 
@@ -958,30 +1117,19 @@ static PBWT *referenceImpute1 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
   return pNew ;
 }
 
-/*********************************************************************/
-
-typedef struct { int jRef ; int start ; int end ; } MatchSegment ;
-/* matches are semi-open [start,end) so length is end-start */
-
-static Array *maxMatch = 0 ;	/* of MatchSegment */
-
-static void reportMatch (int iq, int jRef, int start, int end)
-{
-  MatchSegment *ms = arrayp (maxMatch[iq], arrayMax(maxMatch[iq]), MatchSegment) ;
-  ms->jRef = jRef ; ms->start = start ; ms->end = end ;
-}
+/********** impute using maximal matches - use matchSequencesSweep() to find them *********/
 
 static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 /* require pOld and pFrame to have the same sites, and these are a subset of sites of pRef */
 {
   int i, j, k ;
 
-  fprintf (stderr, "REFERENCE IMPUTE 2: ") ;
+  fprintf (stderr, "Reference impute using maximal matches: ") ;
 
   /* build the array of maximal matches into pFrame for each sequence in pOld */
   maxMatch = myalloc (pOld->M, Array) ;
   for (j = 0 ; j < pOld->M ; ++j) maxMatch[j] = arrayCreate (1024, MatchSegment) ;
-  matchSequencesSweep (pFrame, pOld, reportMatch) ; /* in pbwtMatch.c */
+  matchSequencesSweep (pFrame, pOld, reportMatch) ;
   for (j = 0 ; j < pOld->M ; ++j)		    /* add terminating element to arrays */
     { MatchSegment *ms = arrayp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
       ms->jRef = ms[-1].jRef ; ms->end = pOld->N+1 ; ms->start = pOld->N ;
@@ -989,8 +1137,7 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
   PbwtCursor *uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;
-  PBWT *pNew = pbwtCreate (pOld->M) ;	/* this will hold the imputed sequence */
-  pNew->yz = arrayCreate (arrayMax(pOld->yz), uchar) ; pNew->N = pRef->N ;
+  PBWT *pNew = pbwtCreate (pOld->M, pRef->N) ;	/* this will hold the imputed sequence */
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
   uchar *x = myalloc (pOld->M, uchar) ;   /* current uOld values in original sort order */
   int *aRefInv = myalloc (pRef->M, int) ;  /* holds the inverse mapping from uRef->a[i] -> i */
@@ -1018,8 +1165,12 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	      if (uRef->y[aRefInv[m->jRef]]) score += bit ;
 	      ++m ;
 	    }
-	  if (sum == 0) die ("refImpute2 sum==0 kRef %d kOld %d j %d\n", kRef, kOld, j) ;
-	  x[j] = (score/sum > 0.5) ? 1 : 0 ;
+	  if (sum == 0) 
+	    { warn ("refImpute2 sum==0 kRef %d kOld %d j %d", kRef, kOld, j) ;
+	      x[j] = 0 ;
+	    }
+	  else 
+	    x[j] = (score/sum > 0.5) ? 1 : 0 ;
 	}
       for (j = 0 ; j < pOld->M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* transfer to uNew */
       pbwtCursorWriteForwards (uNew) ;
@@ -1027,12 +1178,8 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
       pbwtCursorForwardsRead (uRef) ; ++kRef ;
       if (isCheck && !(kRef % 10000)) fprintf (stderr, " %d %d\n", kRef, kOld) ;
     }
+  pbwtCursorToAFend (uNew, pNew) ;
 
-  pNew->aFend = myalloc (pNew->M, int) ; memcpy (pNew->aFend, uNew->a, pNew->M*sizeof(int)) ;
-
-  pNew->sites = pRef->sites ; pRef->sites = 0 ; 
-  pNew->chrom = pRef->chrom ; pRef->chrom = 0 ;
-  pNew->samples = pOld->samples ; pOld->samples = 0 ;
   pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uRef) ; pbwtCursorDestroy (uNew) ;
   free (aRefInv) ; free (firstSeg) ;
   for (j = 0 ; j < pOld->M ; ++j) free (maxMatch[j]) ; free (maxMatch) ;
@@ -1067,8 +1214,18 @@ PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot)
   fprintf (stderr, "Imputation preliminaries: ") ; timeUpdate() ;
 
   PBWT *pNew = referenceImpute2 (pOld, pRef, pFrame) ;
+  pNew->sites = pRef->sites ; pRef->sites = 0 ; 
+  pNew->chrom = pRef->chrom ; pRef->chrom = 0 ;
+  pNew->samples = pOld->samples ; pOld->samples = 0 ;
   pbwtDestroy (pOld) ; pbwtDestroy (pFrame) ; pbwtDestroy (pRef) ;
   return pNew ;
+}
+
+/*********************************************************************/
+
+PBWT *imputeMissing (PBWT *p)
+{
+  return p ;
 }
 
 /*********************************************************************/
@@ -1084,25 +1241,37 @@ void genotypeCompare (PBWT *p, char *fileNameRoot)
   if (p->N != pRef->N) die ("mismatch of old N %d to ref N %d", p->N, pRef->N) ;
   if (strcmp(p->chrom,pRef->chrom)) die ("mismatch chrom %s to ref %f", p->chrom, pRef->chrom) ;
 
-  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
-  PbwtCursor *uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;
-  static long n[16][9] ;
-  int i, j, k, ff ;
-  uchar *x = myalloc (p->M, uchar), *xRef = myalloc (pRef->M, uchar) ;
+  genotypeComparePbwt (p, pRef) ;
+  pbwtDestroy (pRef) ;
+}
 
+static void genotypeComparePbwt (PBWT *p, PBWT *q)
+{
+  int i, j, k, ff ;
+  long n[16][9] ; for (i = 16 ; i-- ;) for (j = 9 ; j-- ;) n[i][j] = 0 ;
+  long *ns = mycalloc (9*p->M, long) ;
+
+  PbwtCursor *up = pbwtCursorCreate (p, TRUE, TRUE) ;
+  PbwtCursor *uq = pbwtCursorCreate (q, TRUE, TRUE) ;
+  uchar *xp = myalloc (p->M, uchar), *xq = myalloc (q->M, uchar) ;
   for (k = 0 ; k < p->N ; ++k)
-  { double f = (p->M - u->c) / (double)p->M ; 
-    if (arrp (p->sites,k,Site)->freq) f = arrp (p->sites,k,Site)->freq ;
-    for (ff = 0 ; f*100 > fBound[ff] ; ++ff) ;
-    for (j = 0 ; j < p->M ; ++j) { x[u->a[j]] = u->y[j] ; xRef[uRef->a[j]] = uRef->y[j] ; }
-    for (j = 0 ; j < p->M ; j += 2) ++n[ff][3*(x[j]+x[j+1]) + xRef[j]+xRef[j+1]] ;
-    pbwtCursorForwardsRead (u) ; pbwtCursorForwardsRead (uRef) ;
-  }
+    { double f = (p->M - up->c) / (double)p->M ; 
+      if (arrp (p->sites,k,Site)->freq) f = arrp (p->sites,k,Site)->freq ;
+      for (ff = 0 ; f*100 > fBound[ff] ; ++ff) ;
+      for (j = 0 ; j < p->M ; ++j) { xp[up->a[j]] = up->y[j] ; xq[uq->a[j]] = uq->y[j] ; }
+      for (j = 0 ; j < p->M ; j += 2) 
+	{ i = 3*(xp[j]+xp[j+1]) + xq[j]+xq[j+1] ;
+	  ++n[ff][i] ;
+	  ++ns[9*j + i] ;
+	}
+      pbwtCursorForwardsRead (up) ; pbwtCursorForwardsRead (uq) ;
+    }
+  pbwtCursorDestroy (up) ; pbwtCursorDestroy (uq) ;
 
   /* report */
   for (ff = 0 ; ff < 16 ; ++ff)
     { printf ("%-5.1f", fBound[ff]) ;
-      double tot = 0, xbar = 0, ybar, r2 = 0, x2 = 0, y2 = 0 ;
+      double tot = 0, xbar, ybar, r2, x2, y2 ;
       for (i = 0 ; i < 9 ; ++i) { printf ("\t%ld ", n[ff][i]) ; tot += n[ff][i] ; }
       if (tot) 
 	{ xbar = (n[ff][3] + n[ff][4] + n[ff][5] + 2*(n[ff][6] + n[ff][7] + n[ff][8])) / tot ;
@@ -1116,8 +1285,25 @@ void genotypeCompare (PBWT *p, char *fileNameRoot)
       else
 	putchar ('\n') ;
     }
-
-  pbwtCursorDestroy (u) ; pbwtCursorDestroy (uRef) ; pbwtDestroy (pRef) ;
+  int hist[101] ; for (i = 101 ; i-- ;) hist[i] = 0 ;
+  for (j = 0 ; j < p->M ; ++j)
+    { double tot = 0, xbar, ybar, r2, x2, y2 ;
+      for (i = 0 ; i < 9 ; ++i) tot += ns[9*j+i] ;
+      if (tot) 
+	{ xbar = (ns[9*j+3] + ns[9*j+4] + ns[9*j+5] + 2*(ns[9*j+6] + ns[9*j+7] + ns[9*j+8])) / tot ;
+	  x2 = (ns[9*j+3] + ns[9*j+4] + ns[9*j+5] + 4*(ns[9*j+6] + ns[9*j+7] + ns[9*j+8])) / tot ;
+	  ybar = (ns[9*j+1] + ns[9*j+4] + ns[9*j+7] + 2*(ns[9*j+2] + ns[9*j+5] + ns[9*j+8])) / tot ;
+	  y2 = (ns[9*j+1] + ns[9*j+4] + ns[9*j+7] + 4*(ns[9*j+2] + ns[9*j+5] + ns[9*j+8])) / tot ;
+	  r2 = (ns[9*j+4] + 2*(ns[9*j+5] + ns[9*j+7]) + 4*ns[9*j+8]) / tot ;
+	  r2 = (r2 - xbar*ybar)/sqrt((x2 - xbar*xbar)*(y2 - ybar*ybar)) ;
+	  if (r2 < 0) r2 = 0 ;
+	  ++hist[(int)(100*r2)] ;
+	}
+    }
+  if (hist[100]) printf ("%d samples with r2 == 1.0\n", hist[100]) ;
+  for (i = 100 ; i-- ; ) 
+    if (hist[i])
+      printf ("%d samples with %.2f <= r2 < %.2f\n", hist[i], (i-1)*0.01, i*0.01) ;
 }
 
 /*********************************************************************/
@@ -1131,13 +1317,12 @@ void imputeEvaluate (PBWT *p, char *fileNameRoot)
 PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange)
 {
   int M = pOld->M, N = pOld->N ;
-  PBWT *pNew = pbwtCreate (M) ;
+  PBWT *pNew = pbwtCreate (M, N) ;
   int rSite = pSite*RAND_MAX, rChange = pChange*RAND_MAX ;
   double rFac = RAND_MAX / (double) M ;
   int k, i ;
   uchar *x ;
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
-  pNew->yz = arrayCreate (arrayMax(pOld->yz), uchar) ; pNew->N = N ;
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
   int nChange = 0 ;
 
@@ -1162,11 +1347,14 @@ PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange)
       pbwtCursorWriteForwards (uNew) ;
       pbwtCursorForwardsRead (uOld) ;
     }  
+  pbwtCursorToAFend (uNew, pNew) ;
 
   fprintf (stderr, "corruptSites with pSite %f, pChange %f changes %.4f of values\n", 
 	   pSite, pChange, nChange/(N*(double)M)) ;
 
-  if (pOld->sites) { pNew->sites = pOld->sites ; pOld->sites = 0 ; }
+  pNew->sites = pOld->sites ; pOld->sites = 0 ; 
+  pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
+  pNew->samples = pOld->samples ; pOld->samples = 0 ;
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ;
   return pNew ;
@@ -1175,13 +1363,12 @@ PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange)
 PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange)
 {
   int M = pOld->M, N = pOld->N ;
-  PBWT *pNew = pbwtCreate (M) ;
+  PBWT *pNew = pbwtCreate (M, N) ;
   int rSample = pSample*RAND_MAX, rChange = pChange*RAND_MAX ;
   double rFac = RAND_MAX / (double) M ;
   int k, i ;
   uchar *x ;
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
-  pNew->yz = arrayCreate (arrayMax(pOld->yz), uchar) ; pNew->N = N ;
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
   BOOL *isCorrupt = myalloc (M, BOOL) ;
   int nChange = 0 ;
@@ -1208,11 +1395,14 @@ PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange)
       pbwtCursorWriteForwards (uNew) ;
       pbwtCursorForwardsRead (uOld) ;
     }  
+  pbwtCursorToAFend (uNew, pNew) ;
 
   fprintf (stderr, "corruptSamples with pSample %f, pChange %f changes %.4f of values\n",
 	   pSample, pChange, nChange/(N*(double)M)) ;
   
-  if (pOld->sites) { pNew->sites = pOld->sites ; pOld->sites = 0 ; }
+  pNew->sites = pOld->sites ; pOld->sites = 0 ; 
+  pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
+  pNew->samples = pOld->samples ; pOld->samples = 0 ;
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ; free (isCorrupt) ;
   return pNew ;

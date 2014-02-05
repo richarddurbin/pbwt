@@ -1,4 +1,4 @@
-/*  Last edited: Nov 16 18:31 2013 (rd) */
+/*  Last edited: Jan 26 22:37 2014 (rd) */
 #include "pbwt.h"
 
 #include <string.h>
@@ -132,10 +132,10 @@ PBWT *pbwtMerge(const char **fnames, int nfiles)
 
 	int nhaps = 0, i;
 	for (i=0; i<nfiles; i++) nhaps += reader->pbwt[i]->M;
-	PBWT *out_pbwt     = pbwtCreate(nhaps);
-	out_pbwt->yz       = arrayCreate(4096*32, uchar);
+	PBWT *out_pbwt     = pbwtCreate(nhaps, 0);
 	PbwtCursor *cursor = pbwtNakedCursorCreate(nhaps, 0);
 	uchar *yseq        = myalloc(nhaps, uchar);
+	out_pbwt->yz       = arrayCreate (1<<20, uchar) ;
 	out_pbwt->sites    = arrayReCreate(out_pbwt->sites, reader->pbwt[0]->N, Site);
 	out_pbwt->chrom = strdup(reader->pbwt[0]->chrom);
 
@@ -199,8 +199,7 @@ PBWT *pbwtMerge(const char **fnames, int nfiles)
 
 		out_pbwt->N++;
 	}
-
-	out_pbwt->aFend = myalloc (out_pbwt->M, int) ; memcpy (out_pbwt->aFend, cursor->a, out_pbwt->M*sizeof(int)) ;
+	pbwtCursorToAFend (cursor, out_pbwt) ;
 
 	free(yseq);
 	pbwtCursorDestroy(cursor);

@@ -15,7 +15,7 @@
  * Description: match functions in pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 28 00:30 2013 (rd)
+ * Last edited: Jan 31 17:47 2014 (rd)
  * Created: Thu Apr  4 11:55:48 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -345,13 +345,11 @@ typedef struct {
 void matchSequencesDynamic (PBWT *p, FILE *fp)
 {
   PBWT *q = pbwtRead (fp) ;	/* q for "query" of course */
-
-  matchSequencesSweep (p, q, reportMatch) ;
-
+  matchSequencesSweep (p, q, reportMatch) ; /* (new) sweep is better than (old) sweep2 */
   pbwtDestroy (q) ;
 }
 
-void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int start, int end))
+void matchSequencesSweep2 (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int start, int end))
 /* Rather than keep a[][], d[][], u[][] in memory, which can be very costly, here we update
    them in one sweep through the data. This makes the algorithm O(MN) sadly, but only
    O((M+Q)N) where Q is the number of queries, not O(MNQ) as the naive method.  
@@ -483,6 +481,82 @@ void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int s
   free (oldA) ; free (cc) ;
   pbwtCursorDestroy (u) ;
   if (isCheck) { for (j = 0 ; j < p->M ; ++j) free(reference[j]) ; free (reference) ; }
+}
+
+void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int start, int end))/* this is simpler and faster - just keep track of best match with its start */
+{
+  if (q->N != p->N) die ("query length in matchSequences %d != PBWT length %d", q->N, p->N) ;
+  PbwtCursor *up = pbwtCursorCreate (p, TRUE, TRUE) ;
+  PbwtCursor *uq = pbwtCursorCreate (q, TRUE, TRUE) ;
+  int *f = mycalloc (q->M, int) ; /* first location in *up of longest match to j'th query */
+  int *d = mycalloc (q->M, int) ; /* start of longest match to j'th query */
+  int totLen = 0, nTot = 0 ;
+
+  if (isCheck) { checkHapsA = pbwtHaplotypes (q) ; checkHapsB = pbwtHaplotypes (p) ; Ncheck = p->N ; }
+
+  int i, j, k ;
+  for (k = 0 ; k < p->N ; ++k)
+    { for (j = 0 ; j < q->M ; ++j)
+	{ int jj = uq->a[j] ;
+	  uchar x = uq->y[j] ;
+	  if (up->y[f[jj]] != x)
+	    { /* first see if there is any match of the same length that can be extended */
+	      int iPlus = f[jj] ; /* is an index into *up greater than f[jj] */
+	      while (++iPlus < p->M && up->d[iPlus] <= d[jj])
+		if (up->y[iPlus] == x) { f[jj] = iPlus ; goto DONE ; }
+	      /* if not, then report these matches */
+	      for (i = f[jj] ; i < iPlus ; ++i) (*report) (jj, up->a[i], d[jj], k) ;
+	      nTot += (iPlus - f[jj]) ; totLen += (k - d[jj])*(iPlus - f[jj]) ;
+	      /* then find new top longest match that can be extended */
+	      /* we extend out the interval [iMinus, iPlus] until we find this best match */
+	      int iMinus = f[jj] ; /* an index into *up less than f[jj] */
+	      int dPlus = (iPlus < p->M) ? up->d[iPlus] : k+1 ;
+	      int dMinus = up->d[iMinus] ;
+	      while (TRUE)
+		if (dMinus <= dPlus)
+		  { i = -1 ;	/* impossible value */
+		    while (up->d[iMinus] <= dMinus) /* up->d[0] = k+1 prevents underflow */
+		      if (up->y[--iMinus] == x) i = iMinus ;
+		    if (i >= 0) { f[jj] = i ; d[jj] = dMinus ; goto DONE ; }
+		    dMinus = up->d[iMinus] ;
+		  }
+		else		/* dPlus < dMinus */
+		  { while (iPlus < p->M && up->d[iPlus] <= dPlus)
+		      if (up->y[iPlus] == x) { f[jj] = iPlus ; d[jj] = dPlus ; goto DONE ; }
+		      else ++iPlus ;
+		    dPlus = (iPlus == p->M) ? k : up->d[iPlus] ;
+		    if (!iMinus && iPlus == p->M) 
+		      die ("no match to query %d value %d at site %d", jj, x, k) ;
+		  }
+	    }
+	DONE: ;
+	}
+
+      /* next move forwards p cursor */
+      int cp = up->c ; pbwtCursorForwardsReadADU (up, k) ;
+      /* and update the match location f[] of each query */
+      for (j = 0 ; j < q->M ; ++j)
+	{ int jj = uq->a[j] ;
+	  f[jj] = uq->y[j] ?  cp + (f[jj] - up->u[f[jj]]) : up->u[f[jj]] ; /* match update */
+	}	  
+	
+      pbwtCursorForwardsRead (uq) ;
+    }
+
+  /* finally need to record the matches ending at p->N */
+  for (j = 0 ; j < q->M ; ++j)
+    { int jj = uq->a[j] ;
+      (*report) (jj, up->a[f[jj]], d[jj], p->N) ;
+      for (i = f[jj] ; ++i < p->M && up->d[i] <= d[jj] ; )
+	(*report) (jj, up->a[i], d[jj], p->N) ;
+      nTot += (i - f[jj]) ; totLen += (p->N - d[jj])*(i - f[jj]) ;
+    }
+
+  fprintf (stderr, "Average number of best matches including alternates %.1f, Average length %.1f\n", 
+	   nTot/(double)q->M, totLen/(double)nTot) ;
+
+  pbwtCursorDestroy (up) ; pbwtCursorDestroy (uq) ;
+  free (f) ; free (d) ;
 }
 
 /* Heng Li proposed another approach, based on matching forward and back, but it is intricate

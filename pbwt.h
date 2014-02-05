@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 21 23:33 2013 (rd)
+ * Last edited: Jan 29 00:14 2014 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -79,7 +79,7 @@ extern DICT *variationDict ;	/* "xxx|yyy" where variation is from xxx to yyy in 
 /* NB using a global DICT for variation means that identical variations use the same string */
 
 void pbwtInit (void) ;
-PBWT *pbwtCreate (int M) ;
+PBWT *pbwtCreate (int M, int N) ; /* OK to have N == 0 and set p->N later if not known now */
 void pbwtDestroy (PBWT *p) ;
 PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac) ;
 PBWT *pbwtSubRange (PBWT *pOld, int start, int end) ;
@@ -100,6 +100,7 @@ void pbwtCursorForwardsRead (PbwtCursor *u) ; /* move forwards and read (unless 
 void pbwtCursorForwardsReadADU (PbwtCursor *u, int k) ;
 void pbwtCursorReadBackwards (PbwtCursor *u) ; /* move backwards and read (unless at start) */
 void pbwtCursorWriteForwards (PbwtCursor *u) ; /* write then move forwards */
+void pbwtCursorToAFend (PbwtCursor *u, PBWT *p) ; /* utility to copy final u->a to p->aFend */
 
 	/* low level operations on packed PBWT, argument yzp in these calls */
 
@@ -109,7 +110,7 @@ int pack3arrayAdd (uchar *yp, int M, Array ayz) ; /* normally use this one */
 int unpack3 (uchar *yzp, int M, uchar *yp, int *n0) ; /* unpack M values from yzp into yp, return number of bytes used from yzp, if (n0) write number of 0s into *n0 */
 int packCountReverse (uchar *yzp, int M) ; /* return number of bytes to reverse one position */
 int extendMatchForwards (uchar *yzp, int M, uchar x, int *f, int *g) ; /* move hit interval f,g) forwards one position, matching x */
-int extendPackedForwards (uchar *yzp, int M, int *f, int c) ; /* move f forwards one position - c is number of 0s */
+int extendPackedForwards (uchar *yzp, int M, int *f, uchar *zp) ; /* move f forwards one position */
 int extendPackedBackwards (uchar *yzp, int M, int *f, int c, uchar *zp) ; /* move f backwards one position - write value into *zp if zp non-zero */
 
 /* pbwtSample.c */
@@ -133,6 +134,7 @@ void pbwtWriteSamples (PBWT *p, FILE *fp) ;
 void pbwtWriteMissing (PBWT *p, FILE *fp) ;
 void pbwtWriteReverse (PBWT *p, FILE *fp) ;
 void pbwtWriteAll (PBWT *p, char *fileNameRoot) ;
+void pbwtWriteGen (PBWT *p, FILE *fp) ; /* write gen file as for impute etc. */
 PBWT *pbwtRead (FILE *fp) ;
 Array pbwtReadSitesFile (FILE *fp, char **chrom) ;
 void pbwtReadSites (PBWT *p, FILE *fp) ;
@@ -143,8 +145,10 @@ void pbwtReadReverse (PBWT *p, FILE *fp) ;
 PBWT *pbwtReadAll (char *fileNameRoot) ; /* reads .pbwt, .sites, .samples, .missing  */
 PBWT *pbwtReadMacs (FILE *fp) ;
 PBWT *pbwtReadVcfq (FILE *fp) ;	/* reduced VCF style file made by vcf query */
-PBWT *pbwtReadGen (FILE *fp) ;	/* gen file as used by impute2 (unphased) */
+PBWT *pbwtReadGen (FILE *fp, char *chrom) ;	/* gen file as used by impute2 (unphased) */
 void pbwtWriteHaplotypes (FILE *fp, PBWT *p) ;
+void pbwtWriteImputeRef (PBWT *p, char *fileNameRoot) ;
+void pbwtWriteImputeHapsG (PBWT *p, FILE *fp) ;
 void pbwtCheckPoint (PBWT *p) ;
 
 /* pbwtHtslib.c */
@@ -160,6 +164,7 @@ void matchSequencesNaive (PBWT *p, FILE *fp) ; /* fp is a pbwt file of sequences
 void matchSequencesIndexed (PBWT *p, FILE *fp) ;
 void matchSequencesDynamic (PBWT *p, FILE *fp) ;
 void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int, int, int, int)) ;
+void matchSequencesDynamic2 (PBWT *p, FILE *fp) ;
 void matchSequencesHL (PBWT *p, FILE *fp) ; /* incomplete */
 
 /* pbwtImpute.c */
@@ -169,6 +174,7 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) ;
 PBWT *referencePhase (PBWT *p, char *fileNameRoot) ;
 PBWT *referenceImpute (PBWT *p, char *fileNameRoot) ;
 void genotypeCompare (PBWT *p, char *fileNameRoot) ;
+PBWT *imputeMissing (PBWT *p) ;
 PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange) ;
 PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange) ;
 
