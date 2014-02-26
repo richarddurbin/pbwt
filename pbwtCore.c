@@ -15,7 +15,7 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 29 09:03 2014 (rd)
+ * Last edited: Feb 21 08:14 2014 (rd)
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -518,6 +518,7 @@ void pbwtCursorForwardsRead (PbwtCursor *u) /* move forwards and read (unless at
 
 void pbwtCursorForwardsReadADU (PbwtCursor *u, int k) /* ADU version of the above */
 {
+  u->cLast = u->c ;		/* cache previous value of ->c for updating matches */
   pbwtCursorForwardsADU (u, k) ;
   if (!u->isBlockEnd && u->n < arrayMax(u->z))  /* move to end of previous block */
     u->n += unpack3 (arrp(u->z,u->n,uchar), u->M, u->y, 0) ;
@@ -528,6 +529,10 @@ void pbwtCursorForwardsReadADU (PbwtCursor *u, int k) /* ADU version of the abov
   else
     u->isBlockEnd = FALSE ;	/* couldn't read in block and go to end */
 }
+
+/* need to run pbwtCursorForwardsReadADU() before this to set ->cLast and ->u */
+int pbwtCursorMap (PbwtCursor *u, int x, int j)
+{ return x ? u->cLast + j - u->u[j] : u->u[j] ; }
 
 void pbwtCursorReadBackwards (PbwtCursor *u) /* read and go backwards (unless at start) */
 {

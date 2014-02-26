@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Feb  5 14:50 2014 (rd)
+ * Last edited: Feb 24 13:02 2014 (rd)
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -665,10 +665,9 @@ static void matchUpdate (MatchInfo *match, uchar *xx, int M, PbwtCursor *u, int 
 	  if (u->d[i] > m->dminus) m->dminus = u->d[i] ;
 	}
     }
-  int c = u->c ;     		     /* need to cache this before updating u */
-  pbwtCursorForwardsReadADU (u, k) ; /* need new u->u values to update m->i */
+  pbwtCursorForwardsReadADU (u, k) ; /* need to do this before pbwtCursorMap() */
   for (j = 0, m = match, x = xx ; j < M ; ++j, ++m, ++x)
-    m->i = *x ? c + m->i - u->u[m->i] : u->u[m->i] ; /* simple, isn't it! */
+    m->i = pbwtCursorMap (u, *x, m->i) ;
 
   if (isCheck)
     for (j = 0, m = match, x = xx ; j < M ; ++j, ++m, ++x)
@@ -863,8 +862,8 @@ static PBWT *referencePhase2 (PBWT *pOld, PBWT *pRef)
 		}
 	    DONE: ;
 	      /* next move forwards cursor and update match location */
-	      int cc = uHom[j]->c ; pbwtCursorForwardsADU (uHom[j], k) ;
-	      f[j] = xx ? cc + (f[j] - uHom[j]->u[f[j]]) : uHom[j]->u[f[j]] ;
+	      pbwtCursorForwardsADU (uHom[j], k) ;
+	      f[j] = pbwtCursorMap (uHom[j], xx, f[j]) ;
 	    }
 	}
       pbwtCursorForwardsRead (uOld) ;
@@ -936,6 +935,177 @@ static PBWT *referencePhase2 (PBWT *pOld, PBWT *pRef)
   return pNew ;
 }
 
+/**************** referencePhase3 **************************************************/
+
+  /* This one keeps track for each position j in the reference pbwt of the (normalised) 
+     probability of generating the data given that the phasing so far sorts at position j,
+     and also of the other haplotype sort position given that phasing.  We keep backtrack
+     pointers for each j, and prune them back so that only ones connected to the current 
+     values at k are kept live.
+     As currently implemented this calculates the full likelihood, but gives the most likely
+     path contributing to that.  We could adapt it to full Viterbi, or sampling mode.
+  */
+
+/*************** first a little package to manage trace back space efficiently ***************/
+
+static Array traceBackHeap = 0 ; /* of TraceBackCell */
+typedef unsigned int TraceBackIndex ;	 /* index into traceBackHeap */
+static Array traceBackFreeStack = 0 ; /* of TraceBackIndex */
+
+typedef struct 
+{ TraceBackIndex back : 29 ;  /* index into traceBackHeap for cell at previous het site */
+  unsigned int value : 1 ;  /* 0 or 1 */
+  unsigned int count : 2 ;  /* how many cells at next het site point back to this: 0,1 or 2 */
+} TraceBackCell ;	    /* pack this so it fits into a 4-byte word */
+#define traceBackCell(tb) arrp(traceBackHeap, (tb), TraceBackCell)
+
+TraceBackIndex traceBackCreate (TraceBackIndex back, unsigned int value) 
+{ TraceBackIndex tb ;
+  TraceBackCell *tc ;
+  if (arrayMax (traceBackFreeStack)) 
+    { tb = arr (traceBackFreeStack, --arrayMax(traceBackFreeStack), TraceBackIndex) ;
+      tc = arrp (traceBackHeap, tb, TraceBackCell) ;
+    }
+  else
+    { tb = arrayMax(traceBackHeap) ; 
+      tc = arrayp (traceBackHeap, tb, TraceBackCell) ; 
+    }
+  tc->back = back ; tc->value = value ; tc->count = 1 ;
+  return tb ;
+}
+
+inline static void traceBackPrune (TraceBackIndex tb)
+{ TraceBackCell *tc = traceBackCell(tb) ;
+  while (--tc->count == 0)	/* i.e. that was the last active link for that cell */
+    { array(traceBackFreeStack, arrayMax(traceBackFreeStack), int) = tb ;
+      tb = tc->back ;
+      tc = traceBackCell(tb) ;
+    }
+}
+
+/********** next the calculation of how likely to extend from j with value x **********/
+/* we need to collect contributions from above and below, so can't do in one pass */
+/* so all the work is done in extendPrepare - we cache results for retrieval in extendScore */
+
+static int *extendScore0 = 0, *extendScore1 = 0 ;
+static int extendScoreSize = 0 ;
+
+void extendPrepare (PbwtCursor *u)
+{
+  int j ;
+  if (extendScoreSize != u->M)
+    { if (extendScore0) { free (extendScore0) ; free (extendScore1) ; }
+      extendScore0 = mycalloc (u->M, int) ; extendScore1 = mycalloc (u->M, int) ;
+      extendScoreSize = u->M ;
+    }
+  else
+    { bzero (extendScore0, extendScoreSize*sizeof(int)) ; 
+      bzero (extendScore0, extendScoreSize*sizeof(int)) ;
+    }
+  
+}
+
+double extendScore (int j, int x)
+{
+  
+}
+
+/********** finally the main function ********/
+
+static PBWT *referencePhase3 (PBWT *pOld, PBWT *pRef)
+{
+  /* we use this next piece of code three times - simpler to #define than subroutine */
+#define updateForwards(z0,z1) \
+  jNew = pbwtCursorMap (uRef, z0, j) ; \
+  jPairNew[jNew] = pbwtCursorMap (uRef, z1, jPair[j]) ; \
+  sBit = sOld[j] * extendScore (j, z0) * extendScore (jPair[j], z1) ;	\
+  if (sBit > sBest[jNew]) /* picks best path - change here to sample */ \
+    { if (sBest[jNew]) traceBackPrune (backNew[jNew]) ; /* kill other one */ \
+      sBest[jNew] = sBit ; \
+      backNew[jNew] = (z0 == z1) ? back[j] : traceBackCreate (back[j], z0) ; \
+      ++countBack ; \
+    } \
+  sNew[jNew] += sBit 
+    
+  /* For now implement by passing through each haplotype pair in turn. 
+     Could do jointly at some memory cost.
+  */
+  int i, j, jq, jNew, k ;
+  uchar **oldHaps = pbwtHaplotypes (pOld) ;
+  uchar **newHaps = myalloc (pOld->M, uchar*) ;
+  for (jq = 0 ; jq < pOld->M ; jq += 2)
+    { PbwtCursor *uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;
+      double *sOld = mycalloc (pRef->M+1, double) ;
+      sOld[0] = 1.0 ;
+      double *sNew = myalloc (pRef->M+1, double) ;
+      double *sBest = myalloc (pRef->M+1, double) ;
+      TraceBackIndex *back = mycalloc (pRef->M+1, TraceBackIndex) ;
+      TraceBackIndex *backNew = myalloc (pRef->M+1, TraceBackIndex) ;
+      int *jPair = myalloc (pRef->M+1, int) ;
+      int *jPairNew = myalloc (pRef->M+1, int) ;
+      traceBackHeap = arrayReCreate (traceBackHeap, 4096, TraceBackCell) ;
+      traceBackFreeStack = arrayReCreate (traceBackFreeStack, 2048, TraceBackIndex) ;
+      sOld[0] = 1.0 ; 
+      back[0] = traceBackCreate (0, 0) ;
+      for (k = 0 ; k < pOld->N ; ++k)
+	{ bzero (sNew, (pRef->M+1)*sizeof(double)) ;
+	  bzero (sBest, (pRef->M+1)*sizeof(double)) ;
+	  extendPrepare (uRef) ; /* needs to come before pbwtCursorForwardsADU */
+	  pbwtCursorForwardsADU (uRef, k) ; /* need this before pbwtCursorMap()s below */
+	  int x0 = oldHaps[jq][k], x1 = oldHaps[jq+1][k] ;
+	  double sum = 0, sBit ;
+	  for (j = 0 ; j <= pRef->M ; ++j)
+	    if (sOld[j])
+	      { int countBack = 0 ;
+		if (x0 == x1) { updateForwards (x0, x1) ; }
+		else { updateForwards (0, 1) ; updateForwards (1, 0) ; }
+		/* now resolve traceback counts on back[j] */
+		if (countBack == 0) traceBackPrune (back[j]) ;
+		else if (countBack == 2) traceBackCell(back[j])->count == 2 ;
+		/* else leave count at default of 1 */
+		sum += sNew[j] ;
+	      }
+	  /* now update sOld, jPair and back to be ready for next column */
+	  for (j = 0 ; j <= pRef->M ; ++j)
+	    { sOld[j] = sNew[j] / sum ; /* normalise */
+	      jPair[j] = jPairNew[j] ;
+	      back[j] = backNew[j] ;
+	    }
+	}
+      /* now do the traceback */
+      newHaps[jq] = myalloc (pOld->N, uchar) ; newHaps[jq+1] = myalloc (pOld->N, uchar) ;
+      double sMax = 0 ; int jMax ; 
+      for (j = 0 ; j <= pOld->M ; ++j) if (sOld[j] > sMax) { sMax = sOld[j] ; jMax = j ; }
+      TraceBackCell *tc = traceBackCell(back[jMax]) ;
+      for (k = pOld->N ; k-- ;)
+	if (oldHaps[jq][k] == oldHaps[jq+1][k])
+	  { newHaps[jq][k] = oldHaps[jq][k] ; newHaps[jq+1][k] = oldHaps[jq+1][k] ; }
+	else
+	  { newHaps[jq][k] = tc->value ; newHaps[jq+1][k] = 1 - newHaps[jq][k] ; 
+	    tc = traceBackCell (tc->back) ;
+	  }
+
+      if (isCheck) 
+	printf ("traceBackHeap final %d, max %di", 
+		arrayMax(traceBackHeap)-arrayMax(traceBackFreeStack), arrayMax(traceBackHeap)) ;
+
+      pbwtCursorDestroy (uRef) ; 
+      free (sOld) ; free (sNew) ; free (sBest) ; 
+      free (back) ; free (backNew) ; free (jPair) ; free (jPairNew) ; 
+    }
+
+  /* finally create the new PBWT from newHaps[][] */
+  PBWT *pNew = pbwtCreate (pOld->M, pOld->N) ;
+  PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
+  for (k = 0 ; k < pNew->N ; ++k)
+    { for (j = 0 ; j < pNew->M ; ++j) uNew->y[j] = newHaps[uNew->a[j]][k] ;
+      pbwtCursorWriteForwards (uNew) ;
+    }
+
+  pbwtCursorDestroy (uNew) ;
+  return pNew ;
+}
+
 /************* top level selector for referencePhase *****************/
 
 PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
@@ -986,9 +1156,9 @@ static void matchUpdateNext (MatchInfo **pMatch, uchar *xx, int M, PbwtCursor *u
 	  if (u->d[i] > mNew->dminus) mNew->dminus = u->d[i] ;
 	}
     }
-  int c = u->c ; pbwtCursorForwardsReadADU (u, k) ;
+  pbwtCursorForwardsReadADU (u, k) ;
   for (j = 0, mOld = *pMatch, mNew = *(pMatch+1), x = xx ; j < M ; ++j, ++mOld, ++mNew, ++x)
-    mNew->i = *x ? c + mOld->i - u->u[mOld->i] : u->u[mOld->i] ;
+    mNew->i = pbwtCursorMap (u, *x, mOld->i) ;
 }
 
 static inline double matchImputeScore (MatchInfo *m, PbwtCursor *uRef, PbwtCursor *uFrame,
@@ -1200,8 +1370,6 @@ PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot)
     die ("mismatching chrom in referenceImpute: old %s, new %s", pRef->chrom, pOld->chrom) ;
 
   /* identify the intersecting sites */
-  pOld = pbwtSelectSites (pOld, pRef->sites, FALSE) ;
-  if (!pOld->N) die ("no overlapping sites in referenceImpute") ;
   PBWT *pFrame = pbwtSelectSites (pRef, pOld->sites, TRUE) ; /* keep the full ref to impute to */
   if (pFrame->N == pRef->N)
     { fprintf (stderr, "No additional sites to impute in referenceImpute\n") ;
@@ -1209,6 +1377,8 @@ PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot)
       return pOld ;
     }
   pbwtBuildReverse (pFrame) ;	/* we need the reverse reference pbwt below */
+  pOld = pbwtSelectSites (pOld, pRef->sites, FALSE) ;
+  if (!pOld->N) die ("no overlapping sites in referenceImpute") ;
   if (!pOld->aFend) die ("pOld has no aFend in referenceImpute - your pbwt was made by a previous version of the code; buildReverse and resave the forwards pbwt") ;
 
   fprintf (stderr, "Imputation preliminaries: ") ; timeUpdate() ;

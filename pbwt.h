@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 29 00:14 2014 (rd)
+ * Last edited: Feb 21 08:14 2014 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -64,6 +64,7 @@ typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
   BOOL isBlockEnd ;		/* TRUE if n is at end of next block, FALSE if at start */
   uchar *y ;			/* current value in sort order */
   int c ;			/* number of 0s in y */
+  int cLast ;			/* previous value of ->c when updating cursor in ADU mode */
   int *a ;			/* index back to original order */
   int *d ;			/* location of last match */
   int *u ;			/* number of 0s up to and including this position */
@@ -101,6 +102,7 @@ void pbwtCursorForwardsReadADU (PbwtCursor *u, int k) ;
 void pbwtCursorReadBackwards (PbwtCursor *u) ; /* move backwards and read (unless at start) */
 void pbwtCursorWriteForwards (PbwtCursor *u) ; /* write then move forwards */
 void pbwtCursorToAFend (PbwtCursor *u, PBWT *p) ; /* utility to copy final u->a to p->aFend */
+int pbwtCursorMap (PbwtCursor *u, int x, int j) ; /* must run ForwardsReadADU before this */
 
 	/* low level operations on packed PBWT, argument yzp in these calls */
 
