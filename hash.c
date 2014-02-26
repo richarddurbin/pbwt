@@ -51,8 +51,8 @@ typedef struct {
   int iter ;			/* used in iterator */
 } TRUE_HASH ;
 
-static const IS5 = (sizeof(long int)*8)/5 ;
-static const IS7 = (sizeof(long int)*8)/7 ;
+static const int IS5 = (sizeof(long int)*8)/5 ;
+static const int IS7 = (sizeof(long int)*8)/7 ;
 
 #define HASH_FUNC(_key) { register int z = IS5, x = _key.i ; \
 		  for (hash = x, x >>= 5 ; z-- ; x >>= 5) hash ^= x ; \

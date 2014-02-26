@@ -558,13 +558,58 @@ static BOOL parseGenLine (PBWT **pp, FILE *fp, Array x) /* based on parseVcfqLin
   return TRUE ;
 }
 
+static BOOL parseHapLine (PBWT **pp, FILE *fp, Array x) /* same as parseGenLine - slightly simpler */
+{
+  PBWT *p = *pp ;
+  
+  fgetword(fp) ; fgetword(fp) ;	/* ignore first two name fields */
+  
+  int pos = atoi (fgetword (fp)) ;
+  char *var = getVariation (fp) ; /* but need to change ' ' separator to '\t' */
+  if (feof (fp)) return FALSE ;
+  char *cp = var ; while (*cp && *cp != ' ') ++cp ; if (*cp == ' ') *cp = '\t' ; else die ("missing separator in line %d, var is %d", p?p->N:0, var) ;
+  
+  int m = 0, nscan ;
+  while (!feof(fp))
+  { char c = getc(fp) ; if (c == '\n') break ; else if (!isspace(c)) ungetc (c, fp) ;
+    float f0, f1 ;
+    if ((nscan = fscanf (fp, "%f %f", &f0, &f1) != 2))
+      die ("bad line %d, %d floats found, m %d, pos %d, var %s", p ? p->N : 0, nscan, m, pos, var) ;
+    array(x,m++,uchar) = f0 ; array(x,m++,uchar) = f1 ; /* haps are phased, put straight in as is */
+  }
+  
+  if (feof (fp)) return FALSE ;
+  if (p && m != p->M) die ("length mismatch reading haps line") ;
+  
+  if (!*pp)
+  { p = *pp = pbwtCreate (m, 0) ;
+    p->sites = arrayCreate(4096, Site) ;
+    array(x,p->M,uchar) = Y_SENTINEL ; /* sentinel required for packing */
+  }
+  Site *s = arrayp(p->sites, arrayMax(p->sites), Site) ;
+  s->x = pos ;
+  dictAdd (variationDict, var, &s->varD) ;
+  
+  ++p->N ;
+  return TRUE ;
+}
+
+
 PBWT *pbwtReadGen (FILE *fp, char *chrom) 
 { 
   nGenMissing = 0 ;
-  PBWT *p = pbwtReadLineFile (fp, "gen", parseGenLine) ; 
+  PBWT *p = pbwtReadLineFile (fp, "gen", parseGenLine) ;
   p->chrom = strdup (chrom) ;
   if (nGenMissing) fprintf (stderr, "%ld missing genotypes set to 00\n", nGenMissing) ;
   return p ;
+}
+
+PBWT *pbwtReadHap (FILE *fp, char *chrom)
+{
+  PBWT *p = pbwtReadLineFile (fp, "hap", parseHapLine) ;
+  p->chrom = strdup (chrom) ;
+  return p ;
+  
 }
 
 /*************** write haplotypes ******************/
