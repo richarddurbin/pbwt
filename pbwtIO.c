@@ -606,7 +606,7 @@ PBWT *pbwtReadGen (FILE *fp, char *chrom)
 
 PBWT *pbwtReadHap (FILE *fp, char *chrom)
 {
-  PBWT *p = pbwtReadLineFile (fp, "gen", parseHapLine) ;
+  PBWT *p = pbwtReadLineFile (fp, "hap", parseHapLine) ;
   p->chrom = strdup (chrom) ;
   return p ;
   
