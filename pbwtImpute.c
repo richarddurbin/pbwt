@@ -1336,7 +1336,7 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	      ++m ;
 	    }
 	  if (sum == 0) 
-	    { warn ("refImpute2 sum==0 kRef %d kOld %d j %d", kRef, kOld, j) ;
+	    { 
 	      x[j] = 0 ;
 	    }
 	  else 
@@ -1408,11 +1408,17 @@ void genotypeCompare (PBWT *p, char *fileNameRoot)
   PBWT *pRef = pbwtReadAll (fileNameRoot) ;
   if (!pRef->sites) die ("new pbwt %s in genotypeCompare has no sites", fileNameRoot) ;
   if (p->M != pRef->M) die ("mismatch of old M %d to ref M %d", p->M, pRef->M) ;
-  if (p->N != pRef->N) die ("mismatch of old N %d to ref N %d", p->N, pRef->N) ;
-  if (strcmp(p->chrom,pRef->chrom)) die ("mismatch chrom %s to ref %f", p->chrom, pRef->chrom) ;
+  if (p->N != pRef->N) warn ("mismatch of old N %d to ref N %d", p->N, pRef->N) ;
+  
+  /* reduce both down to the intersecting sites */
+  PBWT *pFrame = pbwtSelectSites (p, pRef->sites, TRUE) ;
+  pRef = pbwtSelectSites (pRef, p->sites, FALSE) ;
+  if (!pFrame->N) die ("no overlapping sites in genotypeCompare") ;
+  if (strcmp(pFrame->chrom,pRef->chrom)) die ("mismatch chrom %s to ref %f", pFrame->chrom, pRef->chrom) ;
 
-  genotypeComparePbwt (p, pRef) ;
-  pbwtDestroy (pRef) ;
+  genotypeComparePbwt (pFrame, pRef) ;
+  
+  pbwtDestroy (pRef) ; pbwtDestroy(pFrame) ;
 }
 
 static void genotypeComparePbwt (PBWT *p, PBWT *q)
