@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Feb 24 13:02 2014 (rd)
+ * Last edited: Feb 26 12:37 2014 (rd)
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -1312,6 +1312,7 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
   uchar *x = myalloc (pOld->M, uchar) ;   /* current uOld values in original sort order */
   int *aRefInv = myalloc (pRef->M, int) ;  /* holds the inverse mapping from uRef->a[i] -> i */
   int *firstSeg = mycalloc (pOld->M, int) ; /* position in maxMatch to start looking at */
+  int nConflicts = 0 ;
 
   int kOld = 0, kRef = 0 ;
   while (kRef < pRef->N)
@@ -1336,8 +1337,8 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	      ++m ;
 	    }
 	  if (sum == 0) 
-	    { 
-	      x[j] = 0 ;
+	    { x[j] = 0 ;
+	      ++nConflicts ;
 	    }
 	  else 
 	    x[j] = (score/sum > 0.5) ? 1 : 0 ;
@@ -1349,6 +1350,8 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
       if (isCheck && !(kRef % 10000)) fprintf (stderr, " %d %d\n", kRef, kOld) ;
     }
   pbwtCursorToAFend (uNew, pNew) ;
+
+  if (nConflicts) fprintf (stderr, "%d times where no overlapping matches because query does not match any reference - set imputed value to 0\n", nConflicts) ;
 
   pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uRef) ; pbwtCursorDestroy (uNew) ;
   free (aRefInv) ; free (firstSeg) ;
