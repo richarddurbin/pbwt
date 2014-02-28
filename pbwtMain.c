@@ -144,6 +144,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -writeImputeRef <rootname> write .imputeHaps and .imputeLegend\n") ;
       fprintf (stderr, "  -writeImputeHapsG <file>  write haplotype file for IMPUTE -known_haps_g\n") ;
       fprintf (stderr, "  -haps <file>              write haplotype file; '-' for stdout\n") ;
+      fprintf (stderr, "  -writeVcf <file>          write VCF file; '-' for stdout\n") ;
       fprintf (stderr, "  -subsites <fmin> <frac>   subsample <frac> sites with AF > <fmin>\n") ;
       fprintf (stderr, "  -subsample <start> <n>    subsample <n> samples from index <start>\n") ;
       fprintf (stderr, "  -subrange <start> <end>   cut down to sites in [start,end)\n") ;
