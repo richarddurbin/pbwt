@@ -158,7 +158,7 @@ PBWT *pbwtReadVcfPL (char *filename)	/* read PLs from vcf/bcf using htslib */
       if (k <= 10) printf ("%s:%d %s %s", chrom, pos, ref, alt) ;
 
       // get a copy of the PL vectors
-      int npl = bcf_get_format_int(hr, line, "PL", &pl_arr, &mpl_arr) ;
+      int npl = bcf_get_format_int32(hr, line, "PL", &pl_arr, &mpl_arr) ;
       if (npl)
 	{ npl /= bcf_hdr_nsamples(hr) ;	// number of values per samples
 	  if (npl != 3) die ("%s:%d not a diploid site", chrom, pos) ; // not diploid
