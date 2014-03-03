@@ -29,7 +29,7 @@ by itself gives a list of commands with brief descriptions.
 A quick synopsis for usage is:
 
     macs 11000 1e6 -t 0.001 -r 0.001 > 11k.macs
-    pbwt -checkpoint 10000 -macs 11k.macs -write macs11k.pbwt -writeSites macs.sites
+    pbwt -checkpoint 10000 -readMacs 11k.macs -write macs11k.pbwt -writeSites macs.sites
 
 NB "checkpoint 10000" writes out files every 10000 sites during the vcfq 
 conversion to alternating checkA.{pbwt,sites} and checkB.{pbwt,sites} files.
