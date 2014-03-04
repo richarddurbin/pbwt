@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Feb 26 12:37 2014 (rd)
+ * Last edited: Mar  1 23:57 2014 (rd)
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -946,7 +946,7 @@ static PBWT *referencePhase2 (PBWT *pOld, PBWT *pRef)
      path contributing to that.  We could adapt it to full Viterbi, or sampling mode.
   */
 
-/*************** first a little package to manage trace back space efficiently ***************/
+/********** first a little package to manage trace back space efficiently **********/
 
 static Array traceBackHeap = 0 ; /* of TraceBackCell */
 typedef unsigned int TraceBackIndex ;	 /* index into traceBackHeap */
@@ -989,25 +989,88 @@ inline static void traceBackPrune (TraceBackIndex tb)
 
 static int *extendScore0 = 0, *extendScore1 = 0 ;
 static int extendScoreSize = 0 ;
+static Array extendStack = 0 ;
 
-void extendPrepare (PbwtCursor *u)
+typedef struct {
+  int d ;
+  int n0, n1 ;			/* number of y[j] == 0/1 so far with this effective dd */
+  int sum0, sum1 ;		/* sum of dd*n up to this element */
+} ExtendStruct ;
+
+ExtendStruct *extendUpdate (int dd, int x)
 {
-  int j ;
-  if (extendScoreSize != u->M)
-    { if (extendScore0) { free (extendScore0) ; free (extendScore1) ; }
-      extendScore0 = mycalloc (u->M, int) ; extendScore1 = mycalloc (u->M, int) ;
-      extendScoreSize = u->M ;
+  int i, n0 = 0, n1 = 0 ;	/* n0 and n1 are # 0s,1s with d > dd */
+  ExtendStruct *ex ;
+
+  if (isCheck && dd < 0) die ("dd %d < 0 in extendUpdate", dd) ;
+
+  /* find highest place in stack less than or equal to dd */
+  for (i = arrayMax(extendStack) ; i-- ; )
+    { ex = arrp(extendStack, i, ExtendStruct) ;
+      if (dd >= ex->d) break ;
+      n0 += ex->n0 ; n1 += ex->n1 ;
     }
-  else
-    { bzero (extendScore0, extendScoreSize*sizeof(int)) ; 
-      bzero (extendScore0, extendScoreSize*sizeof(int)) ;
+  arrayMax(extendStack) = i+1 ;
+  if (dd > ex->d)	/* make a new exStack element */
+    { ex = arrayp(extendStack, i+1, ExtendStruct) ;
+      ex->d = dd ; ex->n0 = n0 ; ex->n1 = n1 ;
+      ex->sum0 = ex[-1].sum0 + dd*n0 ; ex->sum1 = ex[-1].sum1 + dd*n1 ;
     }
-  
+  else		/* add these things from longer dd to current element */
+    { ex->n0 += n0 ; ex->sum0 += dd*n0 ; ex->n1 += n1 ; ex->sum1 += dd*n1 ; }
+  /* now add the current element on */
+  if (x) { ++ex->n1 ; ex->sum1 += dd ; } else { ++ex->n0 ; ex->sum0 += dd ; }
+  return ex ;
 }
 
-double extendScore (int j, int x)
+void extendPrepare (PbwtCursor *u, int k)
 {
-  
+  int j ;
+  ExtendStruct *ex ;
+
+  if (extendScoreSize != u->M)
+    { if (extendScore0) { free (extendScore0) ; free (extendScore1) ; }
+      extendScore0 = mycalloc (u->M+1, int) ; extendScore1 = mycalloc (u->M+1, int) ;
+      extendScoreSize = u->M ;
+    }
+
+  /* first run through samples j == 1..M and add scores from top to j */
+  extendStack = arrayReCreate (extendStack, 512, ExtendStruct) ;
+  ex = arrayp (extendStack, 0, ExtendStruct) ;
+  ex->d = 0 ; ex->n0 = 0 ; ex->n1 = 0 ; ex->sum0 = 0 ; ex->sum1 = 0 ;
+  extendScore0[0] = 0 ; extendScore1[0] = 0 ;
+  for (j = 0 ; j++ < u->M ; )
+    { extendScore0[j] = ex->sum0 ; extendScore1[j] = ex->sum1 ;
+      int bit = (j < u->M || u->d[j-1] > u->d[j]) ? u->d[j-1] : u->d[j] ;
+      if (u->y[j-1]) extendScore1[j] += bit ; else extendScore0[j] += bit ;
+      if (j < u->M) ex = extendUpdate (k - u->d[j], u->y[j-1]) ;
+    }
+
+  /* then reverse j == M-1..0 and add on scores from bottom to j */
+  extendStack = arrayReCreate (extendStack, 512, ExtendStruct) ;
+  ex = arrayp (extendStack, 0, ExtendStruct) ;
+  ex->d = 0 ; ex->n0 = 0 ; ex->n1 = 0 ; ex->sum0 = 0 ; ex->sum1 = 0 ;
+  for (j = u->M ; j-- > 0 ; )
+    { extendScore0[j] += ex->sum0 ; extendScore1[j] += ex->sum1 ;
+      int bit = (j || u->d[j+1] > u->d[j]) ? u->d[j+1] : u->d[j] ;
+      if (u->y[j]) extendScore1[j] += bit ; else extendScore0[j] += bit ;
+      if (j) ex = extendUpdate (k - u->d[j], u->y[j]) ;
+    }
+}
+
+/* To be correct I should calculate the upper score up until but not including the 
+   preceding j-1, and the lower score back until but not including the succeeding j, 
+   because I don't know here the match lengths to the flanking j-1,j.  I can know them 
+   during the dynamic programming, because I know the backtrace.  But this means 
+   calculating and storing the dup, ddown values induced by the backtrace, which adds 
+   considerable complexity.  Above I assume that they are the greater of d[j] and d[j-1]
+   (for j-1) and d[j] and d[j+1] (for j), which is a lower bound, taking care not to
+   query out of bounds at the top and bottom.
+*/
+
+static inline double extendScore (int j, int x)
+{
+  return (double)(x ? extendScore1[j] : extendScore0[j]) ;
 }
 
 /********** finally the main function ********/
@@ -1050,7 +1113,7 @@ static PBWT *referencePhase3 (PBWT *pOld, PBWT *pRef)
       for (k = 0 ; k < pOld->N ; ++k)
 	{ bzero (sNew, (pRef->M+1)*sizeof(double)) ;
 	  bzero (sBest, (pRef->M+1)*sizeof(double)) ;
-	  extendPrepare (uRef) ; /* needs to come before pbwtCursorForwardsADU */
+	  extendPrepare (uRef, k) ; /* needs to come before pbwtCursorForwardsADU */
 	  pbwtCursorForwardsADU (uRef, k) ; /* need this before pbwtCursorMap()s below */
 	  int x0 = oldHaps[jq][k], x1 = oldHaps[jq+1][k] ;
 	  double sum = 0, sBit ;
@@ -1125,7 +1188,7 @@ PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
 
   fprintf (stderr, "Phase preliminaries: ") ; timeUpdate() ;
 
-  PBWT *pNew = referencePhase2 (pOld, pRef) ;
+  PBWT *pNew = referencePhase3 (pOld, pRef) ;
   fprintf (stderr, "Phasing complete: ") ; timeUpdate() ;
   fprintf (stderr, "After phasing: ") ; phaseCompare (pNew, pOld) ;
 
