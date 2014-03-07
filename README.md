@@ -17,6 +17,19 @@ Phasing and imputation methods are currently under development.
 
 Richard Durbin <rd@sanger.ac.uk>, May 2013
 
+
+Installation
+------------
+
+The required `HTSlib` is bundled as a git submodule. To obtain `pbwt`, use
+`git clone --recursive https://github.com/richarddurbin/pbwt.git`. This will
+obtain both `pbwt` and `HTSlib` for you. Then, the following commands will
+compile both `HTSlib` and `pbwt` for you:
+
+    cd pbwt
+    make
+
+
 Brief usage instructions
 ------------------------
 

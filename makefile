@@ -1,6 +1,6 @@
 
 CFLAGS= -g
-HTSDIR = ../htslib
+HTSDIR = ./htslib
 HTSLIB = $(HTSDIR)/libhts.a
 
 all: pbwt
@@ -8,11 +8,14 @@ all: pbwt
 test:
 	./test/test.pl
 
-pbwt: pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o utils
+pbwt: $(HTSLIB) pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o utils
 	gcc $(CFLAGS) -o pbwt pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtMerge.o pbwtHtslib.o hash.o dict.o array.o utils.o $(HTSLIB) -lpthread -lz -lm
 
 autozygExtract: autozygExtract.o
 	gcc $(CFLAGS) -o autozygExtract autozygExtract.o utils.o $(HTSLIB) -lpthread -lz -lm
+
+$(HTSLIB):
+	cd $(HTSDIR) && make &&	cd ..
 
 pbwtMain.o: pbwtMain.c pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtMain.c
@@ -35,7 +38,7 @@ pbwtImpute.o: pbwtImpute.c pbwt.h utils.h
 pbwtMerge.o: pbwtMerge.c pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtMerge.c
 
-pbwtHtslib.o: pbwtHtslib.c pbwt.h utils.h 
+pbwtHtslib.o: pbwtHtslib.c pbwt.h utils.h
 	gcc $(CFLAGS) -I$(HTSDIR) -c pbwtHtslib.c
 
 autozygExtract.o: autozygExtract.c
