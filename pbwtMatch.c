@@ -15,7 +15,7 @@
  * Description: match functions in pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 31 17:47 2014 (rd)
+ * Last edited: Apr  2 17:30 2014 (rd)
  * Created: Thu Apr  4 11:55:48 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -56,73 +56,86 @@ static void reportMatch (int ai, int bi, int start, int end)
     checkMatchMaximal (checkHapsA[ai], checkHapsB[bi], start, end, Ncheck) ;
 }
 
-static void reportLongMatches1 (PbwtCursor *u, int T, int k) /* algorithm 3 */
+static void matchLongWithin1 (PBWT *p, int T,
+			      void (*report)(int ai, int bi, int start, int end))
+/* algorithm 3 in paper */
 {
-  static int *a, *b = 0 ;
-  int i, ia, ib, na = 0, nb = 0 ;
+  int *a = myalloc (p->M, int), *b = myalloc (p->M, int) ;
+  int i, ia, ib, na = 0, nb = 0, k ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
 
-  if (!b)			/* initialise */
-    { a = myalloc (u->M, int) ;
-      b = myalloc (u->M, int) ;
-    }
-  for (i = 0 ; i < u->M ; ++i)
-    { if (u->d[i] > T)
-	{ for (ia = 0 ; ia < na ; ++ia)
-	    for (ib = 0 ; ib < nb ; ++ib) 
-	      reportMatch (u->a[ia], u->a[ib], 0, k) ; /* 0 is wrong! - can't get start */
-	  na = 0 ; nb = 0 ;		               /* NB because of this matches won't check */
-	}
-      if (u->y[i] == 0)
-	a[na++] = u->a[i] ;
-      else
-	b[nb++] = u->a[i] ;
-    }
+  for (k = 0 ; k <= p->N ; ++k)
+    for (i = 0 ; i < u->M ; ++i)
+      { if (u->d[i] > T)
+	  { for (ia = 0 ; ia < na ; ++ia)
+	      for (ib = 0 ; ib < nb ; ++ib) 
+		(*report) (u->a[ia], u->a[ib], 0, k) ; /* 0 is wrong! - can't get start */
+	    na = 0 ; nb = 0 ;	               /* NB because of this matches won't check */
+	  }
+	if (u->y[i] == 0)
+	  a[na++] = u->a[i] ;
+	else
+	  b[nb++] = u->a[i] ;
+      }
+  
+  free(a) ; free(b) ;  pbwtCursorDestroy (u) ;
 }
 
-static void reportLongMatches2 (PbwtCursor *u, int T, int k, BOOL isInternal) 
+static void matchLongWithin2 (PBWT *p, int T, 
+			      void (*report)(int ai, int bi, int start, int end))
 /* alternative giving start - it turns out in tests that this is also faster, so use it */
 {
-  int i, i0 = 0, ia, ib, na = 0, nb = 0, dmin ;
+  int i, i0 = 0, ia, ib, na = 0, nb = 0, dmin, k ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
 
-  for (i = 0 ; i < u->M ; ++i)
-    { if (u->d[i] > T)
-	{ if (na && nb)		/* then there is something to report */
-	    for (ia = i0 ; ia < i ; ++ia)
-	      for (ib = ia+1, dmin = 0 ; ib < i ; ++ib)
-		{ if (u->d[ib] > dmin) dmin = u->d[ib] ;
-		  if (u->y[ib] != u->y[ia])
-		    reportMatch (u->a[ia], u->a[ib], dmin, k) ;
-		}
-	  na = 0 ; nb = 0 ; i0 = i ;
-	}
-      if (u->y[i] == 0)
-	na++ ;
-      else
-	nb++ ;
-    }
+  for (k = 0 ; k <= p->N ; ++k)
+    for (i = 0 ; i < u->M ; ++i)
+      { if (u->d[i] > T)
+	  { if (na && nb)		/* then there is something to report */
+	      for (ia = i0 ; ia < i ; ++ia)
+		for (ib = ia+1, dmin = 0 ; ib < i ; ++ib)
+		  { if (u->d[ib] > dmin) dmin = u->d[ib] ;
+		    if (u->y[ib] != u->y[ia])
+		      (*report) (u->a[ia], u->a[ib], dmin, k) ;
+		  }
+	    na = 0 ; nb = 0 ; i0 = i ;
+	  }
+	if (u->y[i] == 0)
+	  na++ ;
+	else
+	  nb++ ;
+      }
+
+  pbwtCursorDestroy (u) ;
 }
 
-static void reportMaximalMatches1 (PbwtCursor *u, int k, BOOL isInternal)
+void matchMaximalWithin (PBWT *p, void (*report)(int ai, int bi, int start, int end))
 /* algorithm 4 in paper */
 {
-  int i, j, m, n ;
+  int i, j, k, m, n ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
 
-  for (i = 0 ; i < u->M ; ++i)
-    { m = i-1 ; n = i+1 ;
-      if (u->d[i] <= u->d[i+1])
-	while (u->d[m+1] <= u->d[i])
-	  if (u->y[m--] == u->y[i] && isInternal) goto nexti ; /* ERROR in ISMB submission: != should be == */
-      if (u->d[i] >= u->d[i+1])
-	while (u->d[n] <= u->d[i+1])
-	  if (u->y[n++] == u->y[i] && isInternal) goto nexti ; /* ERROR in ISMB submission: != should be == */
-      if (isStats)
-	++array(matchLengthHist, (u->d[i]<u->d[i+1]) ? k-u->d[i] : k-u->d[i+1], int) ;
-      else
-	{ for (j = m+1 ; j < i ; ++j) reportMatch (u->a[i], u->a[j], u->d[i], k) ;
-	  for (j = i+1 ; j < n ; ++j) reportMatch (u->a[i], u->a[j], u->d[i+1], k) ;
+  for (k = 0 ; k <= p->N ; ++k)
+    { for (i = 0 ; i < u->M ; ++i)
+	{ m = i-1 ; n = i+1 ;
+	  if (u->d[i] <= u->d[i+1])
+	    while (u->d[m+1] <= u->d[i])
+	      if (u->y[m--] == u->y[i] && k < p->N) goto nexti ;
+	  if (u->d[i] >= u->d[i+1])
+	    while (u->d[n] <= u->d[i+1])
+	      if (u->y[n++] == u->y[i] && k < p->N) goto nexti ;
+	  if (matchLengthHist)
+	    ++array(matchLengthHist, (u->d[i]<u->d[i+1]) ? k-u->d[i] : k-u->d[i+1], int) ;
+	  else
+	    { for (j = m+1 ; j < i ; ++j) (*report) (u->a[i], u->a[j], u->d[i], k) ;
+	      for (j = i+1 ; j < n ; ++j) (*report) (u->a[i], u->a[j], u->d[i+1], k) ;
+	    }
+	nexti: ;
 	}
-      nexti: ;
+      pbwtCursorForwardsReadAD (u, k) ;
     }
+
+  pbwtCursorDestroy (u) ;
 }
 
 /* I think there is a good alternative, where I just go down through the list, keeping
@@ -142,17 +155,10 @@ void pbwtLongMatches (PBWT *p, int L) /* reporting threshold L - if 0 then maxim
   if (isStats)
     matchLengthHist = arrayReCreate (matchLengthHist, 1000000, int) ;
 
-  for (k = 0 ; k < p->N ; ++k)
-    { if (L)
-	reportLongMatches2 (u, k-L, k, TRUE) ;
-      else
-	reportMaximalMatches1 (u, k, TRUE) ;
-      pbwtCursorForwardsReadADU (u, k) ;
-    }
   if (L)
-    reportLongMatches2 (u, p->N - L, p->N, FALSE) ;
+    matchLongWithin2 (p, L, reportMatch) ;
   else
-    reportMaximalMatches1 (u, p->N, FALSE) ;
+    matchMaximalWithin (p, reportMatch) ;
 
   if (isStats)
     { int i, nTot = 0 ;
@@ -268,8 +274,9 @@ void matchSequencesIndexed (PBWT *p, FILE *fp)
     { memcpy (a[k], up->a, M*sizeof(int)) ;
       memcpy (d[k], up->d, (M+1)*sizeof(int)) ;
       cc[k] = up->c ;
-      pbwtCursorForwardsReadADU (up, k) ;
+      pbwtCursorCalculateU (up) ;
       memcpy (u[k], up->u, (M+1)*sizeof(int)) ;
+      pbwtCursorForwardsReadAD (up, k) ;
     }
   memcpy (a[k], up->a, M*sizeof(int)) ;
   memcpy (d[k], up->d, (M+1)*sizeof(int)) ;
@@ -337,9 +344,6 @@ void matchSequencesIndexed (PBWT *p, FILE *fp)
 typedef struct {
   uchar *x ;
   int e, f, g ;			/* start of match, PBWT interval */
-#ifdef USE_REVERSE
-  int nz, f2, g2 ;		/* pos in reverse pbwt ->zz at e, PBWT interval in this  */
-#endif
 } MatchInfo ;
 
 void matchSequencesDynamic (PBWT *p, FILE *fp)
@@ -364,11 +368,6 @@ void matchSequencesSweep2 (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int 
    in order to report which sequence we have hit we need to maintain the a[] array, which
    is O(NM) - this can be done with block memcpy's in the update which might increase
    speed considerably.  Unless we are happy just to find the query maximal strings.
-       There are some sections commented out by #ifdef USE_REVERSE.  These show how to keep
-   the same interval in the reverse PBWT, as Heng does.  In principle I think we could search
-   forwards in this to find e1 when it is closer to the old e than to k, but in practice 
-   this is the less common situation, and it seems quite complicated to implement, so is 
-   not done.
 */
 {
   uchar **query = pbwtHaplotypes (q) ; /* make the sequences */
@@ -380,7 +379,6 @@ void matchSequencesSweep2 (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int 
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
   MatchInfo *m ;
   uchar **reference ;		/* haplotypes for reference; only made when checking */
-  int *oldA = myalloc (M, int) ;
   int totLen = 0, nTot = 0 ;
 
   if (q->N != p->N) die ("query length in matchSequences %d != PBWT length %d", q->N, p->N) ;
@@ -390,47 +388,38 @@ void matchSequencesSweep2 (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int 
       checkHapsA = query ; checkHapsB = reference ; Ncheck = p->N ;
     }
 
-#ifdef USE_REVERSE
-  buildReverse (p) ;
-#endif
-
   for (j = 0 ; j < q->M ; ++j)	/* initialise query data structures */
     { m = arrp(mInfo,j,MatchInfo) ;
       m->x = query[j] ;
       m->g = M ;
-#ifdef USE_REVERSE
-      m->g2 = M ; 
-      m->nz = arrayMax(p->zz) ;
-#endif
     }
   cc = myalloc (N, int) ;	/* used to store u->c values */
 
 			/* outer loop is now single sweep through pbwt */
   for (k = 0 ; k < N ; ++k)
-    { memcpy (oldA, u->a, M*sizeof(int)) ; cc[k] = u->c ; int ny = u->n ;
-      pbwtCursorForwardsReadADU (u, k) ; /* do this here because need new u */
-      			/* next loop over queries */
+    { cc[k] = u->c ; int ny = u->n ; /* needed in backtrack */
+      pbwtCursorCalculateU (u) ; /* needed for pbwtCursorMap() */
       for (j = 0 ; j < q->M ; ++j)
 	{ m = arrp(mInfo,j,MatchInfo) ;
 			/* use classic FM updates to extend [f,g) interval to next position */
-	  f1 = m->x[k] ?  cc[k] + (m->f - u->u[m->f]) : u->u[m->f] ;
-	  g1 = m->x[k] ?  cc[k] + (m->g - u->u[m->g]) : u->u[m->g] ;
-	  		/* if the interval is non-zero we can just proceed */
-	  if (g1 > f1)
-	    { m->f = f1 ; m->g = g1 ; /* no change to e */
-#ifdef USE_REVERSE
-	      /* From Heng we can update [f2,g2) because g2-f2 must be the same as g-f */
-	      /* because it covers matches to the same substring in reverse, */
-	      /* and f2 is unchanged if x[k] == 0, or g2 is unchanged if x[k] == 1 */
-	      if (m->x[k]) m->f2 = m->g2 - (g1 - f1) ;
-	      else m->g2 = m->f2 + (g1 - f1) ;
-#endif
+	  f1 = pbwtCursorMap (u, m->x[k], m->f) ;
+	  g1 = pbwtCursorMap (u, m->x[k], m->g) ;
+	  if (isCheck && (m->f < 0 || f1 > u->M || g1 < 0 || g1 > u->M))
+	    die ("bad bounds in matchSequencesSweep") ;
+	  if (f1 == g1)	/* we have reached a maximum - report matches */
+	    { for (i = m->f ; i < m->g ; ++i)
+		(*report)(j, u->a[i], m->e, k) ;
+	      nTot += (m->g - m->f)  ; totLen += (m->g - m->f) * (k - m->e) ;
 	    }
-	  else		/* we have reached a maximum - need to report and update e, f*,g* */
-	    { for (i = m->f ; i < m->g ; ++i)		/* first report matches */
-		(*report)(j, oldA[i], m->e, k) ;
-	      ++nTot ; totLen += k - m->e ;
-	      		/* then update e,f,g */
+	  m->f = f1 ; m->g = g1 ; /* initial update for f and g */
+	}
+
+      pbwtCursorForwardsReadAD (u, k) ; /* next move forwards to new positions */
+      			
+      for (j = 0 ; j < q->M ; ++j) /* loop again over queries to update e and f or g at maxima */
+	{ m = arrp(mInfo,j,MatchInfo) ;
+	  if (m->f == m->g)
+	    { f1 = m->f ; g1 = m->g ;
 	      e1 = u->d[f1] - 1 ; /* initial upper bound for e1 */
 	      if ((m->x[e1] == 0 && f1 > 0) || f1 == M)
 		{ f1 = g1 - 1 ;
@@ -470,15 +459,15 @@ void matchSequencesSweep2 (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int 
     { m = arrp(mInfo,j,MatchInfo) ;
       for (i = m->f ; i < m->g ; ++i)
 	(*report)(j, u->a[i], m->e, N) ;
-      ++nTot ; totLen += N - m->e ;
+      nTot += (m->g - m->f)  ; totLen += (m->g - m->f) * (N - m->e) ;
     }
 
-  fprintf (stderr, "Average number of best matches %.1f, Average length %.1f\n", 
+  fprintf (stderr, "Average number of best matches including alternates %.1f, Average length %.1f\n", 
 	   nTot/(double)q->M, totLen/(double)nTot) ;
 
   		/* cleanup */
   for (j = 0 ; j < q->M ; ++j) free(query[j]) ; free (query) ;
-  free (oldA) ; free (cc) ;
+  free (cc) ;
   pbwtCursorDestroy (u) ;
   if (isCheck) { for (j = 0 ; j < p->M ; ++j) free(reference[j]) ; free (reference) ; }
 }
@@ -526,20 +515,26 @@ void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int s
 		      else ++iPlus ;
 		    dPlus = (iPlus == p->M) ? k : up->d[iPlus] ;
 		    if (!iMinus && iPlus == p->M) 
-		      die ("no match to query %d value %d at site %d", jj, x, k) ;
+		      { fprintf (stderr, "no match to query %d value %d at site %d\n", 
+				 jj, x, k) ;
+			d[jj] = k+1 ;
+			goto DONE ; 
+		      }
 		  }
 	    }
 	DONE: ;
 	}
 
-      /* next move forwards p cursor */
-      int cp = up->c ; pbwtCursorForwardsReadADU (up, k) ;
-      /* and update the match location f[] of each query */
+      /* next update the match location f[] of each query */
+      pbwtCursorCalculateU (up) ;
       for (j = 0 ; j < q->M ; ++j)
 	{ int jj = uq->a[j] ;
-	  f[jj] = uq->y[j] ?  cp + (f[jj] - up->u[f[jj]]) : up->u[f[jj]] ; /* match update */
+	  f[jj] = pbwtCursorMap (up, uq->y[j], f[jj]) ;
+	  /* trap if x == 1 and all up->y[] == 0, so d[jj] == k+1 (see above) */
+	  if (f[jj] == p->M) f[jj] = 0 ; 
 	}	  
 	
+      pbwtCursorForwardsReadAD (up, k) ;
       pbwtCursorForwardsRead (uq) ;
     }
 
@@ -552,88 +547,11 @@ void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int s
       nTot += (i - f[jj]) ; totLen += (p->N - d[jj])*(i - f[jj]) ;
     }
 
-  fprintf (stderr, "Average number of best matches including alternates %.1f, Average length %.1f\n", 
-	   nTot/(double)q->M, totLen/(double)nTot) ;
+  fprintf (stderr, "Average number of best matches including alternates %.1f, Average length %.1f, Av number per position %.1f\n", 
+	   nTot/(double)q->M, totLen/(double)nTot, totLen/(double)(q->M*q->N)) ;
 
   pbwtCursorDestroy (up) ; pbwtCursorDestroy (uq) ;
   free (f) ; free (d) ;
 }
-
-/* Heng Li proposed another approach, based on matching forward and back, but it is intricate
-   to program, and this implementation is incomplete.  I am not sure what the complexity is.
-*/
-
-#ifdef HENGLI
-void matchSequencesHL (PBWT *p, FILE *fp)
-/* ********** INCOMPLETE !! ************ */
-{
-  PBWT *q = pbwtRead (fp) ;	/* q for "query" of course */
-  uchar **query = pbwtHaplotypes (q) ; /* make the sequences */
-  uchar *x ;			/* we will use this for the current query */
-  int i1 = 0, f1 = 0, g1, nz1 ;		/* [f1,g1) is interval in reverse at i1 */
-  int i2, f2, g2, ny2 ;		/* [f2,g2) is interval in forward at i2>i1 */
-  int i, j, k, M = p->M, N = p->N ;
-  uchar **haps ;		/* haplotypes for target; costly, only made when checking */
-  uchar *a = myalloc (M, uchar) ;
-  Array info = arrayCreate (64, MatchInfo) ;
-  MatchInfo *inf ;
-
-  if (q->N != p->N) die ("query length in matchSequences %d != PBWT length %d", q->N, p->N) ;
-
-  if (isCheck) 
-    haps = pbwtHaplotypes (p) ; /* VERY expensive for big targets */
-  matchLengthHist = arrayReCreate (matchLengthHist, 100000, int) ;
-
-  if (!p->zz) pbwtBuildReverse (p) ; /* we need the reverse as well as forward BWT */
-
-  for (j = 0 ; j < q->M ; ++j)	/* iterate over queries */
-    { x = query[j] ;
-      i1 = i2 = 0 ; f1 = f2 = 0 ; g1 = g2 = M ; 
-      nz1 = arrayMax(p->zz) ; ny2 = 0 ;
-      memcpy (a, p->za, M) ;
-      while (i2 < N)
-	{ /* first extend i2 forwards until g-f == 0 to find maximal matches */
-	  arrayMax(info) = 0 ;
-	  while (g2-f2 > 0 && i2 < N)
-	    { ny2 += extendMatchForwards (arrp(p->yz,ny2,uchar), M, x[i2], &f2, &g2) ;
-	      /* on the way we keep i1,[f1,g1) for whenever g-f drops, in an array */
-	      if (g2-f2 < g1-f1)
-		{ inf = arrayp(info,arrayMax(info),MatchInfo) ;
-		  /* inf->i2 = i2 ; inf->f1 = f1 ; inf->g1 = g1 ; */
-		}
-	      /* now we can update [f1,g1), knowing g1-f1 must be the same as g2-f2 */
-	      /* because it covers matches to the same substring in reverse, */
-	      /* and f1 is unchanged if x[i2] == 0, g1 is unchanged if x[i2] == 1 */
-	      if (x[i2]) f1 = g1 - (g2 - f2) ;
-	      else g1 = f1 + (g2 - f2) ;
-	      ++i2 ;
-	    }
-	  /* now we have to reap maximal matches */
-	  /* sweep back from i1 (forward in reverse index), looking at intervals in info  */
-	  while (arrayMax(info) && i1 > 0)
-	    { inf = arrp(info, arrayMax(info)-1, MatchInfo) ;
-	      /*	      for (k = inf->f1 ; k < inf->g1 ; ++k)
-		{ ++array(matchLengthHist, inf->i2-i1, int) ;
-		  if (isCheck)
-		    { printf ("MATCH\t%d\t%d\t%d\t%d\t%d\n", 
-			      j, a[k], i1, inf->i2, inf->i2-i1) ;
-		      checkMatchMaximal (x, haps[a[k]], i1, inf->i2, N) ;
-		    }
-		}
-	      */
-	      if (--arrayMax(info))
-		{ 
-		}
-	    }
-	}
-    }
-  free (a) ;
-  for (j = 0 ; j < q->M ; ++j) free(query[j]) ; free (query) ;
-  pbwtDestroy (q) ;
-  if (isCheck)
-    { for (j = 0 ; j < p->M ; ++j) free(haps[j]) ; free (haps) ; }
-}
-
-#endif	/* HENGLI */
 
 /******************* end of file *******************/

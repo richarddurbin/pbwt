@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 26 22:17 2014 (rd)
+ * Last edited: Apr  2 08:22 2014 (rd)
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -574,7 +574,9 @@ static BOOL parseHapLine (PBWT **pp, FILE *fp, Array x) /* same as parseGenLine 
   { char c = getc(fp) ; if (c == '\n') break ; else if (!isspace(c)) ungetc (c, fp) ;
     float f0, f1 ;
     if ((nscan = fscanf (fp, "%f %f", &f0, &f1) != 2))
-      die ("bad line %d, %d floats found, m %d, pos %d, var %s", p ? p->N : 0, nscan, m, pos, var) ;
+      { warn ("bad line %d, %d floats found, m %d, pos %d, var %s - aborting", p ? p->N : 0, nscan, m, pos, var) ;
+	return FALSE ;
+      }
     array(x,m++,uchar) = f0 ; array(x,m++,uchar) = f1 ; /* haps are phased, put straight in as is */
   }
   
@@ -609,7 +611,44 @@ PBWT *pbwtReadHap (FILE *fp, char *chrom)
   PBWT *p = pbwtReadLineFile (fp, "hap", parseHapLine) ;
   p->chrom = strdup (chrom) ;
   return p ;
-  
+}
+
+PBWT *pbwtReadPhase (FILE *fp) /* Li and Stephens PHASE format */
+{
+  fgetword (fp) ; if (getc(fp) != '\n') die ("bad first line in phase file") ;
+  int m = atoi (fgetword (fp)) ;  if (getc(fp) != '\n') die ("bad second line in phase file") ;
+  int n = atoi (fgetword (fp)) ;  if (getc(fp) != '\n') die ("bad third line in phase file") ;
+  PBWT *p = pbwtCreate (2*m, n) ;
+  p->chrom = strdup (fgetword(fp)) ; /* example 4th line is P followed by site positions */
+  p->sites = arrayCreate (4096, Site) ;
+  int i ; for (i = 0 ; i < p->N ; ++i) arrayp(p->sites,i,Site)->x = atoi (fgetword(fp)) ;
+  if (getc(fp) != '\n') die ("bad 4th line in phase file") ;
+  char var[2] ; var[1] = 0 ;
+  for (i = 0 ; i < p->N ; ++i) 
+    { *var = getc(fp) ; dictAdd (variationDict, var, &(arrayp(p->sites,i,Site)->varD)) ; }
+  if (getc(fp) != '\n') die ("bad 5th line in phase file") ;
+  uchar **data = myalloc (p->N, uchar*) ;
+  for (i = 0 ; i < p->N ; ++i) data[i] = myalloc (p->M, uchar) ;
+  int j ; for (j = 0 ; j < p->M ; ++j)
+    { for (i = 0 ; i < p->N ; ++i) data[i][j] = getc(fp) - '0' ;
+      if (getc(fp) != '\n') die ("bad %dth line in phase file", 6+j) ;
+    }
+  p->yz = arrayCreate(4096*32, uchar) ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
+  for (i = 0 ; i < p->N ; ++i)
+    { for (j = 0 ; j < p->M ; ++j) u->y[j] = data[i][u->a[j]] ;
+      pbwtCursorWriteForwards (u) ;
+      if (nCheckPoint && !((i+1) % nCheckPoint)) pbwtCheckPoint (p) ;
+    }
+  pbwtCursorToAFend (u, p) ;
+
+  fprintf (stderr, "read phase file") ;
+  if (p->chrom) fprintf (stderr, " for chromosome %s", p->chrom) ;
+  fprintf (stderr, ": M, N are\t%d\t%d; yz length is %d\n", p->M, p->N, arrayMax(p->yz)) ;
+
+  for (i = 0 ; i < p->N ; ++i) free(data[i]) ;
+  free (data) ; pbwtCursorDestroy (u) ;
+  return p ;
 }
 
 /*************** write haplotypes ******************/

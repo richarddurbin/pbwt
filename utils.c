@@ -16,7 +16,7 @@
  * Description: core utility functions
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 31 17:51 2014 (rd)
+ * Last edited: Apr  2 08:19 2014 (rd)
  * Created: Thu Aug 15 18:32:26 1996 (rd)
  *-------------------------------------------------------------------
  */
@@ -92,7 +92,10 @@ char *fgetword (FILE *f)	// pass NULL to free alloced memory
 	  }
       }
     else
-      { while ((*cp = getc (f)) && (isspace(*cp) || !isgraph(*cp)) && *cp != '\n' && !feof(f)) ;
+      { while ((isspace(*cp) || !isgraph(*cp)) && *cp != '\n' && !feof(f)) *cp = getc (f) ;
+	/* previous line was
+	while ((*cp = getc(f)) && (isspace(*cp) || !isgraph(*cp)) && *cp != '\n' && !feof(f)) ;
+	 */
 	ungetc (*cp, f) ;
 	break ;
       }

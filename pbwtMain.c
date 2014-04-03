@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 29 09:10 2014 (rd)
+ * Last edited: Apr  2 08:05 2014 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -60,7 +60,7 @@ static void exportSiteInfo (PBWT *p, FILE *fp, int f1, int f2)
 	  fprintf (fp, "\n") ;
 	  ++n ;
 	}
-      pbwtCursorForwardsReadADU (u, i) ;
+      pbwtCursorForwardsReadAD (u, i) ;
     }
   pbwtCursorDestroy (u) ;
   fprintf (stderr, "%d rows exported with allele count f, %d <= f < %d\n", n, f1, f2) ;
@@ -133,6 +133,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -readVcfq <file>          read VCFQ file; '-' for stdin\n") ;
       fprintf (stderr, "  -readGen <file> <chrom>   read impute2 gen file - must set chrom\n") ;
       fprintf (stderr, "  -readHap <file> <chrom>   read impute2 hap file - must set chrom\n") ;
+      fprintf (stderr, "  -readPhase <file>         read Li and Stephens phase file\n") ;
       fprintf (stderr, "  -checkpoint <n>           checkpoint every n sites while reading\n") ;
       fprintf (stderr, "  -merge <file> ...         merge two or more pbwt files\n") ;
       fprintf (stderr, "  -write <file>             write pbwt file; '-' for stdout\n") ;
@@ -164,6 +165,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -referenceImpute <root>   impute current pbwt into reference whose root name is the argument - need compatible sites - does not rephase either pbwt\n") ;
       fprintf (stderr, "  -genotypeCompare <root>   compare genotypes with those from referencewhose root name is the argument - need compatible sites\n") ;
       fprintf (stderr, "  -imputeMissing            impute data marked as missing\n") ;
+      fprintf (stderr, "  -paint                    output painting co-ancestry matrix\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale)\n") ;
       fprintf (stderr, "  -siteInfo <file> <kmin> <kmax> export PBWT information at sites with allele count kmin <= k < kmax\n") ;
@@ -217,6 +219,8 @@ int main (int argc, char *argv[])
       { if (p) pbwtDestroy (p) ; FOPEN("readGen","r") ; p = pbwtReadGen (fp, argv[2]) ; FCLOSE ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-readHap") && argc > 2)
     { if (p) pbwtDestroy (p) ; FOPEN("readHap","r") ; p = pbwtReadHap (fp, argv[2]) ; FCLOSE ; argc -= 3 ; argv += 3 ; }
+    else if (!strcmp (argv[0], "-readPhase") && argc > 1)
+      { if (p) pbwtDestroy (p) ; FOPEN("readPhase","r") ; p = pbwtReadPhase (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-write") && argc > 1)
       { FOPEN("write","w") ; pbwtWrite (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeSites") && argc > 1)
@@ -293,6 +297,8 @@ int main (int argc, char *argv[])
       { genotypeCompare (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-imputeMissing"))
       { p = imputeMissing (p) ; argc -= 1 ; argv += 1 ; }
+    else if (!strcmp (argv[0], "-paint"))
+      { paintAncestryMatrix (p) ; argc -= 1 ; argv += 1 ; }
     else
       die ("unrecognised command %s\nType pbwt without arguments for help", *argv) ;
     timeUpdate() ;

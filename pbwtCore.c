@@ -15,7 +15,7 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Feb 21 08:14 2014 (rd)
+ * Last edited: Mar 31 22:40 2014 (rd)
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -97,6 +97,8 @@ PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac)
 
   pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
+  pNew->missing = pOld->missing ; pOld->missing = 0 ;
+  pNew->zMissing = pOld->zMissing ; pOld->zMissing = 0 ;
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ;
   return pNew ;
@@ -130,6 +132,10 @@ PBWT *pbwtSubRange (PBWT *pOld, int start, int end)
     }
   pbwtCursorToAFend (uNew, pNew) ;
 
+  pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
+  pNew->samples = pOld->samples ; pOld->samples = 0 ;
+  pNew->missing = pOld->missing ; pOld->missing = 0 ;
+  pNew->zMissing = pOld->zMissing ; pOld->zMissing = 0 ;
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ;
   return pNew ;
@@ -469,7 +475,7 @@ void pbwtCursorBackwardsA (PbwtCursor *x) /* undo algorithm 1 */
       x->a[i] = x->b[x->c + v++] ;
 }
 
-void pbwtCursorForwardsADU (PbwtCursor *x, int k) /* algorithm 2 in the manuscript */
+void pbwtCursorForwardsAD (PbwtCursor *x, int k) /* algorithm 2 in the manuscript */
 {
   int u = 0, v = 0 ;
   int i ;
@@ -481,20 +487,28 @@ void pbwtCursorForwardsADU (PbwtCursor *x, int k) /* algorithm 2 in the manuscri
       if (x->y[i] == 0)		/* NB x[a[i]] = y[i] in manuscript */
 	{ x->a[u] = x->a[i] ;
 	  x->d[u] = p ;
-	  x->u[i] = u ;
 	  ++u ; p = 0 ;
 	}
       else			/* y[i] == 1, since bi-allelic */
 	{ x->b[v] = x->a[i] ;
 	  x->e[v] = q ;
-	  x->u[i] = u ;
 	  ++v ; q = 0 ;
 	}
     }
-  x->u[i] = u ;			/* need one off the end of update intervals */
 
   memcpy (x->a+u, x->b, v*sizeof(int)) ;
   memcpy (x->d+u, x->e, v*sizeof(int)) ; x->d[0] = k+2 ; x->d[x->M] = k+2 ; /* sentinels */
+}
+
+void pbwtCursorCalculateU (PbwtCursor *x)
+{
+  int i, u = 0 ;
+    
+  for (i = 0 ; i < x->M ; ++i)
+    { x->u[i] = u ;
+      if (x->y[i] == 0)	++u ;
+    }
+  x->u[i] = u ;			/* need one off the end of update intervals */
 }
 
 /* We need to be careful about isBlockEnd in the routines below because when reading
@@ -516,10 +530,9 @@ void pbwtCursorForwardsRead (PbwtCursor *u) /* move forwards and read (unless at
     u->isBlockEnd = FALSE ;	/* couldn't read in block and go to end */
 }
 
-void pbwtCursorForwardsReadADU (PbwtCursor *u, int k) /* ADU version of the above */
+void pbwtCursorForwardsReadAD (PbwtCursor *u, int k) /* AD version of the above */
 {
-  u->cLast = u->c ;		/* cache previous value of ->c for updating matches */
-  pbwtCursorForwardsADU (u, k) ;
+  pbwtCursorForwardsAD (u, k) ;
   if (!u->isBlockEnd && u->n < arrayMax(u->z))  /* move to end of previous block */
     u->n += unpack3 (arrp(u->z,u->n,uchar), u->M, u->y, 0) ;
   if (u->n < arrayMax(u->z))
@@ -529,10 +542,6 @@ void pbwtCursorForwardsReadADU (PbwtCursor *u, int k) /* ADU version of the abov
   else
     u->isBlockEnd = FALSE ;	/* couldn't read in block and go to end */
 }
-
-/* need to run pbwtCursorForwardsReadADU() before this to set ->cLast and ->u */
-int pbwtCursorMap (PbwtCursor *u, int x, int j)
-{ return x ? u->cLast + j - u->u[j] : u->u[j] ; }
 
 void pbwtCursorReadBackwards (PbwtCursor *u) /* read and go backwards (unless at start) */
 {

@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Feb 21 08:14 2014 (rd)
+ * Last edited: Apr  2 17:13 2014 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -64,7 +64,6 @@ typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
   BOOL isBlockEnd ;		/* TRUE if n is at end of next block, FALSE if at start */
   uchar *y ;			/* current value in sort order */
   int c ;			/* number of 0s in y */
-  int cLast ;			/* previous value of ->c when updating cursor in ADU mode */
   int *a ;			/* index back to original order */
   int *d ;			/* location of last match */
   int *u ;			/* number of 0s up to and including this position */
@@ -89,22 +88,34 @@ uchar **pbwtHaplotypes (PBWT *p) ;
 PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld) ;
 PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld) ;
 
-	/* operations to move forwards and backwards in the pbwt using the cursor structure */
+/* operations to move forwards and backwards in the pbwt using the cursor structure */
 
 PbwtCursor *pbwtCursorCreate (PBWT *p, BOOL isForwards, BOOL isStart) ;
 PbwtCursor *pbwtNakedCursorCreate (int M, int *aInit) ;
 void pbwtCursorDestroy (PbwtCursor *u) ;
 void pbwtCursorForwardsA (PbwtCursor *u) ; /* algorithm 1 in the manuscript */
 void pbwtCursorBackwardsA (PbwtCursor *u) ; /* undo algorithm 1 */
-void pbwtCursorForwardsADU (PbwtCursor *u, int k) ; /* algorithm 2 in the manuscript */
+void pbwtCursorForwardsAD (PbwtCursor *u, int k) ; /* algorithm 2 in the manuscript */
+void pbwtCursorCalculateU (PbwtCursor *x) ;   /* calculate u required for CursorMap */
 void pbwtCursorForwardsRead (PbwtCursor *u) ; /* move forwards and read (unless at end) */
-void pbwtCursorForwardsReadADU (PbwtCursor *u, int k) ;
-void pbwtCursorReadBackwards (PbwtCursor *u) ; /* move backwards and read (unless at start) */
+void pbwtCursorForwardsReadAD (PbwtCursor *u, int k) ;
+void pbwtCursorReadBackwards (PbwtCursor *u) ; /* read and move backwards (unless at start) */
 void pbwtCursorWriteForwards (PbwtCursor *u) ; /* write then move forwards */
 void pbwtCursorToAFend (PbwtCursor *u, PBWT *p) ; /* utility to copy final u->a to p->aFend */
-int pbwtCursorMap (PbwtCursor *u, int x, int j) ; /* must run ForwardsReadADU before this */
+/* basic update operations - inline them to make them tight */
+/* NB run pbwtCursorCalculateU() before pbwtCursorMap() */
+static inline int pbwtCursorMap (PbwtCursor *u, int x, int i)
+{ return x ? u->c + i - u->u[i] : u->u[i] ; }
+static inline int pbwtCursorMapDplus (PbwtCursor *u, int x, int i, int dplus)
+{ for ( ; i < u->M && u->y[i] != x ; ++i) if (u->d[i] > dplus) dplus = u->d[i] ;
+  return dplus ;
+}
+static inline int pbwtCursorMapDminus (PbwtCursor *u, int x, int i, int dminus)
+{ for (--i ; i >= 0 && u->y[i] != x ; --i) if (u->d[i] > dminus) dminus = u->d[i] ;
+  return dminus ;
+}
 
-	/* low level operations on packed PBWT, argument yzp in these calls */
+/* low level operations on packed PBWT, argument yzp in these calls */
 
 #define Y_SENTINEL 2			   /* needed to pack efficiently */
 int pack3 (uchar *yp, int M, uchar *yzp) ; /* pack M values from yp into yzp */
@@ -149,6 +160,7 @@ PBWT *pbwtReadMacs (FILE *fp) ;
 PBWT *pbwtReadVcfq (FILE *fp) ;	/* reduced VCF style file made by vcf query */
 PBWT *pbwtReadGen (FILE *fp, char *chrom) ;	/* gen file as used by impute2 (unphased) */
 PBWT *pbwtReadHap (FILE *fp, char *chrom) ; /* hap file as used by impute2 (phased) */
+PBWT *pbwtReadPhase (FILE *fp) ; /* Li and Stephens PHASE file */
 void pbwtWriteHaplotypes (FILE *fp, PBWT *p) ;
 void pbwtWriteImputeRef (PBWT *p, char *fileNameRoot) ;
 void pbwtWriteImputeHapsG (PBWT *p, FILE *fp) ;
@@ -162,13 +174,13 @@ void pbwtWriteVcf (PBWT *p, char *filename) ;  /* write vcf using htslib */
 
 /* pbwtMatch.c - functions as in Bioinformatics paper */
 
+void matchMaximalWithin (PBWT *p, void (*report)(int, int, int, int)) ;
 void pbwtLongMatches (PBWT *p, int L) ; /* internal matches longer than L, maximal if L=0 */
 void matchSequencesNaive (PBWT *p, FILE *fp) ; /* fp is a pbwt file of sequences to match */
 void matchSequencesIndexed (PBWT *p, FILE *fp) ;
 void matchSequencesDynamic (PBWT *p, FILE *fp) ;
 void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int, int, int, int)) ;
 void matchSequencesDynamic2 (PBWT *p, FILE *fp) ;
-void matchSequencesHL (PBWT *p, FILE *fp) ; /* incomplete */
 
 /* pbwtImpute.c */
 
@@ -180,6 +192,10 @@ void genotypeCompare (PBWT *p, char *fileNameRoot) ;
 PBWT *imputeMissing (PBWT *p) ;
 PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange) ;
 PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange) ;
+
+/* pbwtPaint.c */
+
+void paintAncestryMatrix (PBWT *p) ;
 
 /* pbwtMerge.c */
 
