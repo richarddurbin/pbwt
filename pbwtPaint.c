@@ -15,7 +15,7 @@
  * Description: tools for chromosome painting as in ChromoPainter, FineStructure etc.
  * Exported functions:
  * HISTORY:
- * Last edited: Apr  3 23:51 2014 (rd)
+ * Last edited: Apr  4 01:22 2014 (rd)
  * Created: Tue Apr  1 11:34:41 2014 (rd)
  *-------------------------------------------------------------------
  */
@@ -100,11 +100,12 @@ void paintAncestryMatrix (PBWT *p)
   for (i = 0 ; i < 5 ; ++i)
     { for (j = 0 ; j < 5 ; ++j)
 	{ double sum = 0 ;
-	  for (i1 = 40*i ; i1 < 40*(i+1) ; ++i1)
-	    for (j1 = 40*j ; j1 < 40*(j+1) ; ++j1)
+	  int kPop = p->M/5 ;
+	  for (i1 = kPop*i ; i1 < kPop*(i+1) ; ++i1)
+	    for (j1 = kPop*j ; j1 < kPop*(j+1) ; ++j1)
 	      sum += counts[i1][j1] ;
-	  if (j != i) fprintf (stderr, " %8.4g", sum / (40*40)) ;
-	  else fprintf (stderr, " %8.4g", sum / (40*39)) ;
+	  if (j != i) fprintf (stderr, " %8.4g", sum / (kPop*kPop)) ;
+	  else fprintf (stderr, " %8.4g", sum / (kPop*kPop)) ;
 	}
       fputc ('\n', stderr) ;
     }
