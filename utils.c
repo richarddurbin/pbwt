@@ -16,7 +16,7 @@
  * Description: core utility functions
  * Exported functions:
  * HISTORY:
- * Last edited: Apr  2 08:19 2014 (rd)
+ * Last edited: Apr  7 16:16 2014 (rd)
  * Created: Thu Aug 15 18:32:26 1996 (rd)
  *-------------------------------------------------------------------
  */
@@ -35,6 +35,8 @@ void die (char *format, ...)
   vfprintf (stderr, format, args) ;
   fprintf (stderr, "\n") ;
   va_end (args) ;
+
+  timeUpdate () ;
 
   exit (-1) ;
 }
