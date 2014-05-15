@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Mar 31 22:46 2014 (rd)
+ * Last edited: Apr 23 20:43 2014 (rd)
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -222,7 +222,7 @@ static void phaseCompare (PBWT *p, PBWT *q)
     { for (i = 0 ; i < M/2 ; ++i)
 	{ printf ("SAMPLE-SWITCH\t%d\t%d", i, nSwitchSample[i]) ;
 	  if (p->samples)
-	    printf ("\t%s", sampleName(arr(p->samples, 2*i, int))) ;
+	    printf ("\t%s", sampleName(sample (p, 2*i))) ;
 	  putchar ('\n') ;
 	}
       for (k = 0 ; k < N ; ++k)	
@@ -967,17 +967,21 @@ static PBWT *referencePhase2 (PBWT *pOld, PBWT *pRef)
 
   /* within this, try different ways to keep the score and extend */
 
-#define EXTEND2
+#define EXTEND4
 
 /******** type declarations ********/
 
 typedef unsigned int TraceBackIndex ;	 /* index into traceBackHeap */
 
+/* #define TRACEBACK_DEBUG */
+
 typedef struct 
 { TraceBackIndex back : 28 ;  /* index into traceBackHeap for cell at previous het site */
   unsigned int value : 1 ;  /* 0 or 1 */
   unsigned int count : 3 ;  /* how many cells at next het site point back to this: 0,1 or 2 */
-  int j ;
+#ifdef TRACEBACK_DEBUG
+  int j, k ;
+#endif
 } TraceBackCell ;	    /* pack this so it fits into a 4-byte word */
 
 typedef struct {
@@ -992,6 +996,9 @@ typedef struct {
 #endif
 #ifdef EXTEND2
   int j0min, j0max, j1min, j1max ;
+#endif
+#if defined(EXTEND3) || defined(EXTEND4)
+  int dplus0, dminus0, dplus1, dminus1 ;
 #endif
  } PhaseCell ;
 
@@ -1013,14 +1020,17 @@ typedef struct {
      { tb = arrayMax(traceBackHeap) ; 
        tc = arrayp (traceBackHeap, tb, TraceBackCell) ; 
      }
-   tc->back = back ; tc->value = value ; tc->count = 1 ; tc->j = j ;
+   tc->back = back ; tc->value = value ; tc->count = 1 ; 
+#ifdef TRACEBACK_DEBUG
+   tc->j = j ; tc->k = k ;
+#endif
    /* if (isCheck) printf ("traceBackCreate %d at k %d j %d back %d value %d\n", tb, k, j, back, value) ; */
    return tb ;
  }
 
  inline static void traceBackPrune (TraceBackIndex tb, int k, int j)
  { TraceBackCell *tc = traceBackCell(tb) ;
-   while (--tc->count == 0)	/* i.e. that was the last active link for that cell */
+   while (tb && --tc->count == 0) /* i.e. that was the last active link for that cell */
      { array(traceBackFreeStack, arrayMax(traceBackFreeStack), int) = tb ;
        /*      if (isCheck) printf ("traceBackDestroy %d at k %d j %d\n", tb, k, j) ; */
        tb = tc->back ;
@@ -1034,10 +1044,11 @@ typedef struct {
    traceBackCreate (0, 0, 0, 0) ; /* make empty first element, so that later back == 0 only at end*/
  }
 
+#ifdef TRACEBACK_DEBUG
  void traceBackReport (TraceBackIndex tb)
  { while (tb)
      { TraceBackCell *tc = traceBackCell(tb) ;
-       printf (" %4d|%d", tc->j, tc->value) ;
+       printf (" %dk%dj%d", tc->value, tc->k, tc->j) ;
        tb = tc->back ;
      }
  }
@@ -1067,147 +1078,150 @@ typedef struct {
        }
    free (zCount) ;
  }
+#endif	/* TRACEBACK_DEBUG */
 
- /********** next the calculation of how likely to extend from j with value x **********/
+/********** next the calculation of how likely to extend from j with value x **********/
 
- #ifdef EXTEND0
- /* first version tries to consider all copying haplotypes with weights proportional to shared length */
- /* we pre-calculate contributions from above and below in extendPrepare(), caching in extendScore0/1 */
+#ifdef EXTEND0
+/* first version tries to consider all copying haplotypes with weights proportional to shared length */
+/* we pre-calculate contributions from above and below in extendPrepare(), caching in extendScore0/1 */
+static char *extendMethodText = "EXTEND0" ;
 
- static long *extendScore0 = 0, *extendScore1 = 0 ;
- static int extendScoreSize = 0 ;
- static Array extendStack = 0 ;
+static long *extendScore0 = 0, *extendScore1 = 0 ;
+static int extendScoreSize = 0 ;
+static Array extendStack = 0 ;
 
- typedef struct {
-   int d ;
-   int n0, n1 ;			/* number of y[j] == 0/1 so far with this effective dd */
-   int sum0, sum1 ;		/* sum of dd*n up to this element */
- } ExtendStruct ;
+typedef struct {
+  int d ;
+  int n0, n1 ;			/* number of y[j] == 0/1 so far with this effective dd */
+  int sum0, sum1 ;		/* sum of dd*n up to this element */
+} ExtendStruct ;
 
- static ExtendStruct *extendUpdate (int dd, int x)
- {
-   int i, n0 = 0, n1 = 0 ;	/* n0 and n1 are # 0s,1s with d > dd */
-   ExtendStruct *ex ;
+static ExtendStruct *extendUpdate (int dd, int x)
+{
+  int i, n0 = 0, n1 = 0 ;	/* n0 and n1 are # 0s,1s with d > dd */
+  ExtendStruct *ex ;
 
-   if (isCheck && dd < 0) die ("dd %d < 0 in extendUpdate", dd) ;
+  if (isCheck && dd < 0) die ("dd %d < 0 in extendUpdate", dd) ;
 
-   /* find highest place in stack less than or equal to dd */
-   for (i = arrayMax(extendStack) ; i-- ; )
-     { ex = arrp(extendStack, i, ExtendStruct) ;
-       if (dd >= ex->d) break ;
-       n0 += ex->n0 ; n1 += ex->n1 ;
-     }
-   arrayMax(extendStack) = i+1 ;
-   if (dd > ex->d)	/* make a new exStack element */
-     { ex = arrayp(extendStack, i+1, ExtendStruct) ;
-       ex->d = dd ; ex->n0 = n0 ; ex->n1 = n1 ;
-       ex->sum0 = ex[-1].sum0 + dd*n0 ; ex->sum1 = ex[-1].sum1 + dd*n1 ;
-     }
-   else		/* add these things from longer dd to current element */
-     { ex->n0 += n0 ; ex->sum0 += dd*n0 ; ex->n1 += n1 ; ex->sum1 += dd*n1 ; }
-   /* now add the current element on */
-   if (x) { ++ex->n1 ; ex->sum1 += dd ; } else { ++ex->n0 ; ex->sum0 += dd ; }
-   return ex ;
- }
+  /* find highest place in stack less than or equal to dd */
+  for (i = arrayMax(extendStack) ; i-- ; )
+    { ex = arrp(extendStack, i, ExtendStruct) ;
+      if (dd >= ex->d) break ;
+      n0 += ex->n0 ; n1 += ex->n1 ;
+    }
+  arrayMax(extendStack) = i+1 ;
+  if (dd > ex->d)	/* make a new exStack element */
+    { ex = arrayp(extendStack, i+1, ExtendStruct) ;
+      ex->d = dd ; ex->n0 = n0 ; ex->n1 = n1 ;
+      ex->sum0 = ex[-1].sum0 + dd*n0 ; ex->sum1 = ex[-1].sum1 + dd*n1 ;
+    }
+  else		/* add these things from longer dd to current element */
+    { ex->n0 += n0 ; ex->sum0 += dd*n0 ; ex->n1 += n1 ; ex->sum1 += dd*n1 ; }
+  /* now add the current element on */
+  if (x) { ++ex->n1 ; ex->sum1 += dd ; } else { ++ex->n0 ; ex->sum0 += dd ; }
+  return ex ;
+}
 
- static void extendPrepare (PbwtCursor *u, int k)
- {
-   int j ;
-   ExtendStruct *ex ;
+static void extendPrepare (PbwtCursor *u, int k)
+{
+  int j ;
+  ExtendStruct *ex ;
 
-   if (extendScoreSize != u->M)
-     { if (extendScore0) { free (extendScore0) ; free (extendScore1) ; }
-       extendScore0 = mycalloc (u->M+1, long) ; extendScore1 = mycalloc (u->M+1, long) ;
-       extendScoreSize = u->M ;
-     }
+  if (extendScoreSize != u->M)
+    { if (extendScore0) { free (extendScore0) ; free (extendScore1) ; }
+      extendScore0 = mycalloc (u->M+1, long) ; extendScore1 = mycalloc (u->M+1, long) ;
+      extendScoreSize = u->M ;
+    }
 
-   /* first run through samples j == 1..M and add scores from top to j */
-   extendStack = arrayReCreate (extendStack, 512, ExtendStruct) ;
-   ex = arrayp (extendStack, 0, ExtendStruct) ;
-   ex->d = 0 ; ex->n0 = 0 ; ex->n1 = 0 ; ex->sum0 = 1 ; ex->sum1 = 1 ;
-   extendScore0[0] = 0 ; extendScore1[0] = 0 ;
-   for (j = 0 ; j++ < u->M ; )
-     { extendScore0[j] = ex->sum0 ; extendScore1[j] = ex->sum1 ;
-       int bit = (j < u->M || u->d[j-1] > u->d[j]) ? u->d[j-1] : u->d[j] ;
-       if (u->y[j-1]) extendScore1[j] += bit ; else extendScore0[j] += bit ;
-       if (j < u->M) ex = extendUpdate (k - u->d[j], u->y[j-1]) ;
-     }
+  /* first run through samples j == 1..M and add scores from top to j */
+  extendStack = arrayReCreate (extendStack, 512, ExtendStruct) ;
+  ex = arrayp (extendStack, 0, ExtendStruct) ;
+  ex->d = 0 ; ex->n0 = 0 ; ex->n1 = 0 ; ex->sum0 = 1 ; ex->sum1 = 1 ;
+  extendScore0[0] = 0 ; extendScore1[0] = 0 ;
+  for (j = 0 ; j++ < u->M ; )
+    { extendScore0[j] = ex->sum0 ; extendScore1[j] = ex->sum1 ;
+      int bit = (j < u->M || u->d[j-1] > u->d[j]) ? u->d[j-1] : u->d[j] ;
+      if (u->y[j-1]) extendScore1[j] += bit ; else extendScore0[j] += bit ;
+      if (j < u->M) ex = extendUpdate (k - u->d[j], u->y[j-1]) ;
+    }
 
-   /* then reverse j == M-1..0 and add on scores from bottom to j */
-   extendStack = arrayReCreate (extendStack, 512, ExtendStruct) ;
-   ex = arrayp (extendStack, 0, ExtendStruct) ;
-   ex->d = 0 ; ex->n0 = 0 ; ex->n1 = 0 ; ex->sum0 = 1 ; ex->sum1 = 1 ;
-   for (j = u->M ; j-- > 0 ; )
-     { extendScore0[j] += ex->sum0 ; extendScore1[j] += ex->sum1 ;
-       int bit = (j || u->d[j+1] > u->d[j]) ? u->d[j+1] : u->d[j] ;
-       if (u->y[j]) extendScore1[j] += bit ; else extendScore0[j] += bit ;
-       if (j) ex = extendUpdate (k - u->d[j], u->y[j]) ;
-     }
- }
+  /* then reverse j == M-1..0 and add on scores from bottom to j */
+  extendStack = arrayReCreate (extendStack, 512, ExtendStruct) ;
+  ex = arrayp (extendStack, 0, ExtendStruct) ;
+  ex->d = 0 ; ex->n0 = 0 ; ex->n1 = 0 ; ex->sum0 = 1 ; ex->sum1 = 1 ;
+  for (j = u->M ; j-- > 0 ; )
+    { extendScore0[j] += ex->sum0 ; extendScore1[j] += ex->sum1 ;
+      int bit = (j || u->d[j+1] > u->d[j]) ? u->d[j+1] : u->d[j] ;
+      if (u->y[j]) extendScore1[j] += bit ; else extendScore0[j] += bit ;
+      if (j) ex = extendUpdate (k - u->d[j], u->y[j]) ;
+    }
+}
 
- /* To be correct I should calculate the upper score up until but not including the 
-    preceding j-1, and the lower score back until but not including the succeeding j, 
-    because I don't know here the match lengths to the flanking j-1,j.  I can know them 
-    during the dynamic programming, because I know the backtrace.  But this means 
-    calculating and storing the dplus, dminus values induced by the backtrace, which adds 
-    considerable complexity.  Above I assume that they are the greater of d[j] and d[j-1]
-    (for j-1) and d[j] and d[j+1] (for j), which is a lower bound, taking care not to
-    query out of bounds at the top and bottom.
- */
+/* To be correct I should calculate the upper score up until but not including the 
+   preceding j-1, and the lower score back until but not including the succeeding j, 
+   because I don't know here the match lengths to the flanking j-1,j.  I can know them 
+   during the dynamic programming, because I know the backtrace.  But this means 
+   calculating and storing the dplus, dminus values induced by the backtrace, which adds 
+   considerable complexity.  Above I assume that they are the greater of d[j] and d[j-1]
+   (for j-1) and d[j] and d[j+1] (for j), which is a lower bound, taking care not to
+   query out of bounds at the top and bottom.
+*/
 
- static inline double extendScore (int j, int x)
- {
-   double p = extendScore1[j] / (double) (extendScore0[j] + extendScore1[j]) ;
-   return (x ? p : 1-p) ;
- }
+static inline double extendScore (int j, int x)
+{
+  double p = extendScore1[j] / (double) (extendScore0[j] + extendScore1[j]) ;
+  return (x ? p : 1-p) ;
+}
 
- static int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0, 
-			 PhaseCell *pcOld, PhaseCell *pcNew, int k) 
- /* returns the number of new back pointers created */
- /* change at XXX for sampling or YYY for Viterbi */
- /* this code uses extend structure above via extendScore, but did not perform well */
- /* so replace with new phaseExtend() below, I hope */
- {
-   PhaseCell *old = &pcOld[j0] ;
-   PhaseCell *new = &pcNew[pbwtCursorMap (uRef, x0, j0)] ;
-   int j1New = pbwtCursorMap (uRef, x1, old->j1) ;
-   double sBit = old->s * extendScore (j0, x0) * extendScore (old->j1, x1) ;
-   if (isCheck && k == 51 && (j0 == 1389 || pbwtCursorMap(uRef,x0,j0) == 1370))
-     printf ("at k %d extend j0 %d j1 %d s %.3g with x %d %d to j0New %d j1New %d sbit %.3g\n",
-	     k, j0, old->j1, old->s, x0, x1, pbwtCursorMap (uRef, x0, j0), j1New, sBit) ;
-   if (!new->s)		/* this is the first j to map here */
-     { new->s = sBit ; new->sBest = sBit ;
-       new->j1 = j1New ;
-       new->back = (x0 == x1) ? old->back : traceBackCreate (old->back, x0, j0, k) ;
-       return 1 ;
-     }
-   /* XXX for sampling calculate chance to pick this j rather than previous here */
-   if (sBit > new->sBest) /* this is better than previous j that mapped here */
-     { new->s = sBit ; 	 /* YYY originally +=, for Viterbi change to = */
-       new->sBest = sBit ;
-       new->j1 = j1New ;
-       if (traceBackCell(new->back)->back == old->back) /* be careful - edge case! */
-	 { traceBackCell(new->back)->value = x0 ; return 0 ; }
-       else
-	 { traceBackPrune (new->back, k, j0) ;
-	   new->back = (x0 == x1) ? old->back : traceBackCreate (old->back, x0, j0, k) ;
-	   return 1 ;
-	 }
-     }
-   /* new->s += sBit ;	   /* include if not Viterbi */
-   return 0 ;
- }
+static int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0, 
+			PhaseCell *pcOld, PhaseCell *pcNew, int k) 
+/* returns the number of new back pointers created */
+/* change at XXX for sampling or YYY for Viterbi */
+/* this code uses extend structure above via extendScore, but did not perform well */
+/* so replace with new phaseExtend() below, I hope */
+{
+  PhaseCell *old = &pcOld[j0] ;
+  PhaseCell *new = &pcNew[pbwtCursorMap (uRef, x0, j0)] ;
+  int j1New = pbwtCursorMap (uRef, x1, old->j1) ;
+  double sBit = old->s * extendScore (j0, x0) * extendScore (old->j1, x1) ;
+  if (isCheck && k == 51 && (j0 == 1389 || pbwtCursorMap(uRef,x0,j0) == 1370))
+    printf ("at k %d extend j0 %d j1 %d s %.3g with x %d %d to j0New %d j1New %d sbit %.3g\n",
+	    k, j0, old->j1, old->s, x0, x1, pbwtCursorMap (uRef, x0, j0), j1New, sBit) ;
+  if (!new->s)		/* this is the first j to map here */
+    { new->s = sBit ; new->sBest = sBit ;
+      new->j1 = j1New ;
+      new->back = (x0 == x1) ? old->back : traceBackCreate (old->back, x0, j0, k) ;
+      return 1 ;
+    }
+  /* XXX for sampling calculate chance to pick this j rather than
+     previous here */
+  if (sBit > new->sBest) /* this is better than previous j that mapped here */
+    { new->s = sBit ; 	 /* YYY originally +=, for Viterbi change to = */
+      new->sBest = sBit ;
+      new->j1 = j1New ;
+      if (traceBackCell(new->back)->back == old->back) /* be careful - edge case! */
+	{ traceBackCell(new->back)->value = x0 ; return 0 ; }
+      else
+	{ traceBackPrune (new->back, k, j0) ;
+	  new->back = (x0 == x1) ? old->back : traceBackCreate (old->back, x0, j0, k) ;
+	  return 1 ;
+	}
+    }
+  /* new->s += sBit ;	   /* include if not Viterbi */
+  return 0 ;
+}
+#endif EXTEND0
 
- #endif	/* EXTEND0 */
+#ifdef EXTEND1	/* alternate version minimises number of recombinations */
+/* in this version pc->s is -1 minus the number of recombinations */
+static char *extendMethodText = "EXTEND1" ;
 
- #ifdef EXTEND1	/* alternate version minimises number of recombinations */
- /* in this version pc->s is -1 minus the number of recombinations */
+static void extendPrepare (PbwtCursor *u, int k) {} 
 
- static void extendPrepare (PbwtCursor *u, int k) {} 
-
- static inline int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
-				PhaseCell *pcOld, PhaseCell *pcNew, int k) 
- /* returns the number of new back pointers created */
+static inline int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
+			       PhaseCell *pcOld, PhaseCell *pcNew, int k) 
+/* returns the number of new back pointers created */
 {
   PhaseCell *old = &pcOld[j0] ;
   int j0New = pbwtCursorMap (uRef, x0, j0) ;
@@ -1220,8 +1234,8 @@ typedef struct {
   if (temp.dplus0 > old->dmax0 && temp.dminus0 > old->dmax0) /* need a recombination */
     { --temp.s ; temp.dmax0 = k ; } else temp.dmax0 = old->dmax0 ;
   temp.j1 = pbwtCursorMap (uRef, x1, old->j1) ;
-  temp.dplus1 = pbwtCursorMapDplus (uRef, x1, old->j1, old->dplus0) ;
-  temp.dminus1 = pbwtCursorMapDminus (uRef, x1, old->j1, old->dminus0) ;
+  temp.dplus1 = pbwtCursorMapDplus (uRef, x1, old->j1, old->dplus1) ;
+  temp.dminus1 = pbwtCursorMapDminus (uRef, x1, old->j1, old->dminus1) ;
   if (temp.dplus1 > old->dmax1 && temp.dminus1 > old->dmax1) /* need a recombination */
     { --temp.s ; temp.dmax1 = k ; } else temp.dmax1 = old->dmax1 ;
 
@@ -1244,17 +1258,17 @@ typedef struct {
   else
     return 0 ;
 }
-
 #endif EXTEND1
 
- #ifdef EXTEND2	/* alternate version of EXTEND1 that minimises number of recombinations */
- /* in this version we track the prefix interval (jmin,jmax) for matches to j0, j1 */
+#ifdef EXTEND2	/* alternate version of EXTEND1 that minimises number of recombinations */
+/* in this version we track the prefix interval (jmin,jmax) for matches to j0, j1 */
+static char *extendMethodText = "EXTEND2" ;
 
- static void extendPrepare (PbwtCursor *u, int k) {} 
+static void extendPrepare (PbwtCursor *u, int k) {} 
 
- static inline int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
-				PhaseCell *pcOld, PhaseCell *pcNew, int k) 
- /* returns the number of new back pointers created */
+static inline int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
+			       PhaseCell *pcOld, PhaseCell *pcNew, int k) 
+/* returns the number of new back pointers created */
 {
   PhaseCell *old = &pcOld[j0] ;
   int j0New = pbwtCursorMap (uRef, x0, j0) ;
@@ -1291,8 +1305,126 @@ typedef struct {
   else
     return 0 ;
 }
-
 #endif EXTEND2
+
+#ifdef EXTEND3	/* like EXTEND1,2 but maximises sum of lengths of maximal matches*/
+/* in this version pc->s is 1 + sum of lengths of maximal matches */
+static char *extendMethodText = "EXTEND3" ;
+
+static void extendPrepare (PbwtCursor *u, int k) {} 
+
+static inline int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
+			       PhaseCell *pcOld, PhaseCell *pcNew, int k) 
+/* returns the number of new back pointers created */
+{
+  PhaseCell *old = &pcOld[j0] ;
+  int j0New = pbwtCursorMap (uRef, x0, j0) ;
+  PhaseCell *new = &pcNew[j0New] ;
+  PhaseCell temp ;	/* build the potential new in this  */
+  temp.s = old->s ;
+  temp.dplus0 = pbwtCursorMapDplus (uRef, x0, j0, old->dplus0) ;
+  temp.dminus0 = pbwtCursorMapDminus (uRef, x0, j0, old->dminus0) ;
+  int j ;
+  if (old->dplus0 < old->dminus0 && old->dplus0 < temp.dplus0)
+    for (j = j0 ; j < uRef->M ; )
+      { temp.s += (k - old->dplus0) ;
+	if (uRef->d[++j] > old->dplus0) break ;
+      }
+  else if (old->dminus0 < old->dplus0 && old->dminus0 < temp.dminus0)
+    for (j = j0 ; j < uRef->M ; )
+      { temp.s += (k - old->dminus0) ;
+	if (uRef->d[--j] > old->dminus0) break ;
+      }
+
+  temp.j1 = pbwtCursorMap (uRef, x1, old->j1) ;
+  temp.dplus1 = pbwtCursorMapDplus (uRef, x1, old->j1, old->dplus1) ;
+  temp.dminus1 = pbwtCursorMapDminus (uRef, x1, old->j1, old->dminus1) ;
+  if (old->dplus1 < old->dminus1 && old->dplus1 < temp.dplus1)
+    for (j = j0 ; j < uRef->M ; )
+      { temp.s += (k - old->dplus1) ;
+	if (uRef->d[++j] > old->dplus1) break ;
+      }
+  else if (old->dminus1 < old->dplus1 && old->dminus1 < temp.dminus1)
+    for (j = j0 ; j < uRef->M ; )
+      { temp.s += (k - old->dminus1) ;
+	if (uRef->d[--j] > old->dminus1) break ;
+      }
+
+  if (!new->s)		/* this is the first j0 to map here */
+    { *new = temp ;
+      new->back = (x0 == x1) ? old->back : traceBackCreate (old->back, x0, j0, k) ;
+      return 1 ;
+    }
+  else if (temp.s > new->s)	/* this is better than previous j that mapped here */
+    { TraceBackIndex oldNewBack = new->back ;
+      *new = temp ; 	/* originally +=, for Viterbi change to = */
+      if (traceBackCell(oldNewBack)->back == old->back) /* be careful - edge case! */
+	{ new->back = oldNewBack ; traceBackCell(new->back)->value = x0 ; return 0 ; }
+      else
+	{ traceBackPrune (oldNewBack, k, j0) ;
+	  new->back = (x0 == x1) ? old->back : traceBackCreate (old->back, x0, j0, k) ;
+	  return 1 ;
+	}
+    }
+  else
+    return 0 ;
+}
+#endif EXTEND3
+
+#ifdef EXTEND4	/* based on diff from neighbours based on -log generative model */
+/* in this version pc->s is -1 - sum of lengths of mismatched neighbours */
+static char *extendMethodText = "EXTEND4" ;
+
+static void extendPrepare (PbwtCursor *u, int k) {} 
+
+static inline int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
+			       PhaseCell *pcOld, PhaseCell *pcNew, int k) 
+/* returns the number of new back pointers created */
+{
+  PhaseCell *old = &pcOld[j0] ;
+  int j0New = pbwtCursorMap (uRef, x0, j0) ;
+  PhaseCell *new = &pcNew[j0New] ;
+  PhaseCell temp ;	/* build the potential new in this  */
+  temp.s = old->s ;
+  temp.dplus0 = pbwtCursorMapDplus (uRef, x0, j0, old->dplus0) ;
+  temp.dminus0 = pbwtCursorMapDminus (uRef, x0, j0, old->dminus0) ;
+  float dS = 0 ;
+  if (j0) 
+    if (x0 == uRef->y[j0-1]) dS += (k-old->dminus0) ; else dS -= (k-old->dminus0) ;
+  if (j0 < uRef->M) 
+    if (x0 == uRef->y[j0]) dS += (k-old->dplus0) ; else dS -= (k-old->dplus0) ;
+  if (dS < 0) temp.s += dS ;
+
+  temp.j1 = pbwtCursorMap (uRef, x1, old->j1) ;
+  temp.dplus1 = pbwtCursorMapDplus (uRef, x1, old->j1, old->dplus1) ;
+  temp.dminus1 = pbwtCursorMapDminus (uRef, x1, old->j1, old->dminus1) ;
+  dS = 0 ;
+  if (old->j1) 
+    if (x1 == uRef->y[old->j1-1]) dS += (k-old->dminus1) ; else dS -= (k-old->dminus1) ;
+  if (old->j1 < uRef->M) 
+    if (x1 == uRef->y[old->j1]) dS += (k-old->dplus1) ; else dS -= (k-old->dplus1) ;
+  if (dS < 0) temp.s += dS ;
+
+  if (!new->s)		/* this is the first j0 to map here */
+    { *new = temp ;
+      new->back = (x0 == x1) ? old->back : traceBackCreate (old->back, x0, j0, k) ;
+      return 1 ;
+    }
+  else if (temp.s > new->s)	/* this is better than previous j that mapped here */
+    { TraceBackIndex oldNewBack = new->back ;
+      *new = temp ; 	/* originally +=, for Viterbi change to = */
+      if (traceBackCell(oldNewBack)->back == old->back) /* be careful - edge case! */
+	{ new->back = oldNewBack ; traceBackCell(new->back)->value = x0 ; return 0 ; }
+      else
+	{ traceBackPrune (oldNewBack, k, j0) ;
+	  new->back = (x0 == x1) ? old->back : traceBackCreate (old->back, x0, j0, k) ;
+	  return 1 ;
+	}
+    }
+  else
+    return 0 ;
+}
+#endif EXTEND4
 
 /********** finally the main function ********/
 
@@ -1308,10 +1440,10 @@ static PBWT *referencePhase3 (PBWT *pOld, PBWT *pRef)
     { PbwtCursor *uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;
       traceBackInitialise() ;
       PhaseCell *pcOld = mycalloc (pRef->M+1, PhaseCell) ; 
-#ifdef EXTEND0
+#if defined(EXTEND0) || defined(EXTEND3)
       pcOld[0].s = 1.0 ;
 #endif
-#ifdef EXTEND1 || EXTEND2
+#if defined(EXTEND1) || defined(EXTEND2) || defined(EXTEND4)
       pcOld[0].s = -1.0 ;
 #endif
       pcOld[0].back = 0 ; 
@@ -1347,8 +1479,9 @@ static PBWT *referencePhase3 (PBWT *pOld, PBWT *pRef)
 	    { pcOld[j] = pcNew[j] ;
 	      pcOld[j].s /= sum ; /* normalise */
 	    }
-	  if (isCheck)		/* check traceback counters */
-	    traceBackCheck (jq, k, pcOld, pRef->M) ;
+#ifdef TRACEBACK_DEBUG	  
+	  if (isCheck) traceBackCheck (jq, k, pcOld, pRef->M) ;
+#endif
 
 	  pbwtCursorForwardsReadAD (uRef, k) ; /* finally move cursor forwards */
 	}
@@ -1411,10 +1544,10 @@ static PBWT *referencePhase4 (PBWT *pOld, PBWT *pRef)
   for (jq = 0 ; jq < pOld->M ; jq += 2)
     { pcOld[jq] = mycalloc (pRef->M+1, PhaseCell) ;
       pcOld[jq][0].back = 0 ;
-#ifdef EXTEND0      
+#if defined(EXTEND0) || defined(EXTEND3)
       pcOld[jq][0].s = 1.0 ;
 #endif
-#if defined(EXTEND1) || defined(EXTEND2)
+#if defined(EXTEND1) || defined(EXTEND2) || defined(EXTEND4)
       pcOld[jq][0].s = -1.0 ;
 #endif
       pcNew[jq] = myalloc (pRef->M+1, PhaseCell) ;
@@ -1468,8 +1601,10 @@ static PBWT *referencePhase4 (PBWT *pOld, PBWT *pRef)
 		  countBack = phaseExtend (x0, x1, uRef, j, pcOld[jq], pcNew[jq], k) + 
 		              phaseExtend (x1, x0, uRef, j, pcOld[jq], pcNew[jq], k) ;
 		/* now resolve traceback counts on pcOld[jq][j].back */
-		if (countBack == 0) traceBackPrune (pcOld[jq][j].back, k, j) ;
-		else if (countBack == 2) traceBackCell(pcOld[jq][j].back)->count++ ;
+		if (countBack == 0) 
+		  traceBackPrune (pcOld[jq][j].back, k, j) ;
+		else if (countBack == 2 && pcOld[jq][j].back) /* don't increment tb cell 0 */
+		  traceBackCell(pcOld[jq][j].back)->count++ ;
 		/* else leave count at default of 1 */
 		++checkLiveSum[jq] ;
 	      }
@@ -1484,7 +1619,13 @@ static PBWT *referencePhase4 (PBWT *pOld, PBWT *pRef)
 #endif
 	    }
 	}
+#ifdef TRACEBACK_DEBUG
       if (isCheck) traceBackCheck (jq, k, pcOld[0], pRef->M) ; /* check traceback counters */
+      printf ("%d%d    %d", xOld[0], xOld[1], uRef->y[0]) ;
+      for (j = 1 ; j <= pRef->M ; ++j) printf ("      %d", uRef->y[j]) ; putchar ('\n') ;
+      for (j = 0 ; j <= pRef->M ; ++j) printf (" %6.1f", pcOld[0][j].s) ; putchar ('\n') ;
+      for (j = 0 ; j <= pRef->M ; ++j) printf (" %6d", pcOld[0][j].j1) ; putchar ('\n') ;
+#endif
 
       pbwtCursorForwardsRead (uOld) ;
       pbwtCursorForwardsReadAD (uRef, k) ;
@@ -1516,7 +1657,12 @@ static PBWT *referencePhase4 (PBWT *pOld, PBWT *pRef)
 	else
 	  { TraceBackCell *tc = traceBackCell(tb[jq]) ;
 	    xNew[jq] = tc->value ; xNew[jq+1] = 1 - xNew[jq] ;
-	    if (isCheck) printf ("traceBack k %d jq %d tb %d value %d\n", k, jq, tb[jq], tc->value) ;
+#ifdef TRACEBACK_DEBUG
+	    if (k != tc->k) die ("k mismatch during traceback k %d tc->k %d jq %d") ;
+	    if (isCheck) 
+	      printf ("traceBack k %d jq %d tb %d tc->value %d ->k %d ->j %d ->back %d\n",
+		      k, jq, tb[jq], tc->value, tc->k, tc->j, tc->back) ;
+#endif
 	    if (!tb[jq]) die ("premature end of trace back at k %d, jq %d", k, jq) ;
 	    tb[jq] = tc->back ;
 	  }
@@ -1573,6 +1719,7 @@ PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
   if (!pOld->N) die ("no overlapping sites in referencePhase") ;
 
   fprintf (stderr, "Phase preliminaries: ") ; timeUpdate() ;
+  fprintf (stderr, "Reference phase with extension method %s\n", extendMethodText) ;
 
   PBWT *pNew = referencePhase4 (pOld, pRef) ;
   fprintf (stderr, "Phasing complete: ") ; timeUpdate() ;
@@ -2036,6 +2183,41 @@ PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange)
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ; free (isCorrupt) ;
+  return pNew ;
+}
+
+PBWT *pbwtCopySamples (PBWT *pOld, int Mnew, double meanLength)
+{
+  if (!pOld || !pOld->yz) die ("copySample called without an existing pbwt") ;
+  PBWT *pNew = pbwtCreate (Mnew, pOld->N) ;
+  if (meanLength < 1.0) die ("meanLength %f must be > 1 in pbwtCopySample", meanLength) ;
+  int rSwitch = RAND_MAX/meanLength ;
+  PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
+  PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
+  uchar *xOld = myalloc (pOld->M, uchar) ;
+  int *copy  = myalloc (pNew->M, int) ; /* which old haplotype to copy from */
+  int i, j, k ;
+
+  for (j = 0 ; j < pNew->M ; ++j) copy[j] = rand() % pOld->M ; /* initialise copying */
+
+  for (k = 0 ; k < pOld->N ; ++k)
+    { for (i = 0 ; i < pOld->M ; ++i) xOld[uOld->a[i]] = uOld->y[i] ;
+      for (j = 0 ; j < pNew->M ; ++j) 
+	if (rand() < rSwitch) copy[j] = rand() % pOld->M ; /* switch copying */
+      for (j = 0 ; j < pNew->M ; ++j) uNew->y[j] = xOld[copy[uNew->a[j]]] ;
+      pbwtCursorWriteForwards (uNew) ;
+      pbwtCursorForwardsRead (uOld) ;
+    }  
+  pbwtCursorToAFend (uNew, pNew) ;
+
+  fprintf (stderr, "copySamples made %d samples with mean switch length %.1f\n",
+	   Mnew, meanLength) ;
+  
+  pNew->sites = pOld->sites ; pOld->sites = 0 ; 
+  pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
+  pNew->samples = pOld->samples ; pOld->samples = 0 ;
+  pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
+  free(xOld) ; free (copy) ;
   return pNew ;
 }
 
