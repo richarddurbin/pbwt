@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Apr  2 17:13 2014 (rd)
+ * Last edited: Apr 27 23:06 2014 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -35,7 +35,7 @@ typedef struct PBWTstruct {
   Array yz ;			/* compressed PBWT array of uchar */
   int *aFstart, *aFend ;	/* start and end a[] index arrays for forwards cursor */
   Array zz ;			/* compressed reverse PBWT array of uchar */
-  int *aRstart, *aRend ;	/* start and end a[] index arrays for reverse cursor */
+  int *aRstart, *aRend ; /* start and end a[] index arrays for reverse cursor */
   /* NB aRend is the lexicographic sort order for the data, and aFend the reverse lex order */
   /* probably it is optimal to have aFstart == aRend and vice versa: to be done */
   Array zMissing ;		/* compressed array of uchar - natural not sort order */
@@ -55,6 +55,8 @@ typedef struct SampleStruct {
   int father ;			/* index into samples */
   int mother ;			/* index into samples */
   int popD ;			/* index in populationDict */
+  BOOL isMale ;			/* treat X chromosome as haploid */
+  BOOL isFemale ;		/* treat X chromosome as diploid and ignore Y */
 } Sample ;
 
 typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
@@ -129,10 +131,11 @@ int extendPackedBackwards (uchar *yzp, int M, int *f, int c, uchar *zp) ; /* mov
 /* pbwtSample.c */
 
 void sampleInit (void) ;
-Sample *sample (int i) ;		/* give back Sample structure for sample i */
+void sampleDestroy (void) ;
+Sample *sample (PBWT *p, int i) ; /* give back Sample structure for sample i from p */
 int  sampleAdd (char* name, char *father, char *mother, char *pop) ;
-char* sampleName (int i) ;
-char* popName (int i) ;		/* give back population name for sample i */
+char* sampleName (Sample *s) ;
+char* popName (Sample *s) ;	/* give back population name for sample i */
 PBWT *pbwtSubSample (PBWT *pOld, Array select) ;
 PBWT *pbwtSubSampleInterval (PBWT *pOld, int start, int Mnew) ;
 PBWT *pbwtSelectSamples (PBWT *pOld, FILE *fp) ;
@@ -192,6 +195,12 @@ void genotypeCompare (PBWT *p, char *fileNameRoot) ;
 PBWT *imputeMissing (PBWT *p) ;
 PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange) ;
 PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange) ;
+PBWT *pbwtCopySamples (PBWT *pOld, int Mnew, double meanLength) ;
+
+/* pbwtLikelihood.c */
+
+void pbwtFitAlphaBeta (PBWT *p) ;
+void pbwtFitSwitchModel (PBWT *p) ;
 
 /* pbwtPaint.c */
 

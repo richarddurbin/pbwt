@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Apr  2 08:05 2014 (rd)
+ * Last edited: May  7 21:36 2014 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -151,6 +151,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -subrange <start> <end>   cut down to sites in [start,end)\n") ;
       fprintf (stderr, "  -corruptSites <p> <q>     randomise fraction q of positions at fraction p of sites, according to site frequency\n") ;
       fprintf (stderr, "  -corruptSamples <p> <q>   randomise fraction q of positions for fraction p of samples, according to site frequency\n") ;
+      fprintf (stderr, "  -copySamples <M> <len>    make M new samples copied from current haplotypes with mean switch length len\n") ;
       fprintf (stderr, "  -selectSites <file>       select sites as in sites file\n") ;
       fprintf (stderr, "  -removeSites <file>       remove sites as in sites file\n") ;
       fprintf (stderr, "  -selectSamples <file>     select samples as in samples file\n") ;
@@ -165,6 +166,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -referenceImpute <root>   impute current pbwt into reference whose root name is the argument - need compatible sites - does not rephase either pbwt\n") ;
       fprintf (stderr, "  -genotypeCompare <root>   compare genotypes with those from referencewhose root name is the argument - need compatible sites\n") ;
       fprintf (stderr, "  -imputeMissing            impute data marked as missing\n") ;
+      fprintf (stderr, "  -fitAlphaBeta             fit probabilistic model\n") ;
       fprintf (stderr, "  -paint                    output painting co-ancestry matrix\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale)\n") ;
@@ -249,13 +251,13 @@ int main (int argc, char *argv[])
       { FOPEN("selectSamples","r") ; p = pbwtSelectSamples (p, fp) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-subsites") && argc > 2)
       { p = pbwtSubSites (p, atof(argv[1]), atof(argv[2])) ; argc -= 3 ; argv += 3 ; }
-    else if (!strcmp (argv[0], "-selectSites") && argc > 2)
+    else if (!strcmp (argv[0], "-selectSites") && argc > 1)
       { FOPEN("selectSites","r") ; char *chr = 0 ; Array sites = pbwtReadSitesFile (fp, &chr) ;
 	if (strcmp (chr, p->chrom)) die ("chromosome mismatch in selectSites") ;
 	p = pbwtSelectSites (p, sites, FALSE) ; free (chr) ; arrayDestroy (sites) ;
 	argc -= 2 ; argv += 2 ; 
       }
-    else if (!strcmp (argv[0], "-removeSites") && argc > 2)
+    else if (!strcmp (argv[0], "-removeSites") && argc > 1)
       { FOPEN("removeSites","r") ; char *chr = 0 ; Array sites = pbwtReadSitesFile (fp, &chr) ;
 	if (p->chrom && strcmp (chr, p->chrom)) die ("chromosome mismatch in removeSites") ;
 	p = pbwtRemoveSites (p, sites, FALSE) ; free (chr) ; arrayDestroy (sites) ;
@@ -267,6 +269,8 @@ int main (int argc, char *argv[])
       { p = pbwtCorruptSites (p, atof(argv[1]), atof(argv[2])) ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-corruptSamples") && argc > 2)
       { p = pbwtCorruptSamples (p, atof(argv[1]), atof(argv[2])) ; argc -= 3 ; argv += 3 ; }
+    else if (!strcmp (argv[0], "-copySamples") && argc > 2)
+      { p = pbwtCopySamples (p, atoi(argv[1]), atof(argv[2])) ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-buildReverse"))
       { pbwtBuildReverse (p) ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-pretty") && argc > 2)
@@ -297,6 +301,8 @@ int main (int argc, char *argv[])
       { genotypeCompare (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-imputeMissing"))
       { p = imputeMissing (p) ; argc -= 1 ; argv += 1 ; }
+    else if (!strcmp (argv[0], "-fitAlphaBeta"))
+      { pbwtFitAlphaBeta (p) ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-paint"))
       { paintAncestryMatrix (p) ; argc -= 1 ; argv += 1 ; }
     else
