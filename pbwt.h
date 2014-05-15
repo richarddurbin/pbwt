@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Apr 27 23:06 2014 (rd)
+ * Last edited: May 15 11:03 2014 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -48,6 +48,7 @@ typedef struct SiteStruct {
   int x ;			/* position on chromosome */
   int varD ;			/* index in variationDict */
   double freq ;			/* frequency */
+  double refFreq ;		/* frequency from reference used for last phasing or imputation */
 } Site ;
 
 typedef struct SampleStruct {

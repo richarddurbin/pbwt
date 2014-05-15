@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Apr 23 20:43 2014 (rd)
+ * Last edited: May 15 11:11 2014 (rd)
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -1078,7 +1078,7 @@ typedef struct {
        }
    free (zCount) ;
  }
-#endif	/* TRACEBACK_DEBUG */
+#endif	// TRACEBACK_DEBUG
 
 /********** next the calculation of how likely to extend from j with value x **********/
 
@@ -1211,7 +1211,7 @@ static int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
   /* new->s += sBit ;	   /* include if not Viterbi */
   return 0 ;
 }
-#endif EXTEND0
+#endif // EXTEND0
 
 #ifdef EXTEND1	/* alternate version minimises number of recombinations */
 /* in this version pc->s is -1 minus the number of recombinations */
@@ -1258,7 +1258,7 @@ static inline int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
   else
     return 0 ;
 }
-#endif EXTEND1
+#endif // EXTEND1
 
 #ifdef EXTEND2	/* alternate version of EXTEND1 that minimises number of recombinations */
 /* in this version we track the prefix interval (jmin,jmax) for matches to j0, j1 */
@@ -1305,7 +1305,7 @@ static inline int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
   else
     return 0 ;
 }
-#endif EXTEND2
+#endif // EXTEND2
 
 #ifdef EXTEND3	/* like EXTEND1,2 but maximises sum of lengths of maximal matches*/
 /* in this version pc->s is 1 + sum of lengths of maximal matches */
@@ -1369,7 +1369,7 @@ static inline int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
   else
     return 0 ;
 }
-#endif EXTEND3
+#endif // EXTEND3
 
 #ifdef EXTEND4	/* based on diff from neighbours based on -log generative model */
 /* in this version pc->s is -1 - sum of lengths of mismatched neighbours */
@@ -1390,9 +1390,9 @@ static inline int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
   temp.dminus0 = pbwtCursorMapDminus (uRef, x0, j0, old->dminus0) ;
   float dS = 0 ;
   if (j0) 
-    if (x0 == uRef->y[j0-1]) dS += (k-old->dminus0) ; else dS -= (k-old->dminus0) ;
+    { if (x0 == uRef->y[j0-1]) dS += (k-old->dminus0) ; else dS -= (k-old->dminus0) ; }
   if (j0 < uRef->M) 
-    if (x0 == uRef->y[j0]) dS += (k-old->dplus0) ; else dS -= (k-old->dplus0) ;
+    { if (x0 == uRef->y[j0]) dS += (k-old->dplus0) ; else dS -= (k-old->dplus0) ; }
   if (dS < 0) temp.s += dS ;
 
   temp.j1 = pbwtCursorMap (uRef, x1, old->j1) ;
@@ -1424,7 +1424,7 @@ static inline int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
   else
     return 0 ;
 }
-#endif EXTEND4
+#endif // EXTEND4
 
 /********** finally the main function ********/
 
@@ -1823,7 +1823,7 @@ static PBWT *referenceImpute1 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	}
       for (j = 0 ; j < M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* write into pNew */
       pbwtCursorWriteForwards (uNew) ;
-      arrp(pRef->sites,kRef,Site)->freq = (uRef->M - uRef->c) / (double) pRef->M ;
+      arrp(pRef->sites,kRef,Site)->refFreq = (uRef->M - uRef->c) / (double) pRef->M ;
       pbwtCursorForwardsRead (uRef) ; ++kRef ;
     }
 
@@ -1857,7 +1857,7 @@ static PBWT *referenceImpute1 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	    }
 	  for (j = 0 ; j < M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* write into pNew */
 	  pbwtCursorWriteForwards (uNew) ;
-	  arrp(pRef->sites,kRef,Site)->freq =  (uRef->M - uRef->c) / (double) pRef->M ;
+	  arrp(pRef->sites,kRef,Site)->refFreq =  (uRef->M - uRef->c) / (double) pRef->M ;
 	  pbwtCursorForwardsRead (uRef) ; ++kRef ;
 	}
     }
@@ -1872,7 +1872,7 @@ static PBWT *referenceImpute1 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	}
       for (j = 0 ; j < M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* write into pNew */
       pbwtCursorWriteForwards (uNew) ;
-      arrp(pRef->sites,kRef,Site)->freq =  (uRef->M - uRef->c) / (double) pRef->M ;
+      arrp(pRef->sites,kRef,Site)->refFreq =  (uRef->M - uRef->c) / (double) pRef->M ;
       pbwtCursorForwardsRead (uRef) ; ++kRef ;
     }
   pbwtCursorToAFend (uNew, pNew) ;
@@ -1942,7 +1942,7 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	}
       for (j = 0 ; j < pOld->M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* transfer to uNew */
       pbwtCursorWriteForwards (uNew) ;
-      arrp(pRef->sites,kRef,Site)->freq = (uRef->M - uRef->c) / (double) pRef->M ;
+      arrp(pRef->sites,kRef,Site)->refFreq = (uRef->M - uRef->c) / (double) pRef->M ;
       pbwtCursorForwardsRead (uRef) ; ++kRef ;
       if (isCheck && !(kRef % 10000)) fprintf (stderr, " %d %d\n", kRef, kOld) ;
     }
@@ -2028,14 +2028,15 @@ static void genotypeComparePbwt (PBWT *p, PBWT *q)
   double fsum[17] ; for (i = 17 ; i-- ;) fsum[i] = 0.0 ;
   int nsum[17] ; for (i = 17 ; i-- ;) nsum[i] = 0 ;
   long *ns = mycalloc (9*p->M, long) ;
+  BOOL isRefFreq = FALSE ;
 
   PbwtCursor *up = pbwtCursorCreate (p, TRUE, TRUE) ;
   PbwtCursor *uq = pbwtCursorCreate (q, TRUE, TRUE) ;
   uchar *xp = myalloc (p->M, uchar), *xq = myalloc (q->M, uchar) ;
   for (k = 0 ; k < p->N ; ++k)
     { double f = (p->M - up->c) / (double)p->M ; 
-      if (arrp (p->sites,k,Site)->freq) f = arrp (p->sites,k,Site)->freq ;
-      for (ff = 0 ; f*100 > fBound[ff] ; ++ff) ; fsum[ff] += f*100 ; ++nsum[ff] ;
+      if (arrp (p->sites,k,Site)->refFreq) { f = arrp (p->sites,k,Site)->refFreq ; isRefFreq = TRUE ; }
+      for (ff = 0 ; f*100 > fBound[ff] ; ) ++f ; fsum[ff] += f*100 ; ++nsum[ff] ;
       for (j = 0 ; j < p->M ; ++j) { xp[up->a[j]] = up->y[j] ; xq[uq->a[j]] = uq->y[j] ; }
       for (j = 0 ; j < p->M ; j += 2) 
 	{ i = 3*(xp[j]+xp[j+1]) + xq[j]+xq[j+1] ;
@@ -2045,6 +2046,9 @@ static void genotypeComparePbwt (PBWT *p, PBWT *q)
       pbwtCursorForwardsRead (up) ; pbwtCursorForwardsRead (uq) ;
     }
   pbwtCursorDestroy (up) ; pbwtCursorDestroy (uq) ;
+
+  if (isRefFreq) printf ("Genotype comparison results split on reference frequencies\n") ;
+  else printf ("Genotype comparison results split on sample frequencies\n") ;
 
   /* report */
   for (ff = 0 ; ff < 17 ; ++ff)
