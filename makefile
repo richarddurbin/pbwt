@@ -8,8 +8,8 @@ all: pbwt
 test:
 	./test/test.pl
 
-pbwt: pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtPaint.o pbwtMerge.o pbwtHtslib.o utils
-	gcc $(CFLAGS) -o pbwt pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtPaint.o pbwtMerge.o pbwtHtslib.o hash.o dict.o array.o utils.o $(HTSLIB) -lpthread -lz -lm
+pbwt: pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtPaint.o pbwtLikelihood.o pbwtMerge.o pbwtHtslib.o utils
+	gcc $(CFLAGS) -o pbwt pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtLikelihood.o pbwtPaint.o pbwtMerge.o pbwtHtslib.o hash.o dict.o array.o utils.o $(HTSLIB) -lpthread -lz -lm
 
 autozygExtract: autozygExtract.o
 	gcc $(CFLAGS) -o autozygExtract autozygExtract.o utils.o $(HTSLIB) -lpthread -lz -lm
@@ -31,6 +31,9 @@ pbwtMatch.o: pbwtMatch.c pbwt.h utils.h
 
 pbwtImpute.o: pbwtImpute.c pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtImpute.c
+
+pbwtLikelihood.o: pbwtLikelihood.c pbwt.h utils.h
+	gcc $(CFLAGS) -c pbwtLikelihood.c
 
 pbwtPaint.o: pbwtPaint.c pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtPaint.c
