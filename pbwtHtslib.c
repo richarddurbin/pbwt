@@ -5,7 +5,7 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 26 22:20 2014 (rd)
+ * Last edited: Apr  6 15:20 2014 (rd)
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -219,7 +219,7 @@ void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
   for (i = 0 ; i < p->M/2 ; ++i)
     {
       if (samples_known)
-        bcf_hdr_add_sample(bcf_hdr, sampleName(arr(p->samples, 2*i, int))) ;
+        bcf_hdr_add_sample(bcf_hdr, sampleName(sample (p, 2*i))) ;
       else
         {
           kstring_t sname = {0,0,0} ;

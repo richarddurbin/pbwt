@@ -15,12 +15,13 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Apr  2 08:22 2014 (rd)
+ * Last edited: Apr 23 20:41 2014 (rd)
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
 
 #include "pbwt.h"
+#include <ctype.h>
 
 int nCheckPoint = 0 ;	/* if set non-zero write pbwt and sites files every n sites when parsing external files */
 
@@ -78,8 +79,14 @@ void pbwtWriteSamples (PBWT *p, FILE *fp)
 
   int i ;
   for (i = 0 ; i < p->M ; i += 2) /* assume diploid for now */
-    fprintf (fp, "%s\n", sampleName (arr(p->samples,i,int))) ;
-  if (ferror (fp)) die ("error writing sites file") ;
+    { Sample *s = sample (p, i) ;
+      fprintf (fp, "%s", sampleName(s)) ;
+      if (s->popD) fprintf (fp, "\tPOP:%s", popName(s)) ;
+      if (s->mother) fprintf (fp, "\tMOTHER:%s", sampleName(s)) ;
+      if (s->popD) fprintf (fp, "\tFATHER:%s", popName(s)) ;
+      fputc ('\n', fp) ;
+    }     
+  if (ferror (fp)) die ("error writing samples file") ;
 
   fprintf (stderr, "written %d samples\n", p->M/2) ;
 }
@@ -267,12 +274,6 @@ Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
   arrayDestroy (nameArray) ;
 
   fprintf (stderr, "read %d sample names\n", arrayMax(samples)) ;
-  if (isCheck)
-    { fprintf (stderr, "first five sample names are: ") ;
-      int i ; for (i = 0 ; i < 5 && i < arrayMax(samples) ; ++i)
-		fprintf (stderr, " %s", sampleName(arr(samples,i,int))) ;
-      putc ('\n', stderr) ;
-    }
 
   return samples ;
 }

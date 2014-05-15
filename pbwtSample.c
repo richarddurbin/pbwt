@@ -5,7 +5,7 @@
  * Description: functions for samples and populations
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 26 22:14 2014 (rd)
+ * Last edited: Apr  4 11:32 2014 (rd)
  * Created: Sat Nov  2 18:42:07 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -25,6 +25,7 @@ void sampleInit (void)
   sampleDict = dictCreate (4096) ;
   populationDict = dictCreate (64) ;
   samples = arrayCreate (4096, Sample) ;
+  array(samples,0,Sample).nameD = 0 ; /* so that all read samples are non-zero */
 }
 
 void sampleDestroy (void)
@@ -32,12 +33,6 @@ void sampleDestroy (void)
   if (sampleDict) dictDestroy(sampleDict);
   if (populationDict) dictDestroy(populationDict);
   if (samples) arrayDestroy(samples);
-}
-
-Sample *sample (int i) 
-{
-  if (i >= arrayMax(samples)) die ("sample index %d out of range %d", i, arrayMax(samples)) ;
-  return arrp(samples,i,Sample) ;
 }
 
 int sampleAdd (char *name, char *father, char *mother, char *pop)
@@ -48,9 +43,16 @@ int sampleAdd (char *name, char *father, char *mother, char *pop)
   return k ;
 }
 
-char* sampleName (int i) { return dictName (sampleDict, sample(i)->nameD) ; }
+Sample *sample (PBWT *p, int i) 
+{
+  i = arr(p->samples, i, int) ;
+  if (i >= arrayMax(samples)) die ("sample index %d out of range %d", i, arrayMax(samples)) ;
+  return arrp(samples,i,Sample) ;
+}
 
-char* popName (int i) { return dictName (sampleDict, sample(i)->nameD) ; }
+char* sampleName (Sample *s) { return dictName (sampleDict, s->nameD) ; }
+
+char* popName (Sample *s) { return dictName (populationDict, s->popD) ; }
 
 PBWT *pbwtSubSample (PBWT *pOld, Array select)
 /* select[i] is the position in old of the i'th position in new */

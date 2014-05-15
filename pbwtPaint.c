@@ -15,19 +15,20 @@
  * Description: tools for chromosome painting as in ChromoPainter, FineStructure etc.
  * Exported functions:
  * HISTORY:
- * Last edited: Apr  4 01:22 2014 (rd)
+ * Last edited: Apr  6 15:45 2014 (rd)
  * Created: Tue Apr  1 11:34:41 2014 (rd)
  *-------------------------------------------------------------------
  */
 
 #include "pbwt.h"
 
-#define IDEA3
+#define IDEA2
 
 double **counts = 0 ;
 
 #ifdef IDEA2
-static void reportMatch (int i, int j, int start, int end) { ++counts[i][j] ; }
+static void reportMatch (int i, int j, int start, int end) 
+{ counts[i][j] += (end - start) ; }
 #endif
 #ifdef IDEA3
 typedef struct { int j ; int start ; int end ; } MatchSegment ;
@@ -91,7 +92,7 @@ void paintAncestryMatrix (PBWT *p)
       putchar ('\n') ;
       if ((i%2) && p->samples) 
 	fprintf (stderr, "%s %8.4g %8.4g\n", 
-		 sampleName (arr(p->samples,i-1, int)), totCounts[i-1], totCounts[i]) ;
+		 sampleName (sample(p,i-1)), totCounts[i-1], totCounts[i]) ;
     }
 
 #define HORRIBLE_HACK
