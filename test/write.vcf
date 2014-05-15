@@ -1,0 +1,18 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count in genotypes">
+##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	NA00001	NA00002	NA00003
+X	76962	.	T	C	.	PASS	AC=5;AN=6	GT	0|1	1|1	1|1
+X	126310	.	ACC	A	.	PASS	AC=4;AN=6	GT	0|1	0|1	1|1
+X	138125	.	G	T	.	PASS	AC=4;AN=6	GT	0|1	0|1	1|1
+X	138148	.	C	T	.	PASS	AC=4;AN=6	GT	0|1	0|1	1|1
+X	271225	.	T	TTTA	.	PASS	AC=2;AN=6	GT	0|0	0|1	1|0
+X	271225	.	T	TA	.	PASS	AC=2;AN=6	GT	0|1	0|0	0|1
+X	304568	.	C	T	.	PASS	AC=4;AN=6	GT	0|1	0|1	1|1
+X	326891	.	A	AC	.	PASS	AC=2;AN=6	GT	0|1	0|1	0|0
+X	2928329	.	C	T	.	PASS	AC=1;AN=6	GT	0|0	0|0	0|1
+X	2933066	.	G	C	.	PASS	AC=1;AN=6	GT	0|0	0|0	0|1
+X	2942109	.	T	C	.	PASS	AC=3;AN=6	GT	0|0	1|0	1|1
+X	3048719	.	T	C	.	PASS	AC=2;AN=6	GT	0|0	1|0	0|1

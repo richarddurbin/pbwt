@@ -13,6 +13,7 @@ my $opts = parse_params();
 test_pbwt($opts, in=>'merge.1', out=>'merge.1.out');
 test_pbwt($opts, in=>'merge.2', out=>'merge.2.out');
 test_write_vcf($opts, in=>'merge.1', out=>'merge.1.vcf');
+test_read_vcf_gt($opts, in=>'read.vcf', out=>'write.vcf');
 test_merge($opts,in=>['merge.1','merge.2'],out=>'merge.12.out');
 test_merge_sites($opts,in=>['merge.1','merge.2'],out=>'merge.12.sites');
 
@@ -185,6 +186,12 @@ sub test_write_vcf
 {
     my ($opts,%args) = @_;
     test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -read $$opts{tmp}/$args{in}.pbwt -readSites $$opts{tmp}/$args{in}.sites -writeVcf - 2>/dev/null | grep -v ^##pbwtVersion >$$opts{tmp}/$args{out}");
+}
+
+sub test_read_vcf_gt
+{
+    my ($opts,%args) = @_;
+    test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -readVcfGT $$opts{path}/read.vcf -writeVcf - 2>/dev/null | grep -v ^##pbwtVersion >$$opts{tmp}/$args{out}");
 }
 
 sub test_merge
