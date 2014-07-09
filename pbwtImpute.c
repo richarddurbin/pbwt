@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Jul  9 10:32 2014 (rd)
+ * Last edited: Jul  9 10:49 2014 (rd)
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -2134,7 +2134,7 @@ static void genotypeComparePbwt (PBWT *p, PBWT *q)
   for (k = 0 ; k < p->N ; ++k)
     { double f = (p->M - up->c) / (double)p->M ; 
       if (arrp (p->sites,k,Site)->refFreq) { f = arrp (p->sites,k,Site)->refFreq ; isRefFreq = TRUE ; }
-      for (ff = 0 ; f*100 > fBound[ff] ; ++ff) { fsum[ff] += f*100 ; ++nsum[ff] ; }
+      for (ff = 0 ; f*100 > fBound[ff] ; ) ++ff ; fsum[ff] += f*100 ; ++nsum[ff] ;
       if (arrp(p->sites,k,Site)->imputeInfo < 1.0) { isum[ff] += arrp(p->sites,k,Site)->imputeInfo ; ++ni[ff] ; }
       for (j = 0 ; j < p->M ; ++j) { xp[up->a[j]] = up->y[j] ; xq[uq->a[j]] = uq->y[j] ; }
       for (j = 0 ; j < p->M ; j += 2) 
