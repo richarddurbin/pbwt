@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: May 15 11:03 2014 (rd)
+ * Last edited: Jun 27 20:54 2014 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -49,6 +49,7 @@ typedef struct SiteStruct {
   int varD ;			/* index in variationDict */
   double freq ;			/* frequency */
   double refFreq ;		/* frequency from reference used for last phasing or imputation */
+  double imputeInfo ;		/* estimated r^2 from imputation */
 } Site ;
 
 typedef struct SampleStruct {
@@ -201,7 +202,7 @@ PBWT *pbwtCopySamples (PBWT *pOld, int Mnew, double meanLength) ;
 /* pbwtLikelihood.c */
 
 void pbwtFitAlphaBeta (PBWT *p) ;
-void pbwtFitSwitchModel (PBWT *p) ;
+void pbwtFitCopyModel (PBWT *p) ;
 
 /* pbwtPaint.c */
 
