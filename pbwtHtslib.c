@@ -5,7 +5,7 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Apr  6 15:20 2014 (rd)
+ * Last edited: Jun 27 19:37 2014 (rd)
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -55,8 +55,8 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
   uchar *x = myalloc (p->M, uchar) ;
 
-  uchar *xMissing = myalloc (p->M, uchar), *yMissing = myalloc(p->M+1, uchar) ;
-  yMissing[p->M] = Y_SENTINEL ;  /* needed for efficient packing */
+  uchar *xMissing = myalloc (p->M+1, uchar) ;
+  xMissing[p->M] = Y_SENTINEL ;  /* needed for efficient packing */
   long int nMissing = 0 ;
   int nMissingSites = 0 ; 
 
@@ -110,7 +110,6 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
                   p->missing = arrayCreate (1024, int) ;
                 }
               array(p->missing, p->N, int) = arrayMax(p->zMissing) ;
-              /* for (j = 0 ; j < p->M ; ++j) yMissing[j] = xMissing[u->a[j]] ; */
               pack3arrayAdd (xMissing, p->M, p->zMissing) ; /* NB original order, not pbwt sort */
               nMissingSites++ ;
             }
@@ -130,7 +129,7 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
   if (gt_arr) free (gt_arr) ;
   bcf_sr_destroy (sr) ;
   free (x) ; pbwtCursorDestroy (u) ;  
-  free (xMissing) ; free(yMissing) ;
+  free (xMissing) ;
 
   fprintf (stderr, "read genotypes from %s\n", filename) ;
   if (p->missing) fprintf (stderr, "%ld missing values at %d sites\n", 
