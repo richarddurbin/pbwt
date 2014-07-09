@@ -2036,7 +2036,7 @@ static void genotypeComparePbwt (PBWT *p, PBWT *q)
   for (k = 0 ; k < p->N ; ++k)
     { double f = (p->M - up->c) / (double)p->M ; 
       if (arrp (p->sites,k,Site)->refFreq) { f = arrp (p->sites,k,Site)->refFreq ; isRefFreq = TRUE ; }
-      for (ff = 0 ; f*100 > fBound[ff] ; ) ++f ; fsum[ff] += f*100 ; ++nsum[ff] ;
+      for (ff = 0 ; f*100 > fBound[ff] ; ++ff) { fsum[ff] += f*100 ; ++nsum[ff] ; }
       for (j = 0 ; j < p->M ; ++j) { xp[up->a[j]] = up->y[j] ; xq[uq->a[j]] = uq->y[j] ; }
       for (j = 0 ; j < p->M ; j += 2) 
 	{ i = 3*(xp[j]+xp[j+1]) + xq[j]+xq[j+1] ;
