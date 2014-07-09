@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Apr 23 20:41 2014 (rd)
+ * Last edited: Jun 27 20:57 2014 (rd)
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -193,10 +193,11 @@ static BOOL readMatchChrom (char **pChrom, FILE *fp)
   char *newChrom = fgetword (fp) ;
 
   if (strcmp (newChrom, "."))
-    if (!*pChrom) 
-      *pChrom = strdup (newChrom) ;
-    else if (strcmp (newChrom, *pChrom))
-      return FALSE ;
+    { if (!*pChrom) 
+	*pChrom = strdup (newChrom) ;
+      else if (strcmp (newChrom, *pChrom)) 
+	return FALSE ;
+    }
   return TRUE ;
 }
 
