@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: May 15 11:11 2014 (rd)
+ * Last edited: Jul  9 10:32 2014 (rd)
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -76,7 +76,8 @@ void imputeExplore (PBWT *p, int test)
 		if (u->y[i]) ++t->n21 ; else ++t->n20 ;
 	      else if (!u->y[i-1] && !u->y[i+1])
 		if (u->y[i]) ++t->n01 ; else ++t->n00 ;
-	      else if (!u->y[i-1] && u->d[i] < u->d[i+1] || !u->y[i+1] && u->d[i+1] < u->d[i])
+	      else if ((!u->y[i-1] && u->d[i] < u->d[i+1]) || 
+		       (!u->y[i+1] && u->d[i+1] < u->d[i]))
 		if (u->y[i]) ++t->n11a ; else ++t->n10a ;
 	      else
 		if (u->y[i]) ++t->n11b ; else ++t->n10b ;
@@ -94,7 +95,7 @@ void imputeExplore (PBWT *p, int test)
 	    }
 	  for (i = 0 ; i < M ; ++i)
 	    if (n0[i] + n1[i] == 4)	/* it wasn't at the end either forwards or backwards */
-	      if (x[i]) ++c1[ff][n1[i]] ; else ++c0[ff][n1[i]] ;
+	      { if (x[i]) ++c1[ff][n1[i]] ; else ++c0[ff][n1[i]] ; }
 	}
       pbwtCursorForwardsReadAD (u, k) ;
     }
@@ -433,7 +434,7 @@ PBWT *phase (PBWT *p, int kMethod, int nSparse) /* return rephased p */
 
   /* now build forward data structures */
   uq = pbwtNakedCursorCreate (M, 0) ; 
-  /* if (is2way) memcpy (uq->a, ur->a, M*sizeof(int)) ; /* prime uq with final ur */
+  /* if (is2way) memcpy (uq->a, ur->a, M*sizeof(int)) ; // prime uq with final ur */
   /* why was the previous line wrong - it clearly did not work */
   for (i = 0 ; i < M ; ++i) uq->b[uq->a[i]] = i ;
   if (nSparse)
@@ -1400,9 +1401,9 @@ static inline int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
   temp.dminus1 = pbwtCursorMapDminus (uRef, x1, old->j1, old->dminus1) ;
   dS = 0 ;
   if (old->j1) 
-    if (x1 == uRef->y[old->j1-1]) dS += (k-old->dminus1) ; else dS -= (k-old->dminus1) ;
+    { if (x1 == uRef->y[old->j1-1]) dS += (k-old->dminus1) ; else dS -= (k-old->dminus1) ; }
   if (old->j1 < uRef->M) 
-    if (x1 == uRef->y[old->j1]) dS += (k-old->dplus1) ; else dS -= (k-old->dplus1) ;
+    { if (x1 == uRef->y[old->j1]) dS += (k-old->dplus1) ; else dS -= (k-old->dplus1) ; }
   if (dS < 0) temp.s += dS ;
 
   if (!new->s)		/* this is the first j0 to map here */
@@ -1886,8 +1887,12 @@ static PBWT *referenceImpute1 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 
 /********** impute using maximal matches - use matchSequencesSweep() to find them *********/
 
+static double **pImp = 0 ;	/* use with stats to store p values */
+
 static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
-/* require pOld and pFrame to have the same sites, and these are a subset of sites of pRef */
+/* Require pOld and pFrame to have the same sites, a subset of sites of pRef, */
+/* and pRef and pFrame to have the same samples. */
+/* Impute only missing sites in pRef if pOld == pFrame. */
 {
   int i, j, k ;
 
@@ -1896,7 +1901,10 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
   /* build the array of maximal matches into pFrame for each sequence in pOld */
   maxMatch = myalloc (pOld->M, Array) ;
   for (j = 0 ; j < pOld->M ; ++j) maxMatch[j] = arrayCreate (1024, MatchSegment) ;
-  matchSequencesSweep (pFrame, pOld, reportMatch) ;
+  if (pOld == pFrame)		/* self-imputing */
+    matchMaximalWithin (pFrame, reportMatch) ;
+  else
+    matchSequencesSweep (pFrame, pOld, reportMatch) ;
   for (j = 0 ; j < pOld->M ; ++j)		    /* add terminating element to arrays */
     { MatchSegment *ms = arrayp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
       ms->jRef = ms[-1].jRef ; ms->end = pOld->N+1 ; ms->start = pOld->N ;
@@ -1906,21 +1914,35 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
   PbwtCursor *uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;
   PBWT *pNew = pbwtCreate (pOld->M, pRef->N) ;	/* this will hold the imputed sequence */
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
-  uchar *x = myalloc (pOld->M, uchar) ;   /* current uOld values in original sort order */
-  int *aRefInv = myalloc (pRef->M, int) ;  /* holds the inverse mapping from uRef->a[i] -> i */
+  uchar *x = myalloc (pOld->M, uchar) ;     /* uNew->y values in original sort order */
+  double *p = myalloc (pOld->M, double) ;   /* estimated prob of uNew->y in original sort order */
+  int *aRefInv = myalloc (pRef->M, int) ;   /* holds the inverse mapping from uRef->a[i] -> i */
   int *firstSeg = mycalloc (pOld->M, int) ; /* position in maxMatch to start looking at */
   int nConflicts = 0 ;
+  uchar *missing = (pOld == pFrame) ? mycalloc (pRef->M, uchar) : 0 ;
 
   int kOld = 0, kRef = 0 ;
   while (kRef < pRef->N)
-    { if (arrp(pRef->sites,kRef,Site)->x == arrp(pFrame->sites,kOld,Site)->x)
+    { if (arrp(pRef->sites,kRef,Site)->x == arrp(pFrame->sites,kOld,Site)->x
+	  && arrp(pRef->sites,kRef,Site)->varD == arrp(pFrame->sites,kOld,Site)->varD)
 	{ pbwtCursorForwardsRead (uOld) ; ++kOld ;
 	  for (j = 0 ; j < pOld->M ; ++j)
 	    while (kOld >= arrp(maxMatch[j],firstSeg[j],MatchSegment)->end) ++firstSeg[j] ;
 	}
       for (i = 0 ; i < pRef->M ; ++i) aRefInv[uRef->a[i]] = i ;
+      double psum = 0, xsum = 0, pxsum = 0 ; int n = 0 ;
+      arrp(pRef->sites,kRef,Site)->refFreq = (uRef->M - uRef->c) / (double) pRef->M ;
+      if (pOld == pFrame)	/* find which samples are missing at this site */
+	{ if (!arr(pRef->missing, kRef, int)) bzero (missing, pRef->M) ;
+	  else unpack3 (arrp(pRef->zMissing,arr(pRef->missing,kRef,int), uchar), 
+			pRef->M, missing, 0) ;
+	}
       for (j = 0 ; j < pOld->M ; ++j)
-	{ /* need to look at overlapping matches */
+	{ if (pOld == pFrame && !missing[j]) /* don't impute - copy from ref */
+	    { x[j] = uRef->y[aRefInv[j]] ;
+	      continue ;
+	    }
+	  /* impute from overlapping matches */
 	  double bit = 0, sum = 0, score = 0 ;
 	  MatchSegment *m = arrp(maxMatch[j],firstSeg[j],MatchSegment) ;
 	  MatchSegment *mStop = arrp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
@@ -1935,14 +1957,31 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	    }
 	  if (sum == 0) 
 	    { x[j] = 0 ;
+	      if (isStats) pImp[kRef][j] = arrp(pRef->sites,kRef,Site)->refFreq ; 
 	      ++nConflicts ;
 	    }
 	  else 
-	    x[j] = (score/sum > 0.5) ? 1 : 0 ;
+	    { double p = (score+0.1)/(sum+0.2) ;
+	      x[j] = (p > 0.5) ? 1 : 0 ;
+	      psum += p ;
+	      xsum += x[j] ;
+	      pxsum += p*x[j] ;
+	      if (isStats) pImp[kRef][j] = p ;
+	      ++n ;
+	    }
 	}
+	  
       for (j = 0 ; j < pOld->M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* transfer to uNew */
       pbwtCursorWriteForwards (uNew) ;
-      arrp(pRef->sites,kRef,Site)->refFreq = (uRef->M - uRef->c) / (double) pRef->M ;
+      if (n) 
+	{ psum /= n ; xsum /= n ; pxsum /= n ;
+	  double varianceProduct = psum*(1.0-psum)*xsum*(1.0-xsum) ;
+	  if (varianceProduct)
+	    arrp(pRef->sites,kRef,Site)->imputeInfo = 
+	      (pxsum - psum*psum) / sqrt (varianceProduct) ;
+	  else
+	    arrp(pRef->sites,kRef,Site)->imputeInfo = 1.0 ;
+	}
       pbwtCursorForwardsRead (uRef) ; ++kRef ;
       if (isCheck && !(kRef % 10000)) fprintf (stderr, " %d %d\n", kRef, kOld) ;
     }
@@ -1983,19 +2022,76 @@ PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot)
 
   fprintf (stderr, "Imputation preliminaries: ") ; timeUpdate() ;
 
+  if (isStats)
+    { pImp = myalloc (pRef->N, double*) ;
+      int k ; for (k = 0 ; k < pRef->N ; ++k) pImp[k] = myalloc (pOld->M, double) ;
+    }
+
   PBWT *pNew = referenceImpute2 (pOld, pRef, pFrame) ;
   pNew->sites = pRef->sites ; pRef->sites = 0 ; 
   pNew->chrom = pRef->chrom ; pRef->chrom = 0 ;
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
+
+  if (isStats)
+    { int k, j ; int his[10] ; for (j = 0 ; j < 10 ; ++j) his[j] = 0 ;
+      for (k = 0 ; k < pRef->N ; ++k) if (arrp(pNew->sites,k,Site)->refFreq < 0.01) for (j = 0 ; j < pNew->M ; ++j) ++his[(int)(pImp[k][j]*10)] ;
+      for (j = 0 ; j < 10 ; ++j) fprintf (stderr, "  number of p up to %.1f  %d\n", j*0.1, his[j]) ;
+    }
+
   pbwtDestroy (pOld) ; pbwtDestroy (pFrame) ; pbwtDestroy (pRef) ;
   return pNew ;
 }
 
 /*********************************************************************/
 
-PBWT *imputeMissing (PBWT *p)
+PBWT *imputeMissing (PBWT *pOld)
+/* current strategy is for HRC: use framework of sites for which we have complete data */
 {
-  return p ;
+  int k ;
+
+  if (!pOld->missing)
+    { warn ("imputeMissing called but can't find missing data\n") ;
+      return pOld ;
+    }
+
+  if (isStats)
+    { int *nMiss = mycalloc (10,int), n0, i ;
+      uchar *miss = myalloc (pOld->M, uchar) ;
+      for (k = 0 ; k < pOld->N ; ++k)
+	if (arr(pOld->missing,k,int)) 
+	  { unpack3 (arrp(pOld->zMissing,arr(pOld->missing,k,int), uchar), 
+		     pOld->M, miss, &n0) ;
+	    n0 = pOld->M - n0 ;
+	    if (isCheck)
+	      { printf ("missing at %d: offset %d, n0 %d", 
+			k, arr(pOld->missing,k,int), n0) ;
+		putchar ('\n') ;
+	      }
+	    for (i = 0 ; n0 > 0 ; ++i) { ++nMiss[i] ; n0 /= 10 ; }
+	  }
+      n0 = 1 ; 
+      for (i = 0 ; nMiss[i] ; ++i)
+	{ printf ("sites with missing >= %d: %d\n", n0, nMiss[i]) ;
+	  n0 *= 10 ;
+	}
+      free (miss) ; free (nMiss) ;
+    }
+
+  /* first build frame */
+  Array completeSites = arrayCreate (pOld->M, Site) ;
+  for (k = 0 ; k < pOld->N ; ++k) 
+    if (!arr(pOld->missing,k,int)) 
+      array(completeSites,arrayMax(completeSites),Site) = arr(pOld->sites,k,Site) ;
+  PBWT *pFrame = pbwtSelectSites (pOld, completeSites, TRUE) ;
+  arrayDestroy (completeSites) ;
+
+  /* then impute, using a special mode of impute2() */
+  PBWT *pNew = referenceImpute2 (pFrame, pOld, pFrame) ;
+  pNew->sites = pOld->sites ; pOld->sites = 0 ;
+  pNew->samples = pOld->samples ; pOld->samples = 0 ;
+  pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
+  pbwtDestroy (pOld) ; pbwtDestroy (pFrame) ;
+  return pNew ;
 }
 
 /*********************************************************************/
@@ -2027,6 +2123,8 @@ static void genotypeComparePbwt (PBWT *p, PBWT *q)
   long n[17][9] ; for (i = 17 ; i-- ;) for (j = 9 ; j-- ;) n[i][j] = 0 ;
   double fsum[17] ; for (i = 17 ; i-- ;) fsum[i] = 0.0 ;
   int nsum[17] ; for (i = 17 ; i-- ;) nsum[i] = 0 ;
+  double isum[17] ; for (i = 17 ; i-- ;) isum[i] = 0.0 ;
+  int ni[17] ; for (i = 17 ; i-- ;) ni[i] = 0 ;
   long *ns = mycalloc (9*p->M, long) ;
   BOOL isRefFreq = FALSE ;
 
@@ -2036,7 +2134,8 @@ static void genotypeComparePbwt (PBWT *p, PBWT *q)
   for (k = 0 ; k < p->N ; ++k)
     { double f = (p->M - up->c) / (double)p->M ; 
       if (arrp (p->sites,k,Site)->refFreq) { f = arrp (p->sites,k,Site)->refFreq ; isRefFreq = TRUE ; }
-      for (ff = 0 ; f*100 > fBound[ff] ; ) ++f ; fsum[ff] += f*100 ; ++nsum[ff] ;
+      for (ff = 0 ; f*100 > fBound[ff] ; ++ff) { fsum[ff] += f*100 ; ++nsum[ff] ; }
+      if (arrp(p->sites,k,Site)->imputeInfo < 1.0) { isum[ff] += arrp(p->sites,k,Site)->imputeInfo ; ++ni[ff] ; }
       for (j = 0 ; j < p->M ; ++j) { xp[up->a[j]] = up->y[j] ; xq[uq->a[j]] = uq->y[j] ; }
       for (j = 0 ; j < p->M ; j += 2) 
 	{ i = 3*(xp[j]+xp[j+1]) + xq[j]+xq[j+1] ;
@@ -2062,7 +2161,8 @@ static void genotypeComparePbwt (PBWT *p, PBWT *q)
 	  y2 = (n[ff][1] + n[ff][4] + n[ff][7] + 4*(n[ff][2] + n[ff][5] + n[ff][8])) / tot ;
 	  r2 = (n[ff][4] + 2*(n[ff][5] + n[ff][7]) + 4*n[ff][8]) / tot ;
 	  r2 = (r2 - xbar*ybar)/sqrt((x2 - xbar*xbar)*(y2 - ybar*ybar)) ;
-	  printf ("\tx,y,r2\t%.4f\t%.4f\t%.4f\n", xbar, ybar, r2) ;
+	  printf ("\tx,y,r2\t%.4f\t%.4f\t%.4f", xbar, ybar, r2) ;
+	  printf ("\t info %.4f\n", ni[ff] ? isum[ff]/ni[ff] : 0.0) ;
 	}
       else
 	putchar ('\n') ;
@@ -2086,12 +2186,6 @@ static void genotypeComparePbwt (PBWT *p, PBWT *q)
   for (i = 100 ; i-- ; ) 
     if (hist[i])
       printf ("%d samples with %.2f <= r2 < %.2f\n", hist[i], (i-1)*0.01, i*0.01) ;
-}
-
-/*********************************************************************/
-
-void imputeEvaluate (PBWT *p, char *fileNameRoot)
-{
 }
 
 /*********** routines to corrupt data to explore robustness *************/
