@@ -15,14 +15,14 @@
  * Description: tools for chromosome painting as in ChromoPainter, FineStructure etc.
  * Exported functions:
  * HISTORY:
- * Last edited: Apr  6 15:45 2014 (rd)
+ * Last edited: Jul  3 18:27 2014 (rd)
  * Created: Tue Apr  1 11:34:41 2014 (rd)
  *-------------------------------------------------------------------
  */
 
 #include "pbwt.h"
 
-#define IDEA2
+#define IDEA3
 
 double **counts = 0 ;
 
