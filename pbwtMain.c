@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: May  7 21:36 2014 (rd)
+ * Last edited: Jun 27 20:55 2014 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -167,6 +167,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -genotypeCompare <root>   compare genotypes with those from referencewhose root name is the argument - need compatible sites\n") ;
       fprintf (stderr, "  -imputeMissing            impute data marked as missing\n") ;
       fprintf (stderr, "  -fitAlphaBeta             fit probabilistic model\n") ;
+      fprintf (stderr, "  -fitCopyModel             fit Li-Stephens model\n") ;
       fprintf (stderr, "  -paint                    output painting co-ancestry matrix\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale)\n") ;
@@ -303,6 +304,8 @@ int main (int argc, char *argv[])
       { p = imputeMissing (p) ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-fitAlphaBeta"))
       { pbwtFitAlphaBeta (p) ; argc -= 1 ; argv += 1 ; }
+    else if (!strcmp (argv[0], "-fitCopyModel"))
+      { pbwtFitCopyModel (p) ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-paint"))
       { paintAncestryMatrix (p) ; argc -= 1 ; argv += 1 ; }
     else
