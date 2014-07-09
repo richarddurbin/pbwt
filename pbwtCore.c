@@ -15,7 +15,7 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Mar 31 22:40 2014 (rd)
+ * Last edited: Jun 27 18:59 2014 (rd)
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -293,7 +293,8 @@ int unpack3 (uchar *yzp, int M, uchar *yp, int *n0)
       else
 	while (n--) *yp++ = yz ;
     }
-  if (isCheck && m != M) die ("mismatch m %d != M %d in unpack3\n", m, M) ;
+  if (isCheck && m != M) 
+    die ("mismatch m %d != M %d in unpack3 after unpacking %d\n", m, M, yzp-yzp0) ;
 
   return yzp - yzp0 ;
 }
