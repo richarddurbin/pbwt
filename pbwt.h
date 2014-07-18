@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jun 27 20:54 2014 (rd)
+ * Last edited: Jul 17 10:50 2014 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -201,8 +201,8 @@ PBWT *pbwtCopySamples (PBWT *pOld, int Mnew, double meanLength) ;
 
 /* pbwtLikelihood.c */
 
-void pbwtFitAlphaBeta (PBWT *p) ;
-void pbwtFitCopyModel (PBWT *p) ;
+void pbwtFitAlphaBeta (PBWT *p, int model) ;
+void pbwtLogLikelihoodCopyModel (PBWT *p, double theta, double rho) ;
 
 /* pbwtPaint.c */
 

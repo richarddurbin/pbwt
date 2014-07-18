@@ -15,12 +15,32 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Jun 27 20:55 2014 (rd)
+ * Last edited: Jul 18 13:06 2014 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
 
 #include "pbwt.h"
+
+/*********************************************************/
+
+static PBWT *playGround (PBWT *p) /* iterate PBWT operation on p */
+{
+  int i, j ;
+  PBWT *pNew = pbwtCreate (p->M, p->N) ;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
+  PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
+
+  for (i = 0 ; i < p->N ; ++i)
+    { for (j = 0 ; j < p->M ; ++j) uNew->y[j] = u->y[uNew->a[j]] ;
+      pbwtCursorForwardsRead (u) ;
+      pbwtCursorWriteForwards (uNew) ;
+    }
+  pbwtCursorToAFend (uNew, pNew) ;
+
+  pbwtCursorDestroy (u) ; pbwtCursorDestroy (uNew) ; pbwtDestroy (p) ;
+  return pNew ;
+}
 
 /*********************************************************/
 
@@ -166,8 +186,8 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -referenceImpute <root>   impute current pbwt into reference whose root name is the argument - need compatible sites - does not rephase either pbwt\n") ;
       fprintf (stderr, "  -genotypeCompare <root>   compare genotypes with those from referencewhose root name is the argument - need compatible sites\n") ;
       fprintf (stderr, "  -imputeMissing            impute data marked as missing\n") ;
-      fprintf (stderr, "  -fitAlphaBeta             fit probabilistic model\n") ;
-      fprintf (stderr, "  -fitCopyModel             fit Li-Stephens model\n") ;
+      fprintf (stderr, "  -fitAlphaBeta <model>     fit probabilistic model 1..3\n") ;
+      fprintf (stderr, "  -llCopyModel <theta> <rho>  log likelihood of Li-Stephens model\n") ;
       fprintf (stderr, "  -paint                    output painting co-ancestry matrix\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale)\n") ;
@@ -302,12 +322,16 @@ int main (int argc, char *argv[])
       { genotypeCompare (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-imputeMissing"))
       { p = imputeMissing (p) ; argc -= 1 ; argv += 1 ; }
-    else if (!strcmp (argv[0], "-fitAlphaBeta"))
-      { pbwtFitAlphaBeta (p) ; argc -= 1 ; argv += 1 ; }
-    else if (!strcmp (argv[0], "-fitCopyModel"))
-      { pbwtFitCopyModel (p) ; argc -= 1 ; argv += 1 ; }
+    else if (!strcmp (argv[0], "-fitAlphaBeta") && argc > 1)
+      { pbwtFitAlphaBeta (p, atoi(argv[1])) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-llCopyModel") && argc > 2)
+      { pbwtLogLikelihoodCopyModel (p, atof(argv[1]), atof(argv[2])) ; 
+	argc -= 3 ; argv += 3 ; 
+      }
     else if (!strcmp (argv[0], "-paint"))
       { paintAncestryMatrix (p) ; argc -= 1 ; argv += 1 ; }
+    else if (!strcmp (argv[0], "-play"))
+      { p = playGround (p) ; argc -= 1 ; argv += 1 ; }
     else
       die ("unrecognised command %s\nType pbwt without arguments for help", *argv) ;
     timeUpdate() ;

@@ -15,7 +15,7 @@
  * Description: tools for chromosome painting as in ChromoPainter, FineStructure etc.
  * Exported functions:
  * HISTORY:
- * Last edited: Jul  3 18:27 2014 (rd)
+ * Last edited: Jul 18 12:22 2014 (rd)
  * Created: Tue Apr  1 11:34:41 2014 (rd)
  *-------------------------------------------------------------------
  */
@@ -25,6 +25,7 @@
 #define IDEA3
 
 double **counts = 0 ;
+double **counts2 = 0 ; /* store sums of squares of counts in 100 block bins */
 
 #ifdef IDEA2
 static void reportMatch (int i, int j, int start, int end) 
@@ -43,9 +44,11 @@ static void reportMatch (int i, int j, int start, int end)
 void paintAncestryMatrix (PBWT *p)
 {
   int i, j, k ;
-  counts = myalloc (p->M, double*) ;
-  for (i = 0 ; i < p->M ; ++i)
-    counts[i] = mycalloc (p->M, double) ;
+  counts = myalloc (p->M, double*) ; counts2 = myalloc (p->M, double*) ;
+  for (i = 0 ; i < p->M ; ++i) 
+    { counts[i] = mycalloc (p->M, double) ;
+      counts2[i] = mycalloc (p->M, double) ;
+    }
 
 #ifdef IDEA1	/* original idea written with Dan Lawson Newton Institute 140402 */
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
@@ -113,9 +116,8 @@ void paintAncestryMatrix (PBWT *p)
  #endif
 
   /* clean up */
-  for (i = 0 ; i < p->M ; ++i) free (counts[i]) ; 
-  free (counts) ;
-  free (totCounts) ;
+  for (i = 0 ; i < p->M ; ++i) { free (counts[i]) ; free (counts2[i]) ; }
+  free (counts) ; free (counts2) ; free (totCounts) ;
 }
 
 /* end of file */

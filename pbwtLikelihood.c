@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Jul  3 18:29 2014 (rd)
+ * Last edited: Jul 17 11:43 2014 (rd)
  * Created: Sat Apr 26 22:29:13 2014 (rd)
  *-------------------------------------------------------------------
  */
@@ -257,7 +257,7 @@ static double pbwtLogLikelihoodDropOne (Array info, double alpha, double beta)
       if (d1 < d2) { if (++d1 == d2) d2 = 0 ; } else { if (d2++ == d1) d1 = 0 ; }
     }
   
-  free (pSwitch) ;
+  free (pSwitch) ; free (pStick) ;
 
   return like ;
 }
@@ -274,79 +274,99 @@ static double alphaSearchLLDropOne (double alpha)
 /************************************************************/
 /***** now a version using the column allele frequency ******/
 
-#ifdef UNFINISHED
-static double pbwtLLFreqDropOne (PBWT *p, double alpha, double beta)
+static int pM ;
+
+static Array buildRowInfoFreqDropOne (PBWT *p, int MAX) /* array of RowInfoDropOne */
+/* record how many times we see each set of 3 consecutive values in y, 
+   as a function of allele count */
 {
+  Array info = arrayCreate (p->M, RowInfoDropOne) ;
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
-  int i, j, k, d1, d2, dd ;
+  int i, j, k, n1 ;
 
   for (i = 0 ; i < p->N ; ++i)
-    { double f = u->c/(double)u->M ;
-      for (j = 0 ; j < p->M ; ++j)
+    { for (j = 0 ; j < p->M ; ++j)
 	{ if (!u->d[j] || !u->d[j+1]) continue ; /* ignore edge effects */
 	  if (j == 0) 
-	    { k = (u->y[j] << 1) + u->y[j+1] ; d1 = 0 ; d2 = i+1 - u->d[j+1] ; }
+	    k = (u->y[j] << 1) + u->y[j+1] ;
 	  else if (j < p->M-1)
-	    { k = (u->y[j-1] << 2) + (u->y[j] << 1) + u->y[j+1] ; 
-	      d1 = i+1 - u->d[j] ; d2 = i+1 - u->d[j+1] ; 
-	    }
+	    k = (u->y[j-1] << 2) + (u->y[j] << 1) + u->y[j+1] ;
 	  else
-	    { k = (u->y[j-1] << 2) + (u->y[j] << 1) ; d1 = i+1 - u->d[j] ; d2 = 0 ; }
-	  d1 /= 10 ; d2 /= 10 ;
-	  if (d1 > MAX) d1 = MAX ; if (d2 > MAX) d2 = MAX ;
-	  if (d1 < d2) dd = d2*d2 + d1 ; else dd = d1*d1 + d1 + d2 ;
-	  arrayp(info,dd,RowInfoDropOne)->n[k] += 1 ; 
-	  arrp(info,dd,RowInfoDropOne)->nTot += 1 ;
+	    k = (u->y[j-1] << 2) + (u->y[j] << 1) ;
+	  n1 = u->M - u->c ;
+	  arrayp(info,n1,RowInfoDropOne)->n[k] += 1 ; 
+	  arrp(info,n1,RowInfoDropOne)->nTot += 1 ;
 	}
       pbwtCursorForwardsReadAD (u, i) ;
     }
 
-  int dmax = sqrt ((double)arrayMax(info)) ;
-  double *pSwitch = myalloc (dmax+1, double) ; /* actually log_p values */
-  double *pStick = myalloc (dmax+1, double) ; /* actually log_p values */
-  int dd, d1, d2, dmin ; 
-  for (d1 = 0 ; d1 <= dmax ; ++d1) 
-    { pSwitch[d1] = - alpha*d1 - beta ; pStick[d1] = log (1.0 - exp(pSwitch[d1])) ; }
-  double like = 0.0 ;
-  RowInfoDropOne *inf = arrp(info,0,RowInfoDropOne) ;
-  d1 = 0 ; d2 = 0 ;
-  for (dd = 0 ; dd < arrayMax(info) ; ++dd, ++inf) 
-    { if (inf->nTot)
-	{ int *nn = inf->n ;
-	  dmin = (d1 < d2) ? d1 : d2 ;
-	  dmax = (d1 < d2) ? d2 : d1 ;
-	  /* 0,0,0 and 1,1,1 */
-	  like += (nn[0]+nn[7])*pStick[dmax] ;
-	  /* 0,0,1 and 1,1,0 */
-	  like += (nn[1]+nn[6])*(pStick[d1]+pSwitch[d2]-pSwitch[dmin]) ;
-	  /* 0,1,0 and 1,0,1 */
-	  like += (nn[2]+nn[5])*(pSwitch[d1]+pSwitch[d2]-pStick[dmin]) ;
-	  /* 0,1,1 and 1,0,0 */
-	  like += (nn[3]+nn[4])*(pSwitch[d1]+pStick[d2]-pSwitch[dmin]) ;
-	}
-      if (d1 < d2) { if (++d1 == d2) d2 = 0 ; } else { if (d2++ == d1) d1 = 0 ; }
-    }
-  
-  free (pSwitch) ;
+  pbwtCursorDestroy (u) ;
 
+  pM = p->M ;
+
+  return info ;
+}
+
+static double pbwtLLFreqDropOne (Array info, double alpha, double beta)
+{
+  int i ;
+  double p00, p01, p10, p11, like = 0.0 ;
+  RowInfoDropOne *inf = arrp(info,0,RowInfoDropOne) ;
+  for (i = 0 ; i < arrayMax(info) ; ++i, ++inf) 
+    if (inf->nTot)
+      { double f = (0.5+i) / (double)(1+pM) ; /* frequency */
+	p01 = -beta + alpha*log(f) ; p00 = log (1.0 - exp(p01)) ;
+	p10 = -beta ; p11 = log (1.0 - exp(p10)) ;
+
+	int *nn = inf->n ;
+	/* 0,0,0 and 0,0,1 and 1,0,0 */ like += (nn[0]+nn[1]+nn[4])*p00 ;
+	/* 0,1,0 */ like += nn[2]*(p01+p10-p00) ;
+	/* 0,1,1 and 1,1,0 and 1,1,1 */ like += (nn[3]+nn[6]+nn[7])*p11 ;
+	/* 1,0,1 */ like += nn[5]*(p10+p01-p11) ;
+      }
+  
   return like ;
 }
-#endif
+
+static double betaSearchFreqDropOne (double beta)
+{ return pbwtLLFreqDropOne (info, alphaSearch, beta) ; }
+
+static double alphaSearchFreqDropOne (double alpha)
+{ alphaSearch = alpha ;
+  betaSearch = lineSearchPositive (betaSearch, 1.001, betaSearchFreqDropOne) ;
+  return pbwtLLFreqDropOne (info, alphaSearch, betaSearch) ; 
+}
 
 /****************************************/
 
-void pbwtFitAlphaBeta (PBWT *p)
+void pbwtFitAlphaBeta (PBWT *p, int model)
 {
   double LL ;
-  info = buildRowInfoDropOne (p, 1000) ;
-  alphaSearch = 0.0 ; 		/* first find beta-only model */
-  betaSearch = lineSearchPositive (1.0, 1.001, betaSearchLLDropOne) ;
-  LL = pbwtLogLikelihoodDropOne (info, 0.0, betaSearch) / p->N ;
-  printf ("Fit beta %f  LL per site %f  per cell %f\n", betaSearch, LL, LL/p->M) ;
-  alphaSearch = lineSearchPositive (0.01, 1.001, alphaSearchLLDropOne) ;
-  LL = betaSearchLLDropOne (betaSearch) / p->N ;
-  printf ("Fit alpha %f  beta %f  LL per site %f  per cell %f\n", 
-	  alphaSearch, betaSearch, LL, LL/p->M) ;
+  switch (model)
+    {
+    case 1:			/* alpha and beta drop one */
+      info = buildRowInfoDropOne (p, 1000) ;
+      alphaSearch = 0.0 ; 		/* first find beta-only model */
+      betaSearch = lineSearchPositive (1.0, 1.001, betaSearchLLDropOne) ;
+      LL = pbwtLogLikelihoodDropOne (info, alphaSearch, betaSearch) / p->N ;
+      printf ("Fit beta %f  LL per site %f  per cell %f\n", betaSearch, LL, LL/p->M) ;
+      alphaSearch = lineSearchPositive (0.01, 1.001, alphaSearchLLDropOne) ;
+      LL = betaSearchLLDropOne (betaSearch) / p->N ;
+      printf ("Fit alpha %f  beta %f  LL per site %f  per cell %f\n", 
+	      alphaSearch, betaSearch, LL, LL/p->M) ;
+      break ;
+    case 2:			/* beta freq drop one */
+      info = buildRowInfoFreqDropOne (p, 1000) ;
+      alphaSearch = 1.0 ;
+      betaSearch = lineSearchPositive (1.0, 1.001, betaSearchFreqDropOne) ;
+      LL = pbwtLLFreqDropOne (info, alphaSearch, betaSearch) / p->N ;
+      printf ("Fit beta %f  LL per site %f  per cell %f\n", betaSearch, LL, LL/p->M) ;
+      alphaSearch = lineSearchPositive (1.0, 1.001, alphaSearchFreqDropOne) ;
+      LL = betaSearchFreqDropOne (betaSearch) / p->N ;
+      printf ("Fit alpha %f  beta %f  LL per site %f  per cell %f\n", 
+	      alphaSearch, betaSearch, LL, LL/p->M) ;
+      break ;
+    }
   LL = -log(256.0)*arrayMax(p->yz) / p->N ;
   printf ("PBWT entropy per site %f  per cell %f\n", LL, LL/p->M) ;
   arrayDestroy (info) ;
@@ -357,7 +377,7 @@ void pbwtFitAlphaBeta (PBWT *p)
 /**************************************************************/
 /******* Li and Stephens copying model ************************/
 
-double copyLogLikelihoodDropOne (PBWT *p, double rho, double mu)
+double copyLogLikelihoodDropOne (PBWT *p, double theta, double rho)
 {
   int i, j, k ;
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
@@ -369,7 +389,7 @@ double copyLogLikelihoodDropOne (PBWT *p, double rho, double mu)
       left[i][i] = 0.0 ;
     }
   uchar *x = myalloc (p->M, uchar) ;
-  double rho1 = 1.0-rho, rhoM = rho/(p->M - 1.0), mu1 = 1.0-mu ;
+  double rho1 = 1.0-rho, rhoM = rho/(p->M - 1.0), theta1 = 1.0-theta ;
 
   for (k = 0 ; k < p->N ; ++k)
     { for (j = 0 ; j < p->M ; ++j) x[u->a[j]] = u->y[j] ;
@@ -378,14 +398,14 @@ double copyLogLikelihoodDropOne (PBWT *p, double rho, double mu)
 	  for (j = 0 ; j < p->M ; ++j)
  	    { left[i][j] *= rho1 ;
 	      left[i][j] += rhoM ;
-	      left[i][j] *= (x[i] == x[j]) ? mu1 : mu ;
+	      left[i][j] *= (x[i] == x[j]) ? theta1 : theta ;
 	      sum += left[i][j] ;
 	    }
 	  sum -= left[i][i] ; left[i][i] = 0.0 ;
 	  logLeftSum[i] += log(sum) ;
 	  for (j = 0 ; j < p->M ; ++j) if (j != i) left[i][j] /= sum ;
 	}
-      if (isCheck) printf ("done site %d\n", k) ;
+      /*      if (isCheck) printf ("done site %d\n", k) ; */
       pbwtCursorForwardsRead (u) ;
     }
   pbwtCursorDestroy (u) ;
@@ -399,12 +419,29 @@ double copyLogLikelihoodDropOne (PBWT *p, double rho, double mu)
   return LL ;
 }
 
-void pbwtFitCopyModel (PBWT *p)
-{ double LL = copyLogLikelihoodDropOne (p, 0.01, 0.01) ;
-  printf ("rho %f mu %f LL %f  per site %f  per cell %f\n", 
+static PBWT *pSearch ;
+double thetaSearch, rhoSearch ;
+
+static double rhoSearchDropOne (double rho)
+{ return copyLogLikelihoodDropOne (pSearch, thetaSearch, rho) ; }
+
+static double thetaSearchDropOne (double theta)
+{ thetaSearch = theta ;
+  rhoSearch = lineSearchPositive (rhoSearch, 1.001, rhoSearchDropOne) ;
+  return copyLogLikelihoodDropOne (pSearch, thetaSearch, rhoSearch) ; 
+}
+
+void pbwtLogLikelihoodCopyModel (PBWT *p, double theta, double rho)
+{ double LL = copyLogLikelihoodDropOne (p, theta, rho) ;
+  printf ("theta %f rho %f LL %f  per site %f  per cell %f\n", 
 	  0.01, 0.01, LL, LL/p->N, LL/(p->M*p->N)) ;
-  LL = -log(256.0)*arrayMax(p->yz) ;
-  printf ("Entropy is %f  per site %f  per cell %f\n", LL, LL/p->N, LL/(p->M*p->N)) ;
+  pSearch = p ; 
+  thetaSearch = theta ;
+  rhoSearch = lineSearchPositive (thetaSearch, 1.01, rhoSearchDropOne) ;
+  thetaSearch = lineSearchPositive (0.01, 1.01, thetaSearchDropOne) ;
+  LL = betaSearchLLDropOne (betaSearch) / p->N ;
+  printf ("Fit theta %f  rho %f  LL per site %f  per cell %f\n", 
+	  thetaSearch, rhoSearch, LL, LL/p->M) ;
 }
 
 /******** end of file ********/

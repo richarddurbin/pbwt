@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jun 27 20:57 2014 (rd)
+ * Last edited: Jul 14 00:44 2014 (rd)
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -404,7 +404,9 @@ PBWT *pbwtReadMacs (FILE *fp)
       pbwtCursorWriteForwards (u) ;
       p->N++ ;
       if (nCheckPoint && !(p->N % nCheckPoint))
-	pbwtCheckPoint (p) ;
+	{ pbwtCursorToAFend (u, p) ;
+	  pbwtCheckPoint (p) ;
+	}
     }
   pbwtCursorToAFend (u, p) ;
 
