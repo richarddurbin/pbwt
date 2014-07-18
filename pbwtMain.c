@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 18 13:06 2014 (rd)
+ * Last edited: Jul 18 13:48 2014 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -188,7 +188,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -imputeMissing            impute data marked as missing\n") ;
       fprintf (stderr, "  -fitAlphaBeta <model>     fit probabilistic model 1..3\n") ;
       fprintf (stderr, "  -llCopyModel <theta> <rho>  log likelihood of Li-Stephens model\n") ;
-      fprintf (stderr, "  -paint                    output painting co-ancestry matrix\n") ;
+      fprintf (stderr, "  -paint <fileNameRoot>     output painting co-ancestry matrix\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale)\n") ;
       fprintf (stderr, "  -siteInfo <file> <kmin> <kmax> export PBWT information at sites with allele count kmin <= k < kmax\n") ;
@@ -328,8 +328,8 @@ int main (int argc, char *argv[])
       { pbwtLogLikelihoodCopyModel (p, atof(argv[1]), atof(argv[2])) ; 
 	argc -= 3 ; argv += 3 ; 
       }
-    else if (!strcmp (argv[0], "-paint"))
-      { paintAncestryMatrix (p) ; argc -= 1 ; argv += 1 ; }
+    else if (!strcmp (argv[0], "-paint") && argc > 1)
+      { paintAncestryMatrix (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-play"))
       { p = playGround (p) ; argc -= 1 ; argv += 1 ; }
     else

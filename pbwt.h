@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 17 10:50 2014 (rd)
+ * Last edited: Jul 18 13:48 2014 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -206,7 +206,7 @@ void pbwtLogLikelihoodCopyModel (PBWT *p, double theta, double rho) ;
 
 /* pbwtPaint.c */
 
-void paintAncestryMatrix (PBWT *p) ;
+void paintAncestryMatrix (PBWT *p, char *fileRoot) ;
 
 /* pbwtMerge.c */
 

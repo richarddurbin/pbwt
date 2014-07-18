@@ -15,7 +15,7 @@
  * Description: tools for chromosome painting as in ChromoPainter, FineStructure etc.
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 18 12:22 2014 (rd)
+ * Last edited: Jul 18 14:24 2014 (rd)
  * Created: Tue Apr  1 11:34:41 2014 (rd)
  *-------------------------------------------------------------------
  */
@@ -41,7 +41,7 @@ static void reportMatch (int i, int j, int start, int end)
 }
 #endif
 
-void paintAncestryMatrix (PBWT *p)
+void paintAncestryMatrix (PBWT *p, char* fileRoot)
 {
   int i, j, k ;
   counts = myalloc (p->M, double*) ; counts2 = myalloc (p->M, double*) ;
@@ -69,13 +69,24 @@ void paintAncestryMatrix (PBWT *p)
   maxMatch = myalloc (p->M, Array) ;
   for (i = 0 ; i < p->M ; ++i) maxMatch[i] = arrayCreate (1024, MatchSegment) ;
   matchMaximalWithin (p, reportMatch) ;  /* store maximal matches in maxMatch */
+  double *partCounts = myalloc (p->M, double) ;
   /* now weight per site based on distance from ends */
   for (i = 0 ; i < p->M ; ++i)
     { MatchSegment *m1 = arrp(maxMatch[i],0,MatchSegment), *m ;
+      int n1 = 1 ;		/* so don't have an empty chunk to start with! */
       MatchSegment *mStop = arrp(maxMatch[i], arrayMax(maxMatch[i])-1, MatchSegment) ;
+      memset (partCounts, 0, sizeof(double)*p->M) ;
       for (k = 1 ; k < p->N ; k++)
 	{ double sum = 0 ;
-	  while (m1->end <= k && m1 < mStop) ++m1 ;
+	  while (m1->end <= k && m1 < mStop)
+	    { if (!(n1 % 100))
+		{ int jj ; for (jj = 0 ; jj < p->M ; ++jj) 
+			     counts2[i][jj] += partCounts[jj]*partCounts[jj] ;
+		  memset (partCounts, 0, sizeof(double)*p->M) ;
+		  /* we should deal with the final counts2 block */
+		}
+	      ++m1 ; ++n1 ;
+	    }
 	  for (m = m1 ; m->start < k && m <= mStop ; ++m) 
 	    sum += (k - m->start) * (m->end - k) ;
 	  if (sum)
@@ -83,20 +94,26 @@ void paintAncestryMatrix (PBWT *p)
 	      counts[i][m->j] += (k - m->start) * (m->end - k) / sum ;
 	}
     }
+  free (partCounts) ;
 #endif
 
   /* report results */
   double *totCounts = mycalloc (p->M, double) ;
+  FILE *fc = fopenTag (fileRoot, "counts", "w") ;
+  FILE *fc2 = fopenTag (fileRoot, "counts2", "w") ;
   for (i = 0 ; i < p->M ; ++i)
     { for (j = 0 ; j < p->M ; ++j) 
-	{ printf (" %8.4g", counts[i][j]) ; 
+	{ fprintf (fc, " %8.4g", counts[i][j]) ; 
 	  totCounts[i] += counts[i][j] ; 
 	}
-      putchar ('\n') ;
-      if ((i%2) && p->samples) 
+      fputc ('\n', fc) ;
+      for (j = 0 ; j < p->M ; ++j) fprintf (fc2," %8.4g", counts2[i][j]) ; 
+      fputc ('\n', fc2) ;
+      if (isCheck && (i%2) && p->samples) 
 	fprintf (stderr, "%s %8.4g %8.4g\n", 
 		 sampleName (sample(p,i-1)), totCounts[i-1], totCounts[i]) ;
     }
+  fclose (fc) ; fclose (fc2) ;
 
 #define HORRIBLE_HACK
 #ifdef HORRIBLE_HACK
