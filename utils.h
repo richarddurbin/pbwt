@@ -19,7 +19,7 @@
  * Description: includes standard system headers and own headers
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 31 17:45 2014 (rd)
+ * Last edited: Jul 18 13:45 2014 (rd)
  * Created: Wed Jan  5 16:13:48 2011 (rd)
  *-------------------------------------------------------------------
  */
@@ -46,6 +46,7 @@ void warn (char *format, ...) ;
 void *_myalloc (int size) ;
 #define mycalloc(n,type) (type*)_mycalloc(n,sizeof(type))
 void *_mycalloc (int number, int size) ;
+FILE *fopenTag (char* root, char* tag, char* mode) ;
 char *fgetword (FILE *f) ;	/* not threadsafe */
 void timeUpdate (void) ;	/* report to stderr resources used since last called */
 

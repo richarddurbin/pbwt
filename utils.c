@@ -16,7 +16,7 @@
  * Description: core utility functions
  * Exported functions:
  * HISTORY:
- * Last edited: Apr  7 16:16 2014 (rd)
+ * Last edited: Jul 18 14:54 2014 (rd)
  * Created: Thu Aug 15 18:32:26 1996 (rd)
  *-------------------------------------------------------------------
  */
@@ -72,6 +72,22 @@ void *_mycalloc (int number, int size)
   totalAllocated += number*size ;
   return p ;
 }
+
+/*************************************************/
+
+FILE *fopenTag (char* root, char* tag, char* mode)
+{
+  if (strlen (tag) > 30) die ("tag %s in fopenTag too long - should be < 30 chars", tag) ;
+  char *fileName = myalloc (strlen (root) + 32, char) ;
+  strcpy (fileName, root) ;
+  strcat (fileName, ".") ;
+  strcat (fileName, tag) ;
+  FILE *f = fopen (fileName, mode) ;
+  free (fileName) ;
+  return f ;
+}
+
+/*************************************************/
 
 char *fgetword (FILE *f)	// pass NULL to free alloced memory
 {

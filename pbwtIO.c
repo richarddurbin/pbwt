@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 14 00:44 2014 (rd)
+ * Last edited: Jul 18 15:23 2014 (rd)
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -119,23 +119,16 @@ void pbwtWriteReverse (PBWT *p, FILE *fp)
   p->yz = tz ; p->aFstart = tstart ; p->aFend = tend ;
 }
 
-#define FOPEN_W(tag)  strcpy (fileNameLeaf, tag) ; if (!(fp = fopen (fileName, "w"))) die ("failed to open %s", fileName)
 
-void pbwtWriteAll (PBWT *p, char *fileNameRoot)
+void pbwtWriteAll (PBWT *p, char *root)
 {
-  char *fileName = myalloc (strlen (fileNameRoot) + 32, char) ;
-  strcpy (fileName, fileNameRoot) ;
-  strcat (fileName, ".") ;
-  char *fileNameLeaf = fileName + strlen(fileName) ;
-
   FILE *fp ;
+#define FOPEN_W(tag)  if (!(fp = fopenTag (root, tag, "w"))) die ("failed to open root.%s", tag)
   FOPEN_W("pbwt") ; pbwtWrite (p, fp) ; fclose (fp) ;
   if (p->sites) { FOPEN_W("sites") ; pbwtWriteSites (p, fp) ; fclose (fp) ; }
   if (p->samples) { FOPEN_W("samples") ; pbwtWriteSamples (p, fp) ; fclose (fp) ; }
   if (p->missing) { FOPEN_W("missing") ; pbwtWriteMissing (p, fp) ; fclose (fp) ; }
   if (p->zz) { FOPEN_W("reverse") ; pbwtWriteReverse (p, fp) ; fclose (fp) ; }
-
-  free (fileName) ;
 }
 
 void pbwtCheckPoint (PBWT *p)
@@ -323,26 +316,18 @@ void pbwtReadReverse (PBWT *p, FILE *fp)
   pbwtDestroy (q) ;
  }
 
-#define FOPEN_R(tag)  strcpy (fileNameLeaf, tag), (fp = fopen (fileName, "r"))
-
-PBWT *pbwtReadAll (char *fileNameRoot)
+PBWT *pbwtReadAll (char *root)
 {
   PBWT *p ;
 
-  char *fileName = myalloc (strlen (fileNameRoot) + 32, char) ;
-  strcpy (fileName, fileNameRoot) ;
-  strcat (fileName, ".") ;
-  char *fileNameLeaf = fileName + strlen(fileName) ;
-
   FILE *fp ;
-  if (FOPEN_R ("pbwt")) { p = pbwtRead (fp) ; fclose (fp) ; } 
-  else die ("failed to open %s", fileName) ;
-  if (FOPEN_R("sites")) { pbwtReadSites (p, fp) ; fclose (fp) ; }
-  if (FOPEN_R("samples")) { pbwtReadSamples (p, fp) ; fclose (fp) ; }
-  if (FOPEN_R("missing")) { pbwtReadMissing (p, fp) ; fclose (fp) ; }
-  if (FOPEN_R("reverse")) { pbwtReadReverse (p, fp) ; fclose (fp) ; }
+  if ((fp = fopenTag (root, "pbwt", "r"))) { p = pbwtRead (fp) ; fclose (fp) ; } 
+  else die ("failed to open %s.pbwt", root) ;
+  if ((fp = fopenTag (root, "sites","r")))  { pbwtReadSites (p, fp) ; fclose (fp) ; }
+  if ((fp = fopenTag (root, "samples","r"))) { pbwtReadSamples (p, fp) ; fclose (fp) ; }
+  if ((fp = fopenTag (root, "missing","r"))) { pbwtReadMissing (p, fp) ; fclose (fp) ; }
+  if ((fp = fopenTag (root, "reverse","r"))) { pbwtReadReverse (p, fp) ; fclose (fp) ; }
 
-  free (fileName) ;
   return p ;
 }
 
@@ -681,23 +666,18 @@ void pbwtWriteHaplotypes (FILE *fp, PBWT *p)
 
 void pbwtWriteImputeRef (PBWT *p, char *fileNameRoot)
 {
-  char *fileName = myalloc (strlen (fileNameRoot) + 32, char) ;
-  strcpy (fileName, fileNameRoot) ;
-  strcat (fileName, ".") ;
-  char *fileNameLeaf = fileName + strlen(fileName) ;
   FILE *fp ;
 
   isWriteImputeRef = TRUE ;
 
-  FOPEN_W("imputeHaps") ; pbwtWriteHaplotypes (fp, p) ; fclose (fp) ;
+  if (!(fp=fopenTag (fileNameRoot, "imputeHaps","w"))) die ("can't open file") ; 
+  pbwtWriteHaplotypes (fp, p) ; fclose (fp) ;
 
-  FOPEN_W("imputeLegend") ; 
+  if (!(fp=fopenTag (fileNameRoot, "imputeLegend","w"))) die ("can't open file") ; 
   fprintf (fp, "rsID\tposition\ta0\ta1\n") ; /* header line */
   pbwtWriteSites (p, fp) ; fclose (fp) ;
 
   isWriteImputeRef = FALSE ;
-
-  free (fileName) ;
 }
 
 void pbwtWriteImputeHapsG (PBWT *p, FILE *fp)
