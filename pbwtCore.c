@@ -15,7 +15,7 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jun 27 18:59 2014 (rd)
+ * Last edited: Jul 20 22:51 2014 (rd)
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -562,6 +562,13 @@ void pbwtCursorWriteForwards (PbwtCursor *u) /* write then move forwards */
   u->n += pack3arrayAdd (u->y, u->M, u->z) ;
   u->isBlockEnd = FALSE ;
   pbwtCursorForwardsA (u) ;
+}
+
+void pbwtCursorWriteForwardsAD (PbwtCursor *u, int k)
+{
+  u->n += pack3arrayAdd (u->y, u->M, u->z) ;
+  u->isBlockEnd = FALSE ;
+  pbwtCursorForwardsAD (u, k) ;
 }
 
 void pbwtCursorToAFend (PbwtCursor *u, PBWT *p) /* utility to copy final u->a to p->aFend */
