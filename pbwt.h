@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 25 08:46 2014 (rd)
+ * Last edited: Sep 10 23:38 2014 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -170,7 +170,7 @@ PBWT *pbwtReadPhase (FILE *fp) ; /* Li and Stephens PHASE file */
 void pbwtWriteHaplotypes (FILE *fp, PBWT *p) ;
 void pbwtWriteImputeRef (PBWT *p, char *fileNameRoot) ;
 void pbwtWriteImputeHapsG (PBWT *p, FILE *fp) ;
-void pbwtCheckPoint (PBWT *p) ;
+void pbwtCheckPoint (PbwtCursor *u, PBWT *p) ; /* need cursor to write end index */
 
 /* pbwtHtslib.c */
 /* all these functions also read and write samples and sites */
