@@ -233,6 +233,7 @@ void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
           free(sname.s) ;
         }
     }
+  bcf_hdr_add_sample(bcf_hdr, NULL);
   bcf_hdr_write(bcf_fp, bcf_hdr) ;
 
   bcf1_t *bcf_rec = bcf_init1() ;
