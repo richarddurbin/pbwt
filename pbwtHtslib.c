@@ -5,7 +5,7 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Jun 27 19:37 2014 (rd)
+ * Last edited: Sep 10 23:37 2014 (rd)
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -122,7 +122,7 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
           s->varD = variation (p, ref, alt) ;          
         }
 
-      if (nCheckPoint && !(p->N % nCheckPoint))  pbwtCheckPoint (p) ;
+      if (nCheckPoint && !(p->N % nCheckPoint))  pbwtCheckPoint (u, p) ;
     }
   pbwtCursorToAFend (u, p) ;
 

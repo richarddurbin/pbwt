@@ -15,7 +15,7 @@
  * Description: match functions in pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Apr  2 17:30 2014 (rd)
+ * Last edited: Jul 25 22:41 2014 (rd)
  * Created: Thu Apr  4 11:55:48 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -351,125 +351,6 @@ void matchSequencesDynamic (PBWT *p, FILE *fp)
   PBWT *q = pbwtRead (fp) ;	/* q for "query" of course */
   matchSequencesSweep (p, q, reportMatch) ; /* (new) sweep is better than (old) sweep2 */
   pbwtDestroy (q) ;
-}
-
-void matchSequencesSweep2 (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int start, int end))
-/* Rather than keep a[][], d[][], u[][] in memory, which can be very costly, here we update
-   them in one sweep through the data. This makes the algorithm O(MN) sadly, but only
-   O((M+Q)N) where Q is the number of queries, not O(MNQ) as the naive method.  
-       There are actually two versions here, one with isCheck set, in which case the 
-   reference haplotypes are calculated, and we can use the algorithm as in Indexed above,
-   which requires the check "x[e1-1] == y[e1-1]" when looking for e1.  However this still
-   uses MN bytes to store the reference haplotypes.  When isCheck is FALSE, we avoid this
-   by extending backwards from k using the PBWT which has some sort of NQlogM cost.
-       This could all be made tighter.  First by not explicitly building the u[] array but
-   instead updating the query [f,g) in their PBWT sort order.  Second by building a proper
-   index on the reference PBWT to allow rapid extension forwards and backwards.  However,
-   in order to report which sequence we have hit we need to maintain the a[] array, which
-   is O(NM) - this can be done with block memcpy's in the update which might increase
-   speed considerably.  Unless we are happy just to find the query maximal strings.
-*/
-{
-  uchar **query = pbwtHaplotypes (q) ; /* make the sequences */
-  Array mInfo = arrayCreate (q->M, MatchInfo) ;
-  int i, j, k, M = p->M, N = p->N ;
-  int e1, f1, g1 ;		/* new values as in algorithm 5 e', f', g' */
-  int c, *cc ;
-  uchar *y ;
-  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
-  MatchInfo *m ;
-  uchar **reference ;		/* haplotypes for reference; only made when checking */
-  int totLen = 0, nTot = 0 ;
-
-  if (q->N != p->N) die ("query length in matchSequences %d != PBWT length %d", q->N, p->N) ;
-
-  if (isCheck)
-    { reference = pbwtHaplotypes (p) ; /* expensive for big reference (same as naive) */
-      checkHapsA = query ; checkHapsB = reference ; Ncheck = p->N ;
-    }
-
-  for (j = 0 ; j < q->M ; ++j)	/* initialise query data structures */
-    { m = arrp(mInfo,j,MatchInfo) ;
-      m->x = query[j] ;
-      m->g = M ;
-    }
-  cc = myalloc (N, int) ;	/* used to store u->c values */
-
-			/* outer loop is now single sweep through pbwt */
-  for (k = 0 ; k < N ; ++k)
-    { cc[k] = u->c ; int ny = u->n ; /* needed in backtrack */
-      pbwtCursorCalculateU (u) ; /* needed for pbwtCursorMap() */
-      for (j = 0 ; j < q->M ; ++j)
-	{ m = arrp(mInfo,j,MatchInfo) ;
-			/* use classic FM updates to extend [f,g) interval to next position */
-	  f1 = pbwtCursorMap (u, m->x[k], m->f) ;
-	  g1 = pbwtCursorMap (u, m->x[k], m->g) ;
-	  if (isCheck && (m->f < 0 || f1 > u->M || g1 < 0 || g1 > u->M))
-	    die ("bad bounds in matchSequencesSweep") ;
-	  if (f1 == g1)	/* we have reached a maximum - report matches */
-	    { for (i = m->f ; i < m->g ; ++i)
-		(*report)(j, u->a[i], m->e, k) ;
-	      nTot += (m->g - m->f)  ; totLen += (m->g - m->f) * (k - m->e) ;
-	    }
-	  m->f = f1 ; m->g = g1 ; /* initial update for f and g */
-	}
-
-      pbwtCursorForwardsReadAD (u, k) ; /* next move forwards to new positions */
-      			
-      for (j = 0 ; j < q->M ; ++j) /* loop again over queries to update e and f or g at maxima */
-	{ m = arrp(mInfo,j,MatchInfo) ;
-	  if (m->f == m->g)
-	    { f1 = m->f ; g1 = m->g ;
-	      e1 = u->d[f1] - 1 ; /* initial upper bound for e1 */
-	      if ((m->x[e1] == 0 && f1 > 0) || f1 == M)
-		{ f1 = g1 - 1 ;
-		  if (isCheck) 
-		    { y = reference[u->a[f1]] ; 
-		      while (m->x[e1-1] == y[e1-1]) --e1 ;
-		    }
-		  else		/* have to track back f1 to e1 */
-		    { int ny2 = ny, kk = k, f2 = f1 ; uchar z ;
-		      do ny2 -= extendPackedBackwards (arrp(p->yz,ny2,uchar), M, &f2, cc[kk], &z) ;
-		      while (m->x[kk--] == z) ;
-		      e1 = kk + 2 ;
-		    }
-		  while (u->d[f1] <= e1) --f1 ;
-		}
-	      else if (f1 < M)
-		{ g1 = f1 + 1 ;
-		  if (isCheck) 
-		    { y = reference[u->a[f1]] ; 
-		      while (m->x[e1-1] == y[e1-1]) --e1 ;
-		    }
-		  else		/* have to track back f1 to e1 */
-		    { int ny2 = ny, kk = k, f2 = f1 ; uchar z = m->x[k] ;
-		      do ny2 -= extendPackedBackwards (arrp(p->yz,ny2,uchar), M, &f2, cc[kk], &z) ;
-		      while (m->x[kk--] == z) ;
-		      e1 = kk + 2 ;
-		    }
-		  while (u->d[g1] <= e1) ++g1 ;
-		}
-	      m->e = e1 ; m->f = f1 ; m->g = g1 ;
-	    }
-	}
-    }
-
-  /* report the maximal matches to the end */
-  for (j = 0 ; j < q->M ; ++j)
-    { m = arrp(mInfo,j,MatchInfo) ;
-      for (i = m->f ; i < m->g ; ++i)
-	(*report)(j, u->a[i], m->e, N) ;
-      nTot += (m->g - m->f)  ; totLen += (m->g - m->f) * (N - m->e) ;
-    }
-
-  fprintf (stderr, "Average number of best matches including alternates %.1f, Average length %.1f\n", 
-	   nTot/(double)q->M, totLen/(double)nTot) ;
-
-  		/* cleanup */
-  for (j = 0 ; j < q->M ; ++j) free(query[j]) ; free (query) ;
-  free (cc) ;
-  pbwtCursorDestroy (u) ;
-  if (isCheck) { for (j = 0 ; j < p->M ; ++j) free(reference[j]) ; free (reference) ; }
 }
 
 void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int start, int end))/* this is simpler and faster - just keep track of best match with its start */

@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 17 11:43 2014 (rd)
+ * Last edited: Jul 21 08:57 2014 (rd)
  * Created: Sat Apr 26 22:29:13 2014 (rd)
  *-------------------------------------------------------------------
  */
@@ -434,12 +434,12 @@ static double thetaSearchDropOne (double theta)
 void pbwtLogLikelihoodCopyModel (PBWT *p, double theta, double rho)
 { double LL = copyLogLikelihoodDropOne (p, theta, rho) ;
   printf ("theta %f rho %f LL %f  per site %f  per cell %f\n", 
-	  0.01, 0.01, LL, LL/p->N, LL/(p->M*p->N)) ;
+	  theta, rho, LL, LL/p->N, LL/(p->M*p->N)) ;
   pSearch = p ; 
   thetaSearch = theta ;
-  rhoSearch = lineSearchPositive (thetaSearch, 1.01, rhoSearchDropOne) ;
-  thetaSearch = lineSearchPositive (0.01, 1.01, thetaSearchDropOne) ;
-  LL = betaSearchLLDropOne (betaSearch) / p->N ;
+  rhoSearch = lineSearchPositive (rho, 1.01, rhoSearchDropOne) ;
+  thetaSearch = lineSearchPositive (theta, 1.01, thetaSearchDropOne) ;
+  LL = copyLogLikelihoodDropOne (pSearch, thetaSearch, rhoSearch) / p->N ;
   printf ("Fit theta %f  rho %f  LL per site %f  per cell %f\n", 
 	  thetaSearch, rhoSearch, LL, LL/p->M) ;
 }

@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 18 13:48 2014 (rd)
+ * Last edited: Sep 10 23:38 2014 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -105,6 +105,7 @@ void pbwtCursorForwardsRead (PbwtCursor *u) ; /* move forwards and read (unless 
 void pbwtCursorForwardsReadAD (PbwtCursor *u, int k) ;
 void pbwtCursorReadBackwards (PbwtCursor *u) ; /* read and move backwards (unless at start) */
 void pbwtCursorWriteForwards (PbwtCursor *u) ; /* write then move forwards */
+void pbwtCursorWriteForwardsAD (PbwtCursor *u, int k) ;
 void pbwtCursorToAFend (PbwtCursor *u, PBWT *p) ; /* utility to copy final u->a to p->aFend */
 /* basic update operations - inline them to make them tight */
 /* NB run pbwtCursorCalculateU() before pbwtCursorMap() */
@@ -169,7 +170,7 @@ PBWT *pbwtReadPhase (FILE *fp) ; /* Li and Stephens PHASE file */
 void pbwtWriteHaplotypes (FILE *fp, PBWT *p) ;
 void pbwtWriteImputeRef (PBWT *p, char *fileNameRoot) ;
 void pbwtWriteImputeHapsG (PBWT *p, FILE *fp) ;
-void pbwtCheckPoint (PBWT *p) ;
+void pbwtCheckPoint (PbwtCursor *u, PBWT *p) ; /* need cursor to write end index */
 
 /* pbwtHtslib.c */
 /* all these functions also read and write samples and sites */
@@ -190,7 +191,7 @@ void matchSequencesDynamic2 (PBWT *p, FILE *fp) ;
 /* pbwtImpute.c */
 
 void imputeExplore (PBWT *p, int test) ;
-PBWT *phase (PBWT *p, int kMethod, int nSparse) ;
+PBWT *phase (PBWT *p, int nSparse) ;
 PBWT *referencePhase (PBWT *p, char *fileNameRoot) ;
 PBWT *referenceImpute (PBWT *p, char *fileNameRoot) ;
 void genotypeCompare (PBWT *p, char *fileNameRoot) ;

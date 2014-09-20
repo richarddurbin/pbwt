@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 18 15:23 2014 (rd)
+ * Last edited: Sep 10 23:37 2014 (rd)
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -131,11 +131,12 @@ void pbwtWriteAll (PBWT *p, char *root)
   if (p->zz) { FOPEN_W("reverse") ; pbwtWriteReverse (p, fp) ; fclose (fp) ; }
 }
 
-void pbwtCheckPoint (PBWT *p)
+void pbwtCheckPoint (PbwtCursor *u, PBWT *p)
 {
   static BOOL isA = TRUE ;
   char fileNameRoot[20] ;
 
+  pbwtCursorToAFend (u, p) ;
   sprintf (fileNameRoot, "check_%c", isA ? 'A' : 'B') ;
   pbwtWriteAll (p, fileNameRoot) ;
 
@@ -388,10 +389,7 @@ PBWT *pbwtReadMacs (FILE *fp)
     { for (j = 0 ; j < M ; ++j) u->y[j] = x[u->a[j]] ; /* next character in sort order: BWT */
       pbwtCursorWriteForwards (u) ;
       p->N++ ;
-      if (nCheckPoint && !(p->N % nCheckPoint))
-	{ pbwtCursorToAFend (u, p) ;
-	  pbwtCheckPoint (p) ;
-	}
+      if (nCheckPoint && !(p->N % nCheckPoint)) pbwtCheckPoint (u, p) ;
     }
   pbwtCursorToAFend (u, p) ;
 
@@ -485,7 +483,7 @@ static PBWT *pbwtReadLineFile (FILE *fp, char* type, ParseLineFunc parseLine)
       x = arrp(xArray,0,uchar) ;
       for (j = 0 ; j < p->M ; ++j) u->y[j] = x[u->a[j]] ;
       pbwtCursorWriteForwards (u) ;
-      if (nCheckPoint && !(p->N % nCheckPoint))	pbwtCheckPoint (p) ;
+      if (nCheckPoint && !(p->N % nCheckPoint))	pbwtCheckPoint (u, p) ;
     }
   pbwtCursorToAFend (u, p) ;
 
@@ -627,7 +625,7 @@ PBWT *pbwtReadPhase (FILE *fp) /* Li and Stephens PHASE format */
   for (i = 0 ; i < p->N ; ++i)
     { for (j = 0 ; j < p->M ; ++j) u->y[j] = data[i][u->a[j]] ;
       pbwtCursorWriteForwards (u) ;
-      if (nCheckPoint && !((i+1) % nCheckPoint)) pbwtCheckPoint (p) ;
+      if (nCheckPoint && !((i+1) % nCheckPoint)) pbwtCheckPoint (u, p) ;
     }
   pbwtCursorToAFend (u, p) ;
 

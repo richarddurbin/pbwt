@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 18 13:48 2014 (rd)
+ * Last edited: Jul 25 08:45 2014 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -181,7 +181,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -matchIndexed <file>      maximal match seqs in pbwt file to reference\n") ;
       fprintf (stderr, "  -matchDynamic <file>      maximal match seqs in pbwt file to reference\n") ;
       fprintf (stderr, "  -imputeExplore <n>        n'th impute test\n") ;
-      fprintf (stderr, "  -phase <k> <n>            phase with method k and n sparse pbwts\n") ;
+      fprintf (stderr, "  -phase <n>                phase with n sparse pbwts\n") ;
       fprintf (stderr, "  -referencePhase <root>    phase current pbwt against reference whose root name is the argument - both pbwts need compatible sites! - only keep shared sites\n") ;
       fprintf (stderr, "  -referenceImpute <root>   impute current pbwt into reference whose root name is the argument - need compatible sites - does not rephase either pbwt\n") ;
       fprintf (stderr, "  -genotypeCompare <root>   compare genotypes with those from referencewhose root name is the argument - need compatible sites\n") ;
@@ -312,8 +312,8 @@ int main (int argc, char *argv[])
       { FOPEN("matchDynamic","r") ; matchSequencesDynamic (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-imputeExplore") && argc > 1)
       { imputeExplore (p, atoi(argv[1])) ; argc -= 2 ; argv += 2 ; }
-    else if (!strcmp (argv[0], "-phase") && argc > 2)
-      { p = phase (p, atoi(argv[1]), atoi(argv[2])) ; argc -= 3 ; argv += 3 ; }
+    else if (!strcmp (argv[0], "-phase") && argc > 1)
+      { p = phase (p, atoi(argv[1])) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-referencePhase") && argc > 1)
       { p = referencePhase (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-referenceImpute") && argc > 1)
