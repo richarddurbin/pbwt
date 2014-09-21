@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 10 23:37 2014 (rd)
+ * Last edited: Sep 19 18:11 2014 (rd)
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -33,8 +33,8 @@ void pbwtWrite (PBWT *p, FILE *fp) /* just writes compressed pbwt in yz */
 {
   if (!p || !p->yz) die ("pbwtWrite called without a valid pbwt") ;
   if (!p->aFstart || !p->aFend) die ("pbwtWrite called without start and end indexes") ;
-
-  if (fwrite ("PBW2", 1, 4, fp) != 4) /* version 2, with start and end indexes */
+  /* version 2 added start and end indexes */
+  if (fwrite ("PBW3", 1, 4, fp) != 4) /* version 3 with 8 byte pbwt size */
     die ("error writing PBWT in pbwtWrite") ;
   if (fwrite (&p->M, sizeof(int), 1, fp) != 1)
     die ("error writing M in pbwtWrite") ;
@@ -44,13 +44,15 @@ void pbwtWrite (PBWT *p, FILE *fp) /* just writes compressed pbwt in yz */
     die ("error writing aFstart in pbwtWrite") ;
   if (fwrite (p->aFend, sizeof(int), p->M, fp) != p->M)
     die ("error writing aFend in pbwtWrite") ;
-  int n = arrayMax(p->yz) ;
-  if (fwrite (&n, sizeof(int), 1, fp) != 1)
+  long n = arrayMax(p->yz) ;
+  if (fwrite (&n, sizeof(long), 1, fp) != 1)
     die ("error writing n in pbwtWrite") ;
+  if (fwrite ("    ", 1, 4, fp) != 4)
+    die ("error writing padding space in pbwtWrite") ;
   if (fwrite (arrp(p->yz, 0, uchar), sizeof(uchar), arrayMax(p->yz), fp) != arrayMax(p->yz))
     die ("error writing data in pbwtWrite") ;
 
-  fprintf (stderr, "written %d chars pbwt: M, N are %d, %d\n", arrayMax(p->yz), p->M, p->N) ;
+  fprintf (stderr, "written %ld chars pbwt: M, N are %d, %d\n", arrayMax(p->yz), p->M, p->N) ;
 }
 
 void pbwtWriteSites (PBWT *p, FILE *fp)
@@ -94,16 +96,18 @@ void pbwtWriteSamples (PBWT *p, FILE *fp)
 void pbwtWriteMissing (PBWT *p, FILE *fp)
 {
   if (!p || !p->zMissing) die ("pbwtWriteMissing called without data on missing") ;
-
-  int n = arrayMax(p->zMissing) ;
-  if (fwrite (&n, sizeof(int), 1, fp) != 1)
+  int dummy = -1 ;	/* ugly hack to mark that we now use longs not ints */
+  if (fwrite (&dummy, sizeof(int), 1, fp) != 1)
+    die ("error writing in pbwtWriteMissing") ;
+  long n = arrayMax(p->zMissing) ;
+  if (fwrite (&n, sizeof(long), 1, fp) != 1)
     die ("error writing n in pbwtWriteMissing") ;
   if (fwrite (arrp(p->zMissing, 0, uchar), sizeof(uchar), n, fp) != n)
     die ("error writing zMissing in pbwtWriteMissing") ;
-  if (fwrite (arrp(p->missing, 0, int), sizeof(int), p->N, fp) != p->N)
+  if (fwrite (arrp(p->missing, 0, long), sizeof(long), p->N, fp) != p->N)
     die ("error writing missing in pbwtWriteMissing") ;
 
-  fprintf (stderr, "written %d chars compressed missing data\n", n) ;
+  fprintf (stderr, "written %ld chars compressed missing data\n", n) ;
 }
 
 void pbwtWriteReverse (PBWT *p, FILE *fp)
@@ -148,12 +152,14 @@ void pbwtCheckPoint (PbwtCursor *u, PBWT *p)
 PBWT *pbwtRead (FILE *fp) 
 {
   int m, n ;
+  long nz ;
   PBWT *p ;
   static char tag[5] = "test" ;
   int version ;
 
   if (fread (tag, 1, 4, fp) != 4) die ("failed to read 4 char tag - is file readable?") ;
-  if (!strcmp (tag, "PBW2")) version = 2 ; /* current version */
+  if (!strcmp (tag, "PBW3")) version = 2 ; /* current version */
+  else if (!strcmp (tag, "PBW2")) version = 2 ; /* with 4 byte count */
   else if (!strcmp (tag, "PBWT")) version = 1 ; /* without start, end indexes */
   else if (!strcmp (tag, "GBWT")) version = 0 ; /* earliest version */
   else die ("failed to recognise file type %s in pbwtRead - was it written by pbwt?", tag) ;
@@ -171,14 +177,21 @@ PBWT *pbwtRead (FILE *fp)
     { p->aFstart = myalloc (m, int) ;
       int i ; for (i = 0 ; i < m ; ++i) p->aFstart[i] = i ;
     }
-  if (fread (&n, sizeof(int), 1, fp) != 1)
-    die ("error reading pbwt file") ;
-  p->yz = arrayCreate (n, uchar) ;
-  array(p->yz, n-1, uchar) = 0 ; /* sets arrayMax */
-  if (fread (arrp(p->yz, 0, uchar), sizeof(uchar), n, fp) != n)
+
+  if (version <= 2)
+    { if (fread (&n, sizeof(int), 1, fp) != 1) die ("error reading pbwt file") ;
+      nz = n ;
+    }
+  else
+    if (fread (&nz, sizeof(long), 1, fp) != 1 ||
+	fread (tag, 1, 4, fp) != 4) die ("error reading pbwt file") ;
+
+  p->yz = arrayCreate (nz, uchar) ;
+  array(p->yz, nz-1, uchar) = 0 ; /* sets arrayMax */
+  if (fread (arrp(p->yz, 0, uchar), sizeof(uchar), nz, fp) != nz)
     die ("error reading data in pbwt file") ;
 
-  fprintf (stderr, "read pbwt %s file with %d bytes: M, N are %d, %d\n", tag, n, p->M, p->N) ;
+  fprintf (stderr, "read pbwt %s file with %ld bytes: M, N are %d, %d\n", tag, nz, p->M, p->N) ;
   return p ;
 }
 
@@ -226,7 +239,7 @@ Array pbwtReadSitesFile (FILE *fp, char **chrom)
 
   if (ferror (fp)) die ("error reading sites file") ;
   
-  fprintf (stderr, "read %d sites on chromosome %s from file\n", arrayMax(sites), *chrom) ;
+  fprintf (stderr, "read %ld sites on chromosome %s from file\n", arrayMax(sites), *chrom) ;
 
   arrayDestroy (varTextArray) ;
   return sites ;
@@ -238,7 +251,7 @@ void pbwtReadSites (PBWT *p, FILE *fp)
 
   p->sites = pbwtReadSitesFile (fp, &p->chrom) ;
   if (arrayMax(p->sites) != p->N)
-    die ("sites file contains %d sites not %d as in pbwt", arrayMax(p->sites), p->N) ;
+    die ("sites file contains %ld sites not %d as in pbwt", arrayMax(p->sites), p->N) ;
 }
 
 Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
@@ -254,7 +267,7 @@ Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
     { int n = 0 ;
       while ((c = getc(fp)) && !isspace(c) && !feof (fp)) array(nameArray, n++, char) = c ;
       if (feof(fp)) break ;
-      if (!n) die ("no name line %d in samples file", arrayMax(samples)+1) ;
+      if (!n) die ("no name line %ld in samples file", arrayMax(samples)+1) ;
       array(nameArray, n++, char) = 0 ;
       /* next bit of code deals with header lines for IMPUTE2 samples file, so can read that */
       if (!strcmp (arrp(nameArray,0,char), "ID_1") && !arrayMax(samples))
@@ -268,7 +281,7 @@ Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
     }
   arrayDestroy (nameArray) ;
 
-  fprintf (stderr, "read %d sample names\n", arrayMax(samples)) ;
+  fprintf (stderr, "read %ld sample names\n", arrayMax(samples)) ;
 
   return samples ;
 }
@@ -291,17 +304,32 @@ void pbwtReadMissing (PBWT *p, FILE *fp)
 {
   if (!p) die ("pbwtReadSamples called without a valid pbwt") ;
 
-  int n ; if (fread (&n, sizeof(int), 1, fp) != 1)
-    die ("error reading n in pbwtReadMissing") ;
+  long n ;			/* size of zMissing file */
+  int dummy ; 
+  if (fread (&dummy, sizeof(int), 1, fp) != 1) 
+    die ("read error in pbwtReadMissing") ;
+  if (dummy != -1) n = dummy ;	/* old version with ints not longs */
+  else if (fread (&n, sizeof(long), 1, fp) != 1) 
+    die ("read error in pbwtReadMissing") ;
+
   p->zMissing = arrayReCreate (p->zMissing, n, uchar) ;
   if (fread (arrp(p->zMissing, 0, uchar), sizeof(uchar), n, fp) != n)
     die ("error reading zMissing in pbwtReadMissing") ;
-  array(p->zMissing, n-1, uchar) ; /* forces setting max correctly - not sure if needed */
-  p->missing = arrayReCreate (p->missing, p->N, int) ;
-  if (fread (arrp(p->missing, 0, int), sizeof(int), p->N, fp) != p->N)
-    die ("error reading missing in pbwtReadMissing") ;
+  arrayMax(p->zMissing) = n ;
+  fprintf (stderr, "read %ld chars compressed missing data\n", n) ;
 
-  fprintf (stderr, "read %d chars compressed missing data\n", n) ;
+  p->missing = arrayReCreate (p->missing, p->N, long) ;
+  if (dummy != -1)		/* old version with ints not longs */
+    { /* abuse p->missing to hold ints, then update in place */
+      if (fread (arrp(p->missing, 0, int), sizeof(int), p->N, fp) != p->N) 
+	die ("error reading missing in pbwtReadMissing") ;
+      for (n = p->N ; n-- ;) 
+	arr(p->missing, n, long) = arr(p->missing, n, int) ; /* !! */
+    }
+  else
+    if (fread (arrp(p->missing, 0, long), sizeof(long), p->N, fp) != p->N)
+      die ("error reading missing in pbwtReadMissing") ;
+  arrayMax(p->missing) = p->N ;
 }
 
 void pbwtReadReverse (PBWT *p, FILE *fp)
@@ -489,7 +517,7 @@ static PBWT *pbwtReadLineFile (FILE *fp, char* type, ParseLineFunc parseLine)
 
   fprintf (stderr, "read %s file", type) ;
   if (p->chrom) fprintf (stderr, " for chromosome %s", p->chrom) ;
-  fprintf (stderr, ": M, N are\t%d\t%d; yz length is %d\n", p->M, p->N, arrayMax(p->yz)) ;
+  fprintf (stderr, ": M, N are\t%d\t%d; yz length is %ld\n", p->M, p->N, arrayMax(p->yz)) ;
 
   arrayDestroy(xArray) ; pbwtCursorDestroy (u) ;
 
@@ -631,7 +659,7 @@ PBWT *pbwtReadPhase (FILE *fp) /* Li and Stephens PHASE format */
 
   fprintf (stderr, "read phase file") ;
   if (p->chrom) fprintf (stderr, " for chromosome %s", p->chrom) ;
-  fprintf (stderr, ": M, N are\t%d\t%d; yz length is %d\n", p->M, p->N, arrayMax(p->yz)) ;
+  fprintf (stderr, ": M, N are\t%d\t%d; yz length is %ld\n", p->M, p->N, arrayMax(p->yz)) ;
 
   for (i = 0 ; i < p->N ; ++i) free(data[i]) ;
   free (data) ; pbwtCursorDestroy (u) ;

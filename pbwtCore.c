@@ -15,7 +15,7 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 20 22:51 2014 (rd)
+ * Last edited: Sep 19 17:33 2014 (rd)
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -171,7 +171,7 @@ void pbwtBuildReverse (PBWT *p)
   /* save uR->a, which is the lexicographic order of the sequences */
   if (!p->aRend) p->aRend = myalloc (M, int) ; memcpy (p->aRend, uR->a, M * sizeof(int)) ;
 
-  fprintf (stderr, "built reverse PBWT - size %d\n", arrayMax(p->zz)) ;
+  fprintf (stderr, "built reverse PBWT - size %ld\n", arrayMax(p->zz)) ;
 
   if (isCheck)			/* print out the reversed haplotypes */
     { FILE *fp = fopen ("rev.haps","w") ;
@@ -264,7 +264,7 @@ int pack3 (uchar *yp, int M, uchar *yzp)
 int pack3arrayAdd (uchar *yp, int M, Array ayz)
 /* pack M chars onto the end of array ayz - normally use this function */
 {
-  int max = arrayMax(ayz) ;
+  long max = arrayMax(ayz) ;
   array (ayz, max+M, uchar) = 0 ; /* ensure enough space to copy into */
   int n = pack3 (yp, M, arrp(ayz,max,uchar)) ;
   arrayMax(ayz) = max + n ;
@@ -611,7 +611,7 @@ PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
     }
   pbwtCursorToAFend (uNew, pNew) ;
 
-  fprintf (stderr, "%d sites selected from %d, pbwt size for %d haplotypes is %d\n", 
+  fprintf (stderr, "%d sites selected from %d, pbwt size for %d haplotypes is %ld\n", 
 	   pNew->N, pOld->N, pNew->M, arrayMax(pNew->yz)) ;
 
   if (isKeepOld)
@@ -671,7 +671,7 @@ PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld)
     }
   pbwtCursorToAFend (uNew, pNew) ;
 
-  fprintf (stderr, "%d sites selected from %d, pbwt size for %d haplotypes is %d\n", 
+  fprintf (stderr, "%d sites selected from %d, pbwt size for %d haplotypes is %ld\n", 
 	   pNew->N, pOld->N, pNew->M, arrayMax(pNew->yz)) ;
 
   if (isKeepOld)

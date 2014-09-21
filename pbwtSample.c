@@ -5,7 +5,7 @@
  * Description: functions for samples and populations
  * Exported functions:
  * HISTORY:
- * Last edited: Apr  4 11:32 2014 (rd)
+ * Last edited: Sep 19 16:42 2014 (rd)
  * Created: Sat Nov  2 18:42:07 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -46,7 +46,8 @@ int sampleAdd (char *name, char *father, char *mother, char *pop)
 Sample *sample (PBWT *p, int i) 
 {
   i = arr(p->samples, i, int) ;
-  if (i >= arrayMax(samples)) die ("sample index %d out of range %d", i, arrayMax(samples)) ;
+  if (i >= arrayMax(samples))
+    die ("sample index %d out of range %ld", i, arrayMax(samples)) ;
   return arrp(samples,i,Sample) ;
 }
 
@@ -61,7 +62,7 @@ PBWT *pbwtSubSample (PBWT *pOld, Array select)
 
   PBWT *pNew = pbwtCreate (arrayMax(select), pOld->N) ;
   int i, j, nOld = 0 ;
-  uchar *x = myalloc (pNew->M, uchar), *yz = myalloc (pNew->M, uchar) ;
+  uchar *x = myalloc (pNew->M, uchar) ;
   int *ainv = myalloc (pOld->M, int) ;
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;

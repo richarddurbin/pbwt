@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Aug  7 11:33 2014 (rd)
+ * Last edited: Sep 19 18:02 2014 (rd)
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -1001,7 +1001,7 @@ static PBWT *referencePhase4 (PBWT *pOld, PBWT *pRef)
       pbwtCursorForwardsReadAD (uRef, k) ;
     }
 
-  fprintf (stderr, "traceBackHeap final %d, max %d\n", 
+  fprintf (stderr, "traceBackHeap final %ld, max %ld\n", 
 	   arrayMax(traceBackHeap)-arrayMax(traceBackFreeStack), arrayMax(traceBackHeap)) ;
 
   /* now do the traceback - we write first into the reverse pbwt for pNew */
@@ -1150,8 +1150,8 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
       double psum = 0, xsum = 0, pxsum = 0 ; int n = 0 ;
       arrp(pRef->sites,kRef,Site)->refFreq = (uRef->M - uRef->c) / (double) pRef->M ;
       if (pOld == pFrame)	/* find which samples are missing at this site */
-	{ if (!arr(pRef->missing, kRef, int)) bzero (missing, pRef->M) ;
-	  else unpack3 (arrp(pRef->zMissing,arr(pRef->missing,kRef,int), uchar), 
+	{ if (!arr(pRef->missing, kRef, long)) bzero (missing, pRef->M) ;
+	  else unpack3 (arrp(pRef->zMissing,arr(pRef->missing,kRef,long), uchar), 
 			pRef->M, missing, 0) ;
 	}
       for (j = 0 ; j < pOld->M ; ++j)
@@ -1275,13 +1275,13 @@ PBWT *imputeMissing (PBWT *pOld)
     { int *nMiss = mycalloc (10,int), n0, i ;
       uchar *miss = myalloc (pOld->M, uchar) ;
       for (k = 0 ; k < pOld->N ; ++k)
-	if (arr(pOld->missing,k,int)) 
+	if (arr(pOld->missing,k,long)) 
 	  { unpack3 (arrp(pOld->zMissing,arr(pOld->missing,k,int), uchar), 
 		     pOld->M, miss, &n0) ;
 	    n0 = pOld->M - n0 ;
 	    if (isCheck)
-	      { printf ("missing at %d: offset %d, n0 %d", 
-			k, arr(pOld->missing,k,int), n0) ;
+	      { printf ("missing at %d: offset %ld, n0 %d", 
+			k, arr(pOld->missing,k,long), n0) ;
 		putchar ('\n') ;
 	      }
 	    for (i = 0 ; n0 > 0 ; ++i) { ++nMiss[i] ; n0 /= 10 ; }
@@ -1297,7 +1297,7 @@ PBWT *imputeMissing (PBWT *pOld)
   /* first build frame */
   Array completeSites = arrayCreate (pOld->M, Site) ;
   for (k = 0 ; k < pOld->N ; ++k) 
-    if (!arr(pOld->missing,k,int)) 
+    if (!arr(pOld->missing,k,long)) 
       array(completeSites,arrayMax(completeSites),Site) = arr(pOld->sites,k,Site) ;
   PBWT *pFrame = pbwtSelectSites (pOld, completeSites, TRUE) ;
   arrayDestroy (completeSites) ;

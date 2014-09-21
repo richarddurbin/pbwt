@@ -24,7 +24,8 @@
  * Exported functions:
  *              the Array type and associated macros and functions
  * HISTORY:
- * Last edited: May  5 10:57 2013 (rd)
+ * Last edited: Sep 19 16:13 2014 (rd)
+ * * Sep 19 15:42 2014 (rd): switch to long indices to avoid overflow
  * * May  5 10:57 2013 (rd): new address for rd: rd@sanger.ac.uk
  *-------------------------------------------------------------------
  */
@@ -42,9 +43,9 @@
 typedef struct ArrayStruct
   { int   magic ;
     char* base ;    /* char* since need to do pointer arithmetic in bytes */
-    int   dim ;     /* length of alloc'ed space */
+    long  dim ;     /* length of alloc'ed space */
     int   size ;
-    int   max ;     /* largest element accessed via array() */
+    long  max ;     /* largest element accessed via array() */
     int   id ;      /* unique identifier */
   } *Array ;
  
@@ -54,26 +55,26 @@ typedef struct ArrayStruct
 
 #define ARRAY_MAGIC 8918274
 
-Array   uArrayCreate (int n, int size) ;
+Array   uArrayCreate (long n, int size) ;
 #define arrayCreate(n,type)	         uArrayCreate(n,sizeof(type))
-Array   uArrayReCreate (Array a, int n, int size) ;
+Array   uArrayReCreate (Array a, long n, int size) ;
 #define arrayReCreate(a,n,type)	         uArrayReCreate(a,n,sizeof(type))
 void    arrayDestroy (Array a) ;
 Array	arrayCopy (Array a) ;
-void    arrayExtend (Array a, int n) ;
+void    arrayExtend (Array a, long n) ;
 
      /* array() and arrayp() will extend the array if necessary */
 
-char    *uArray (Array a, int index) ;
+char    *uArray (Array a, long i) ;
 #define array(ar,i,type)	(*(type*)uArray(ar,i))
 #define arrayp(ar,i,type)	((type*)uArray(ar,i))
-char    *uArrayBlock (Array a, int i, int n) ;
+char    *uArrayBlock (Array a, long i, long n) ;
 #define arrayBlock(ar,i,n,type) ((type*)uArrayBlock(ar,i,n)) /* use when memset(), fread() etc multiple items */
 
      /* only use arr() when there is no danger of needing expansion */
 
 #if (defined(ARRAY_CHECK) && !defined(ARRAY_NO_CHECK))
-char    *uArrCheck (Array a, int index) ;
+char    *uArrCheck (Array a, long i) ;
 #define arr(ar,i,type)	(*(type*)uArrCheck(ar,i))
 #define arrp(ar,i,type)	((type*)uArrCheck(ar,i))
 #else
@@ -89,11 +90,13 @@ typedef int ArrayOrder(const void*, const void*) ;             /* call back func
 BOOL    arrayInsert(Array a, void * s, ArrayOrder *order);
 BOOL    arrayRemove(Array a, void * s, ArrayOrder *order);
 void    arrayCompress(Array a) ;
-BOOL    arrayFind(Array a, void *s, int *ip, ArrayOrder *order);
+BOOL    arrayFind(Array a, void *s, long *ip, ArrayOrder *order);
 
             /* status and memory monitoring */
 #define ARRAY_REPORT_MAX 0	/* set to maximum number of arrays to keep track of */
-void    arrayStatus (int *nmadep,int* nusedp, int *memAllocp, int *memUsedp) ; /* memUsed only up to REPORT_MAX */
+void    arrayStatus (int *nmadep, int* nusedp, 
+		     long *memAllocp, long *memUsedp) ; 
+/* memUsed only up to REPORT_MAX */
 int     arrayReportMark (void) ; /* returns current array number */
 void    arrayReport (int j) ;	/* write stderr about all arrays since j */
 

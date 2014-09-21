@@ -5,7 +5,7 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 10 23:37 2014 (rd)
+ * Last edited: Sep 19 19:00 2014 (rd)
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -13,6 +13,8 @@
 #include "utils.h"
 #include "pbwt.h"
 #include <htslib/synced_bcf_reader.h>
+
+static void myfree (void *p) { printf ("free %lx\n", p) ; }
 
 static void readVcfSamples (PBWT *p, bcf_hdr_t *hr)
 {
@@ -34,7 +36,7 @@ static int variation (PBWT *p, const char *ref, const char *alt)
   int var ;
   if (strlen (ref) + strlen (alt) + 2 > buflen) 
     { do buflen *= 2 ; while (strlen (ref) + strlen (alt) + 2 > buflen) ;
-      free (buf) ; buf = myalloc (buflen, char) ;
+      myfree (buf) ; buf = myalloc (buflen, char) ;
     }
   sprintf (buf, "%s\t%s", ref, alt) ;
   dictAdd (variationDict, buf, &var) ;
@@ -57,7 +59,7 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
 
   uchar *xMissing = myalloc (p->M+1, uchar) ;
   xMissing[p->M] = Y_SENTINEL ;  /* needed for efficient packing */
-  long int nMissing = 0 ;
+  long nMissing = 0 ;
   int nMissingSites = 0 ; 
 
   int mgt_arr = 0, *gt_arr = NULL ;
@@ -77,7 +79,7 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
           ngt, p->M, chrom, pos) ;
 
       memset (xMissing, 0, p->M) ;
-      int wasMissing = nMissing ;
+      long wasMissing = nMissing ;
 
       /* copy the genotypes into array x[] */
       for (i = 0 ; i < p->M ; i++)
@@ -107,9 +109,9 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
             { if (!wasMissing)
                 { p->zMissing = arrayCreate (10000, uchar) ;
                   array(p->zMissing, 0, uchar) = 0 ; /* needed so missing[] has offset > 0 */
-                  p->missing = arrayCreate (1024, int) ;
+                  p->missing = arrayCreate (1024, long) ;
                 }
-              array(p->missing, p->N, int) = arrayMax(p->zMissing) ;
+              array(p->missing, p->N, long) = arrayMax(p->zMissing) ;
               pack3arrayAdd (xMissing, p->M, p->zMissing) ; /* NB original order, not pbwt sort */
               nMissingSites++ ;
             }
@@ -126,10 +128,10 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
     }
   pbwtCursorToAFend (u, p) ;
 
-  if (gt_arr) free (gt_arr) ;
+  if (gt_arr) myfree (gt_arr) ;
   bcf_sr_destroy (sr) ;
-  free (x) ; pbwtCursorDestroy (u) ;  
-  free (xMissing) ;
+  myfree (x) ; pbwtCursorDestroy (u) ;  
+  myfree (xMissing) ;
 
   fprintf (stderr, "read genotypes from %s\n", filename) ;
   if (p->missing) fprintf (stderr, "%ld missing values at %d sites\n", 
@@ -184,7 +186,7 @@ PBWT *pbwtReadVcfPL (char *filename)  /* read PLs from vcf/bcf using htslib */
       if (k <= 10) printf("\n");
     }
 
-  if (pl_arr) free (pl_arr) ;
+  if (pl_arr) myfree (pl_arr) ;
   bcf_sr_destroy (sr) ;
   
   return p ;
@@ -213,9 +215,10 @@ void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
   // write header
   bcf_hdr = bcf_hdr_init("w") ;
   kstring_t str = {0,0,0} ;
-  ksprintf(&str, "##pbwtVersion=0.00+htslib-%s", hts_version()) ;
+  ksprintf(&str, "##pbwtVersion=%d.%d+htslib-%s", 
+	   pbwtMajorVersion, pbwtMinorVersion, hts_version()) ;
   bcf_hdr_append(bcf_hdr, str.s) ;
-  free(str.s) ;
+  myfree(str.s) ;
   bcf_hdr_append(bcf_hdr, "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count in genotypes\">") ;
   bcf_hdr_append(bcf_hdr, "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">") ;
   bcf_hdr_append(bcf_hdr, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">") ;
@@ -230,9 +233,10 @@ void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
           kstring_t sname = {0,0,0} ;
           ksprintf(&sname, "PBWT%d", i) ;
           bcf_hdr_add_sample(bcf_hdr, sname.s) ;
-          free(sname.s) ;
+          myfree(sname.s) ;
         }
     }
+  bcf_hdr_add_sample(bcf_hdr, 0) ; /* required to update internal structures */
   bcf_hdr_write(bcf_fp, bcf_hdr) ;
 
   bcf1_t *bcf_rec = bcf_init1() ;
@@ -246,6 +250,7 @@ void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
       ksprintf(&rec, "%s\t%d\t.\t%s\t.\tPASS\t.\tGT", 
         p->chrom ? p->chrom : ".", 
         s->x, dictName(variationDict, s->varD));
+
       for (j = 0 ; j < p->M ; ++j)
         {
           hap[u->a[j]] = u->y[j] ;
@@ -264,6 +269,7 @@ void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
 
       // parse VCF record string into bcf record. 
       // could be quicker to load directly into bcf, but this is easy
+
       vcf_parse(&rec, bcf_hdr, bcf_rec) ; 
 
       // example of adding INFO fields
@@ -273,13 +279,14 @@ void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
       //write and progress
       bcf_write1(bcf_fp, bcf_hdr, bcf_rec) ;
       bcf_clear1(bcf_rec) ;
-      free(rec.s) ;
+
+      myfree(rec.s) ;
       pbwtCursorForwardsRead(u) ;
     }
 
   // cleanup
-  free(hap) ;
-  pbwtCursorDestroy(u) ;
+  myfree(hap) ;
+  /*  pbwtCursorDestroy(u) ; */
   bcf_hdr_destroy(bcf_hdr) ;
   bcf_destroy1(bcf_rec);
   hts_close(bcf_fp) ;

@@ -15,12 +15,14 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 10 23:38 2014 (rd)
+ * Last edited: Sep 19 18:00 2014 (rd)
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
 
 #include "utils.h"
+
+static int pbwtMajorVersion = 3, pbwtMinorVersion = 0 ;
 
 /* data types */
 
@@ -39,7 +41,7 @@ typedef struct PBWTstruct {
   /* NB aRend is the lexicographic sort order for the data, and aFend the reverse lex order */
   /* probably it is optimal to have aFstart == aRend and vice versa: to be done */
   Array zMissing ;		/* compressed array of uchar - natural not sort order */
-  Array missing ;		/* site index into zMissing, 0 if no missing data at site */
+  Array missing ;		/* of long, site index into zMissing, 0 if no missing data at site */
 } PBWT ;
 
 /* philosophy is to be lazy about PBWT - only fill items for which we have info */
@@ -64,7 +66,7 @@ typedef struct SampleStruct {
 typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
   int M ;
   Array z ;			/* packed byte array; if zero y needs loading from elsewhere */
-  int n ;			/* position in packed byte array */
+  long n ;			/* position in packed byte array */
   BOOL isBlockEnd ;		/* TRUE if n is at end of next block, FALSE if at start */
   uchar *y ;			/* current value in sort order */
   int c ;			/* number of 0s in y */

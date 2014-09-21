@@ -26,7 +26,8 @@
  * Exported functions:
  *              See header file: array.h (includes lots of macros)
  * HISTORY:
- * Last edited: Nov  9 13:28 2013 (rd)
+ * Last edited: Sep 19 16:05 2014 (rd)
+ * * Sep 19 15:41 2014 (rd): switch to long indices to avoid overflow
  * * May  5 10:55 2013 (rd): New RD address rd@sanger.ac.uk
  * * Feb 14 11:21 2011 (rd): modified in 2009/10 by RD for stand-alone use
  * Created: Thu Dec 12 15:43:25 1989 (mieg)
@@ -37,14 +38,14 @@
 
 /********** Array : class to implement variable length arrays **********/
 
-static int totalAllocatedMemory = 0 ;
+static long totalAllocatedMemory = 0 ;
 static int totalNumberCreated = 0 ;
 static int totalNumberActive = 0 ;
 static Array reportArray = 0 ;
 
 #define arrayExists(a) ((a) && (a)->magic == ARRAY_MAGIC)
 
-Array uArrayCreate (int n, int size)
+Array uArrayCreate (long n, int size)
 {
   Array a = mycalloc (1, struct ArrayStruct) ;
   static int isFirst ;
@@ -78,7 +79,7 @@ Array uArrayCreate (int n, int size)
 
 /**************/
 
-Array uArrayReCreate (Array a, int n, int size)
+Array uArrayReCreate (Array a, long n, int size)
 {
   if (!arrayExists(a))
     return  uArrayCreate (n, size) ;
@@ -135,7 +136,7 @@ Array arrayCopy (Array a)
 
 /******************************/
 
-void arrayExtend (Array a, int n) 
+void arrayExtend (Array a, long n) 
 {
   char *new ;
 
@@ -146,10 +147,10 @@ void arrayExtend (Array a, int n)
     return ;
 
   totalAllocatedMemory -= a->dim * a->size ;
-  if (a->dim*a->size < 1 << 23)	/* 8MB */
+  if (a->dim*a->size < 1 << 26)	/* 64MB */
     a->dim *= 2 ;
   else
-    a->dim += 1024 + ((1 << 23) / a->size) ;
+    a->dim += 1024 + ((1 << 26) / a->size) ;
   if (n >= a->dim)
     a->dim = n + 1 ;
 
@@ -165,7 +166,7 @@ void arrayExtend (Array a, int n)
 
 /***************/
 
-char *uArray (Array a, int i)
+char *uArray (Array a, long i)
 {
   if (!arrayExists (a))
     die ("array() called on bad array %lx", (long unsigned int) a) ;
@@ -182,7 +183,7 @@ char *uArray (Array a, int i)
 
 /***************/
 
-char *uArrayBlock (Array a, int i, int n)
+char *uArrayBlock (Array a, long i, long n)
 {
   if (!arrayExists (a))
     die ("arrayBlock() called on bad array %lx", (long unsigned int)a) ;
@@ -204,11 +205,10 @@ char *uArrayBlock (Array a, int i, int n)
         * if not, returns FALSE and sets *ip one step left
         */
 
-/* BOOL arrayFind(Array a, void *s, int *ip, int (* order)(void*, void*)) */
-BOOL arrayFind(Array a, void *s, int *ip, ArrayOrder *order)
+BOOL arrayFind(Array a, void *s, long *ip, ArrayOrder *order)
 {
   int ord ;
-  int i = 0 , j, k ;
+  long i = 0 , j, k ;
 
   if (!arrayExists (a)) 
     die ("arrayFind called on bad array %lx", (long unsigned int) a) ;
@@ -255,70 +255,40 @@ BOOL arrayFind(Array a, void *s, int *ip, ArrayOrder *order)
         * sorted in ascending order of order()
         */
 
-BOOL arrayRemove (Array a, void * s, int (* order)(const void*, const void*))
+BOOL arrayRemove (Array a, void * s, ArrayOrder *order)
 {
-  int i;
+  long i;
 
   if (!arrayExists (a))
     die ("arrayRemove called on bad array %lx", (long unsigned int) a) ;
 
   if (arrayFind(a, s, &i,order))
-    {
-      /* memcpy would be faster but regions overlap
-       * and memcpy is said to fail with some compilers
-       */
-      char *cp = uArray(a,i), *cq = cp + a->size ;
-      int j = (arrayMax(a) - i)*(a->size) ;
-      while (j--)
-	*cp++ = *cq++ ;
-
+    { memmove (uArray(a,i), uArray(a,i+1), (arrayMax(a) - i)*a->size) ;
       arrayMax(a)-- ;
       return TRUE ;
     }
   else
-
     return FALSE ;
 }
 
 /**************************************************************/
-       /* Insert Segment s in Array  a
+       /* Insert Segment s in Array a
         * in ascending order of s.begin
         */
 
-BOOL arrayInsert(Array a, void * s, int (*order)(const void*, const void*))
+BOOL arrayInsert (Array a, void *s, ArrayOrder *order)
 {
-  int i, j, arraySize;
+  long i ;
 
   if (!arrayExists (a))
     die ("arrayInsert called on bad array %x", (long unsigned int)a) ;
 
-  if (arrayFind(a, s, &i,order))
+  if (arrayFind(a, s, &i, order))
     return FALSE ;  /* no doubles */
-  
-  arraySize = arrayMax(a) ;
-  j = arraySize + 1 ;
 
-  uArray(a,j-1) ; /* to create space */
-
-	/* avoid memcpy for same reasons as above */
-  {
-    char *cp, *cq ;
-    int k ;
-    
-    if (arraySize > 0)
-      { cp = uArray(a,j - 1) + a->size - 1 ;
-	cq = cp - a->size ;
-	k = (j - i - 1)*(a->size) ;
-	while (k--)
-	  *cp-- = *cq-- ;
-      }
-    
-    cp = uArray(a,i+1) ; 
-    cq = (char *) s ; 
-    k = a->size ;
-    while (k--)
-      *cp++ = *cq++ ;
-  }
+  uArray (a, arrayMax(a)) ;	/* make space */
+  memmove (uArray(a,i+1), uArray(a,i), (arrayMax(a)-1-i)*a->size) ;
+  memcpy (uArray(a,i),s,a->size) ;
   return TRUE ;
 }
 
@@ -326,7 +296,7 @@ BOOL arrayInsert(Array a, void * s, int (*order)(const void*, const void*))
 
 void arrayCompress(Array a)
 {
-  int i, j, k , as ;
+  long int i, j, k , as ;
   char *x, *y, *ab ;
 
   if (!arrayExists (a))
@@ -371,7 +341,7 @@ void arrayReport (int j)
   int i ;
   Array a ;
 
-  fprintf(stderr, "Array report: %d created, %d active, %d MB allocated\n",   
+  fprintf(stderr, "Array report: %d created, %d active, %ld MB allocated\n",   
 	  totalNumberCreated, totalNumberActive, totalAllocatedMemory/(1024*1024)) ;
 
   if (reportArray)
@@ -379,14 +349,15 @@ void arrayReport (int j)
       while (i-- && i > j)
 	{ a = arr (reportArray, i, Array) ;
 	  if (arrayExists(a))
-	    fprintf (stderr, " array %d  size %d, max %d\n", i, a->size, a->max) ;
+	    fprintf (stderr, " array %d  size %d, max %ld\n", i, a->size, a->max) ;
 	}
     }
 }
 
 /**************/
 
-void arrayStatus (int *nmadep, int *nusedp, int *memAllocp, int *memUsedp)
+void arrayStatus (int *nmadep, int *nusedp, 
+		  long *memAllocp, long *memUsedp)
 { 
   int i ;
   Array a ;
