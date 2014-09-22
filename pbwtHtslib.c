@@ -5,7 +5,8 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 19 19:00 2014 (rd)
+ * Last edited: Sep 22 23:03 2014 (rd)
+ * * Sep 22 23:03 2014 (rd): change for 64bit arrays
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
  */
