@@ -24,8 +24,8 @@
  * Exported functions:
  *              the Array type and associated macros and functions
  * HISTORY:
- * Last edited: Sep 19 16:13 2014 (rd)
- * * Sep 19 15:42 2014 (rd): switch to long indices to avoid overflow
+ * Last edited: Sep 22 22:58 2014 (rd)
+ * * Sep 19 15:42 2014 (rd): switch to long indices to avoid overflow 
  * * May  5 10:57 2013 (rd): new address for rd: rd@sanger.ac.uk
  *-------------------------------------------------------------------
  */

@@ -26,8 +26,8 @@
  * Exported functions:
  *              See header file: array.h (includes lots of macros)
  * HISTORY:
- * Last edited: Sep 19 16:05 2014 (rd)
- * * Sep 19 15:41 2014 (rd): switch to long indices to avoid overflow
+ * Last edited: Sep 22 22:58 2014 (rd)
+ * * Sep 19 15:41 2014 (rd): switch to long indices to avoid overflow 
  * * May  5 10:55 2013 (rd): New RD address rd@sanger.ac.uk
  * * Feb 14 11:21 2011 (rd): modified in 2009/10 by RD for stand-alone use
  * Created: Thu Dec 12 15:43:25 1989 (mieg)
