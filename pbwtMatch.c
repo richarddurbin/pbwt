@@ -15,7 +15,7 @@
  * Description: match functions in pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 25 22:41 2014 (rd)
+ * Last edited: Sep 22 23:28 2014 (rd)
  * Created: Thu Apr  4 11:55:48 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -89,22 +89,24 @@ static void matchLongWithin2 (PBWT *p, int T,
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
 
   for (k = 0 ; k <= p->N ; ++k)
-    for (i = 0 ; i < u->M ; ++i)
-      { if (u->d[i] > T)
-	  { if (na && nb)		/* then there is something to report */
-	      for (ia = i0 ; ia < i ; ++ia)
-		for (ib = ia+1, dmin = 0 ; ib < i ; ++ib)
-		  { if (u->d[ib] > dmin) dmin = u->d[ib] ;
-		    if (u->y[ib] != u->y[ia])
-		      (*report) (u->a[ia], u->a[ib], dmin, k) ;
-		  }
-	    na = 0 ; nb = 0 ; i0 = i ;
-	  }
-	if (u->y[i] == 0)
-	  na++ ;
-	else
-	  nb++ ;
-      }
+    { for (i = 0 ; i < u->M ; ++i)
+	{ if (u->d[i] > k-T)
+	    { if (na && nb)		/* then there is something to report */
+		for (ia = i0 ; ia < i ; ++ia)
+		  for (ib = ia+1, dmin = 0 ; ib < i ; ++ib)
+		    { if (u->d[ib] > dmin) dmin = u->d[ib] ;
+		      if (u->y[ib] != u->y[ia])
+			(*report) (u->a[ia], u->a[ib], dmin, k) ;
+		    }
+	      na = 0 ; nb = 0 ; i0 = i ;
+	    }
+	  if (u->y[i] == 0)
+	    na++ ;
+	  else
+	    nb++ ;
+	}
+      pbwtCursorForwardsReadAD (u, k) ;
+    }
 
   pbwtCursorDestroy (u) ;
 }
