@@ -5,7 +5,8 @@
  * Description: functions for samples and populations
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 19 16:42 2014 (rd)
+ * Last edited: Sep 22 23:07 2014 (rd)
+ * * Sep 22 23:07 2014 (rd): move to 64 bit arrays
  * Created: Sat Nov  2 18:42:07 2013 (rd)
  *-------------------------------------------------------------------
  */
