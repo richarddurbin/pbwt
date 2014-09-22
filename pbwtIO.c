@@ -158,7 +158,7 @@ PBWT *pbwtRead (FILE *fp)
   int version ;
 
   if (fread (tag, 1, 4, fp) != 4) die ("failed to read 4 char tag - is file readable?") ;
-  if (!strcmp (tag, "PBW3")) version = 2 ; /* current version */
+  if (!strcmp (tag, "PBW3")) version = 3 ; /* current version */
   else if (!strcmp (tag, "PBW2")) version = 2 ; /* with 4 byte count */
   else if (!strcmp (tag, "PBWT")) version = 1 ; /* without start, end indexes */
   else if (!strcmp (tag, "GBWT")) version = 0 ; /* earliest version */
