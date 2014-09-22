@@ -15,7 +15,8 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 19 17:33 2014 (rd)
+ * Last edited: Sep 22 23:03 2014 (rd)
+ * * Sep 22 23:02 2014 (rd): change for 64bit arrays
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
  */
