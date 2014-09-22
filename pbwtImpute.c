@@ -16,7 +16,8 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 19 18:02 2014 (rd)
+ * Last edited: Sep 22 23:10 2014 (rd)
+ * * Sep 22 23:10 2014 (rd): nove to 64 bit arrays
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
