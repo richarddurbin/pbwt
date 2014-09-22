@@ -15,7 +15,8 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 19 18:11 2014 (rd)
+ * Last edited: Sep 22 23:02 2014 (rd)
+ * * Sep 22 23:00 2014 (rd): change for 64bit arrays - version 3 .pbwt file
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
