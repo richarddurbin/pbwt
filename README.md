@@ -10,12 +10,15 @@ algorithms are linear in the query size independent of reference size.
 
 A description of the basic data structure and matching algorithms is
 given in "Efficient haplotype matching and storage using the
-Positional Burrows-Wheeler Transform (PBWT)", Richard Durbin (2013),
-in preparation.
+Positional Burrows-Wheeler Transform (PBWT)", Richard Durbin
+Bioinformatics 30:1266-72 (2014).
 
-Phasing and imputation methods are currently under development.
+There are various phasing and imputation methods in the software that
+are not yet published.
 
-Richard Durbin <rd@sanger.ac.uk>, May 2013
+Richard Durbin <rd@sanger.ac.uk>
+
+May 2013, updated September 2014
 
 Brief usage instructions
 ------------------------
@@ -40,11 +43,11 @@ conversion to alternating checkA.{pbwt,sites} and checkB.{pbwt,sites} files.
 
 gives the site frequency spectrum for macs10k
 
-    pbwt -read macs1k -haps macs1k.haps
+    pbwt -read macs1k.pbwt -haps macs1k.haps
 
 writes out the haplotypes stored in macs1k
 
-    pbwt -read macs10k.pbwt -maxIndexed macs1k.pbwt > macs1k-10k.max
+    pbwt -read macs10k.pbwt -matchDynamic macs1k.pbwt > macs1k-10k.max
 
 for each sequence in macs1k, finds maximal matches to anything in macs10k
 
@@ -52,12 +55,13 @@ for each sequence in macs1k, finds maximal matches to anything in macs10k
 
 finds maximal matches for each sequence in macs10k to anything else in macs10k
 
-To start from real data in a .vcf file rather than a macs simulation
-we recommend to use the htscmd program (available from https://github.com/samtools/htslib.git)
-to extract a simplified .vcfq file, e.g.
+To start from real data in a .vcf file rather than a macs simulation use
 
-    htscmd vcfquery -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' < data.vcf > data.vcfq
-    pbwt -checkpoint 10000 -vcfq data.vcfq -write data.pbwt -writeSites data.sites
+    pbwt -checkpoint 10000 -readVcfGT data.vcf -writeAll data
+
+Note that -writeAll xxx will write xxx.pbwt, xxx.sites, xxx.samples and any other
+associated files, and -readAll xxx will correspondingly read xxx.pbwt
+and any available files based on suffix.
 
 pbwt is very happy to handle up to 100,000 haplotypes, probably a
 million.
