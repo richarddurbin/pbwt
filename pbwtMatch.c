@@ -362,7 +362,7 @@ void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int s
   PbwtCursor *uq = pbwtCursorCreate (q, TRUE, TRUE) ;
   int *f = mycalloc (q->M, int) ; /* first location in *up of longest match to j'th query */
   int *d = mycalloc (q->M, int) ; /* start of longest match to j'th query */
-  int totLen = 0, nTot = 0 ;
+  long totLen = 0, nTot = 0 ;
 
   if (isCheck) { checkHapsA = pbwtHaplotypes (q) ; checkHapsB = pbwtHaplotypes (p) ; Ncheck = p->N ; }
 
@@ -382,7 +382,7 @@ void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int s
 	      /* then find new top longest match that can be extended */
 	      /* we extend out the interval [iMinus, iPlus] until we find this best match */
 	      int iMinus = f[jj] ; /* an index into *up less than f[jj] */
-	      int dPlus = (iPlus < p->M) ? up->d[iPlus] : k+1 ;
+	      int dPlus = (iPlus < p->M) ? up->d[iPlus] : k ;
 	      int dMinus = up->d[iMinus] ;
 	      while (TRUE)
 		if (dMinus <= dPlus)
