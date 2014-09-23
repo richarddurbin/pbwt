@@ -19,7 +19,7 @@
  * Description: based on acedb code from Jean Thierry-Mieg and Richard Durbin 1999-2004
  * Exported functions:
  * HISTORY:
- * Last edited: May  5 12:25 2013 (rd)
+ * Last edited: Sep 23 16:17 2014 (rd)
  * Created: Fri Jan  7 09:20:25 2011 (rd)
  *-------------------------------------------------------------------
  */
@@ -180,7 +180,7 @@ int hashFind (HASH hx, HASHKEY k)
       }
 }
 
-/************************ insertions  ************************************
+/************************ insertions  ************************************/
 
      /* if already there returns FALSE, else inserts and returns TRUE */
 int hashAdd (HASH hx, HASHKEY k)

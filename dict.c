@@ -19,7 +19,7 @@
  * Description: based on acedb code from Jean Thierry-Mieg and Richard Durbin 1999-2004
  * Exported functions:
  * HISTORY:
- * Last edited: May  5 11:00 2013 (rd)
+ * Last edited: Sep 23 16:18 2014 (rd)
  * Created: July 2003 (rd)
  *-------------------------------------------------------------------
  */
@@ -75,7 +75,7 @@ DICT *dictCreate (int size)
 
 /*****************************/
 
-void *dictDestroy (DICT *dict)
+void dictDestroy (DICT *dict)
 {
   int i ;
   for (i = 1 ; i <= dict->max ; ++i) free (dict->names[i]) ;
