@@ -16,7 +16,7 @@
  * Description: core utility functions
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 18 14:54 2014 (rd)
+ * Last edited: Sep 23 14:02 2014 (rd)
  * Created: Thu Aug 15 18:32:26 1996 (rd)
  *-------------------------------------------------------------------
  */
@@ -57,7 +57,7 @@ void warn (char *format, ...)
 
 int totalAllocated = 0 ;
 
-void *_myalloc (int size)
+void *_myalloc (long size)
 {
   void *p = (void*) malloc (size) ;
   if (!p) die ("myalloc failure requesting %d bytes", size) ;
@@ -65,7 +65,7 @@ void *_myalloc (int size)
   return p ;
 }
 
-void *_mycalloc (int number, int size)
+void *_mycalloc (long number, int size)
 {
   void *p = (void*) calloc (number, size) ;
   if (!p) die ("mycalloc failure requesting %d of size %d bytes", number, size) ;

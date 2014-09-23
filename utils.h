@@ -19,7 +19,7 @@
  * Description: includes standard system headers and own headers
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 18 13:45 2014 (rd)
+ * Last edited: Sep 23 14:00 2014 (rd)
  * Created: Wed Jan  5 16:13:48 2011 (rd)
  *-------------------------------------------------------------------
  */
@@ -43,9 +43,9 @@ typedef char BOOL ;
 void die (char *format, ...) ;
 void warn (char *format, ...) ;
 #define myalloc(n,type)	(type*)_myalloc((n)*sizeof(type))
-void *_myalloc (int size) ;
+void *_myalloc (long size) ;
 #define mycalloc(n,type) (type*)_mycalloc(n,sizeof(type))
-void *_mycalloc (int number, int size) ;
+void *_mycalloc (int long, int size) ;
 FILE *fopenTag (char* root, char* tag, char* mode) ;
 char *fgetword (FILE *f) ;	/* not threadsafe */
 void timeUpdate (void) ;	/* report to stderr resources used since last called */
