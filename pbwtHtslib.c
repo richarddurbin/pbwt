@@ -225,7 +225,6 @@ void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
     bcf_hdr_append(bcf_hdr, "##INFO=<ID=RefPanelAF,Number=A,Type=Float,Description=\"Allele frequency in imputation reference panel\">") ;
   if (arrp(p->sites, 0, Site)->imputeInfo)
     bcf_hdr_append(bcf_hdr, "##INFO=<ID=DR2,Number=A,Type=Float,Description=\"Estimated haploid dosage r^2 from imputation\">") ;
-  bcf_hdr_append(bcf_hdr, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">") ;
   
   int i, j ;
   for (i = 0 ; i < p->M/2 ; ++i)
