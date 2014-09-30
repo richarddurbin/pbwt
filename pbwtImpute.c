@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 22 23:10 2014 (rd)
+ * Last edited: Sep 30 15:13 2014 (rd)
  * * Sep 22 23:10 2014 (rd): nove to 64 bit arrays
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
@@ -1179,8 +1179,8 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	      ++nConflicts ;
 	    }
 	  else 
-	    { double p = (score+0.1)/(sum+0.2) ;
-	      x[j] = (p > 0.5) ? 1 : 0 ;
+	    { double p = (score+1)/(sum+2) ;
+	      x[j] = (p > 0.2) ? 1 : 0 ;
 	      psum += p ;
 	      xsum += x[j] ;
 	      pxsum += p*x[j] ;
@@ -1251,9 +1251,20 @@ PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot)
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
 
   if (isStats)
-    { int k, j ; int his[10] ; for (j = 0 ; j < 10 ; ++j) his[j] = 0 ;
-      for (k = 0 ; k < pRef->N ; ++k) if (arrp(pNew->sites,k,Site)->refFreq < 0.01) for (j = 0 ; j < pNew->M ; ++j) ++his[(int)(pImp[k][j]*10)] ;
-      for (j = 0 ; j < 10 ; ++j) fprintf (stderr, "  number of p up to %.1f  %d\n", j*0.1, his[j]) ;
+    { int k, j, ff ; long his[20][10] ;
+      bzero (his, 20*10*sizeof(long)) ;
+      for (k = 0 ; k < pRef->N ; ++k)
+	{ double f = arrp(pNew->sites,k,Site)->refFreq ;
+	  for (ff = 0 ; f*100 > fBound[ff] ; ++ff) ;
+	  for (j = 0 ; j < pNew->M ; ++j) ++his[ff][(int)(pImp[k][j]*10)] ;
+	}
+      for (ff = 0 ; ff < 17 ; ++ff)
+	{ fprintf (stderr, "%5.1f", fBound[ff]) ;
+	  double tot = 0.0 ; for (j = 10 ; j-- ;)  tot += his[ff][j] ;
+	  for (j = 0 ; j < 10 ; ++j) 
+	    fprintf (stderr, " %8.5f", his[ff][j]/tot) ;
+	  fprintf (stderr, "\n") ;
+	}
     }
 
   pbwtDestroy (pOld) ; pbwtDestroy (pFrame) ; pbwtDestroy (pRef) ;
