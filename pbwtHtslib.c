@@ -221,6 +221,10 @@ void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
   bcf_hdr_append(bcf_hdr, "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count in genotypes\">") ;
   bcf_hdr_append(bcf_hdr, "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">") ;
   bcf_hdr_append(bcf_hdr, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">") ;
+  if (arrp(p->sites, 0, Site)->refFreq)
+    bcf_hdr_append(bcf_hdr, "##INFO=<ID=RefPanelAF,Number=A,Type=Float,Description=\"Allele frequency in imputation reference panel\">") ;
+  if (arrp(p->sites, 0, Site)->imputeInfo)
+    bcf_hdr_append(bcf_hdr, "##INFO=<ID=DR2,Number=A,Type=Float,Description=\"Estimated haploid dosage r^2 from imputation\">") ;
   
   int i, j ;
   for (i = 0 ; i < p->M/2 ; ++i)
@@ -250,6 +254,8 @@ void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
         p->chrom ? p->chrom : ".", 
         s->x, dictName(variationDict, s->varD));
 
+      float raf = s->refFreq;
+      float info = s->imputeInfo;
       for (j = 0 ; j < p->M ; ++j)
         {
           hap[u->a[j]] = u->y[j] ;
@@ -274,6 +280,14 @@ void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
       // example of adding INFO fields
       bcf_update_info_int32(bcf_hdr, bcf_rec, "AC", &ac[1], 1) ;
       bcf_update_info_int32(bcf_hdr, bcf_rec, "AN", &an, 1) ;
+      if (s->refFreq)
+        {
+          bcf_update_info_float(bcf_hdr, bcf_rec, "RefPanelAF", &raf, 1) ;
+        }
+      if (s->imputeInfo)
+        {
+          bcf_update_info_float(bcf_hdr, bcf_rec, "DR2", &info, 1) ;
+        }
 
       //write and progress
       bcf_write1(bcf_fp, bcf_hdr, bcf_rec) ;
