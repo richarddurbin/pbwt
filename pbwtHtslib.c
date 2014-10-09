@@ -212,12 +212,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode)
   if (!bcf_fp) die("could not open file for writing: %s", filename) ;
   if (!p) die ("pbwtWriteVcf called without a valid pbwt") ;
   if (!p->sites) die ("pbwtWriteVcf called without sites") ;
-  int samples_known = 1 ;
-  if (!p->samples)
-    {
-      fprintf (stderr, "Warning: pbwtWriteVcf called without samples... using fake sample names PBWT0, PBWT1 etc...\n") ;
-      samples_known = 0 ;
-    }
+  if (!p->samples) fprintf (stderr, "Warning: pbwtWriteVcf called without samples... using fake sample names PBWT0, PBWT1 etc...\n") ;
 
   // write header
   bcf_hdr = bcf_hdr_init("w") ;
@@ -244,7 +239,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode)
   int i, j ;
   for (i = 0 ; i < p->M/2 ; ++i)
     {
-      if (samples_known)
+      if (p->samples)
         bcf_hdr_add_sample(bcf_hdr, sampleName(sample (p, 2*i))) ;
       else
         {
@@ -259,15 +254,17 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode)
 
   bcf1_t *bcf_rec = bcf_init1() ;
   uchar *hap = myalloc (p->M, uchar) ;
+  int32_t *gts = myalloc (p->M, int32_t) ;
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
 
   for (i = 0 ; i < p->N ; ++i)
     {
-      kstring_t rec = {0,0,0} ;
       Site *s = arrp(p->sites, i, Site) ;
-      ksprintf(&rec, "%s\t%d\t.\t%s\t.\tPASS\t.\tGT", 
-        p->chrom ? p->chrom : ".", 
-        s->x, dictName(variationDict, s->varD));
+      bcf_float_set_missing(bcf_rec->qual) ;
+      bcf_rec->rid = bcf_hdr_name2id(bcf_hdr, p->chrom) ;
+      bcf_rec->pos = s->x - 1 ;
+      bcf_update_alleles_str(bcf_hdr, bcf_rec, dictName(variationDict, s->varD)) ;
+      bcf_add_filter(bcf_hdr, bcf_rec, bcf_hdr_id2int(bcf_hdr, BCF_DT_ID, "PASS")) ;
 
       for (j = 0 ; j < p->M ; ++j)
         {
@@ -276,34 +273,30 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode)
       int ac[2] = {0,0};
       for (j = 0 ; j < p->M ; j+=2)
         {
-          // write out phased or unphased? phased flag could be stored in pbwt struct?
-          // could add PS or other FORMAT fields here?
           // todo: handle missing data
-          ksprintf(&rec, "\t%d|%d", hap[j], hap[j+1]) ;
+          gts[j] = bcf_gt_unphased(hap[j]);
+          gts[j+1] = bcf_gt_phased(hap[j+1]);
           ac[hap[j]]++ ;
           ac[hap[j+1]]++ ;
         }
       int an = ac[0] + ac[1] ;
 
-      // parse VCF record string into bcf record. 
-      // could be quicker to load directly into bcf, but this is easy
-
-      vcf_parse(&rec, bcf_hdr, bcf_rec) ; 
+      if ( bcf_update_genotypes(bcf_hdr, bcf_rec, gts, p->M) ) die("Could not update GT field\n");
 
       // example of adding INFO fields
       bcf_update_info_int32(bcf_hdr, bcf_rec, "AC", &ac[1], 1) ;
       bcf_update_info_int32(bcf_hdr, bcf_rec, "AN", &an, 1) ;
 
       //write and progress
-      bcf_write1(bcf_fp, bcf_hdr, bcf_rec) ;
-      bcf_clear1(bcf_rec) ;
+      bcf_write(bcf_fp, bcf_hdr, bcf_rec) ;
+      bcf_clear(bcf_rec) ;
 
-      free(rec.s) ;
       pbwtCursorForwardsRead(u) ;
     }
 
   // cleanup
   free(hap) ;
+  free(gts) ;
   /*  pbwtCursorDestroy(u) ; */
   bcf_hdr_destroy(bcf_hdr) ;
   bcf_destroy1(bcf_rec);
