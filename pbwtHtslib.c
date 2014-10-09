@@ -14,6 +14,7 @@
 #include "utils.h"
 #include "pbwt.h"
 #include <htslib/synced_bcf_reader.h>
+#include <htslib/faidx.h>
 
 static void readVcfSamples (PBWT *p, bcf_hdr_t *hr)
 {
@@ -191,17 +192,24 @@ PBWT *pbwtReadVcfPL (char *filename)  /* read PLs from vcf/bcf using htslib */
   return p ;
 }
 
-void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
+static void pbwtSetContigs(bcf_hdr_t *hdr, faidx_t *fai)
+{
+  int i, n = faidx_nseq(fai) ;
+  for (i=0; i<n; i++)
+    {
+      const char *seq = faidx_iseq(fai,i) ;
+      int len = faidx_seq_len(fai, seq) ;
+      bcf_hdr_printf(hdr, "##contig=<ID=%s,length=%d>", seq, len) ;
+    }
+}
+
+void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode)
 {
   htsFile *bcf_fp = NULL ;
   bcf_hdr_t *bcf_hdr = NULL ;
 
-  // wb .. compressed BCF
-  // wbu .. uncompressed BCF
-  // wz .. compressed VCF
-  // w .. uncompressed VCF
-  // write out uncompressed VCF for the moment. BCF needs ##contig metadata complete in header
-  bcf_fp = hts_open(filename,"w");
+  bcf_fp = hts_open(filename,mode) ;
+  if (!bcf_fp) die("could not open file for writing: %s", filename) ;
   if (!p) die ("pbwtWriteVcf called without a valid pbwt") ;
   if (!p->sites) die ("pbwtWriteVcf called without sites") ;
   int samples_known = 1 ;
@@ -213,6 +221,17 @@ void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
 
   // write header
   bcf_hdr = bcf_hdr_init("w") ;
+  if (reference_fname)
+    {
+      faidx_t *faidx = fai_load(reference_fname);
+      if ( !faidx ) error("Could not load the reference %s. Has the fasta been indexed with 'samtools faidx'?\n", reference_fname);
+      pbwtSetContigs(bcf_hdr, faidx);
+      fai_destroy(faidx);
+    }
+  else if (p->chrom)
+    {
+      bcf_hdr_printf(bcf_hdr, "##contig=<ID=%s,length=%d>", p->chrom, 0x7fffffff);   // MAX_CSI_COOR
+    }
   kstring_t str = {0,0,0} ;
   ksprintf(&str, "##pbwtVersion=%d.%d+htslib-%s", 
 	   pbwtMajorVersion, pbwtMinorVersion, hts_version()) ;

@@ -1,5 +1,6 @@
 ##fileformat=VCFv4.2
 ##FILTER=<ID=PASS,Description="All filters passed">
+##contig=<ID=X,length=2147483647>
 ##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count in genotypes">
 ##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
