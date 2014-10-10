@@ -203,56 +203,56 @@ static void pbwtSetContigs(bcf_hdr_t *hdr, faidx_t *fai)
     }
 }
 
-void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode)
+void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
 {
-  htsFile *bcf_fp = NULL ;
-  bcf_hdr_t *bcf_hdr = NULL ;
+  htsFile *fp = NULL ;
+  bcf_hdr_t *bcfHeader = NULL ;
 
-  bcf_fp = hts_open(filename,mode) ;
-  if (!bcf_fp) die("could not open file for writing: %s", filename) ;
+  fp = hts_open(filename,mode) ;
+  if (!fp) die ("could not open file for writing: %s", filename) ;
   if (!p) die ("pbwtWriteVcf called without a valid pbwt") ;
   if (!p->sites) die ("pbwtWriteVcf called without sites") ;
   if (!p->samples) fprintf (stderr, "Warning: pbwtWriteVcf called without samples... using fake sample names PBWT0, PBWT1 etc...\n") ;
 
   // write header
-  bcf_hdr = bcf_hdr_init("w") ;
-  if (reference_fname)
+  bcfHeader = bcf_hdr_init("w") ;
+  if (referenceFasta)
     {
-      faidx_t *faidx = fai_load(reference_fname);
-      if ( !faidx ) error("Could not load the reference %s. Has the fasta been indexed with 'samtools faidx'?\n", reference_fname);
-      pbwtSetContigs(bcf_hdr, faidx);
+      faidx_t *faidx = fai_load(referenceFasta);
+      if ( !faidx ) error("Could not load the reference %s. Has the fasta been indexed with 'samtools faidx'?\n", referenceFasta);
+      pbwtSetContigs(bcfHeader, faidx);
       fai_destroy(faidx);
     }
   else if (p->chrom)
     {
-      bcf_hdr_printf(bcf_hdr, "##contig=<ID=%s,length=%d>", p->chrom, 0x7fffffff);   // MAX_CSI_COOR
+      bcf_hdr_printf(bcfHeader, "##contig=<ID=%s,length=%d>", p->chrom, 0x7fffffff);   // MAX_CSI_COOR
     }
   kstring_t str = {0,0,0} ;
   ksprintf(&str, "##pbwtVersion=%d.%d+htslib-%s", 
 	   pbwtMajorVersion, pbwtMinorVersion, hts_version()) ;
-  bcf_hdr_append(bcf_hdr, str.s) ;
+  bcf_hdr_append(bcfHeader, str.s) ;
   free(str.s) ;
-  bcf_hdr_append(bcf_hdr, "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count in genotypes\">") ;
-  bcf_hdr_append(bcf_hdr, "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">") ;
-  bcf_hdr_append(bcf_hdr, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">") ;
+  bcf_hdr_append(bcfHeader, "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count in genotypes\">") ;
+  bcf_hdr_append(bcfHeader, "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">") ;
+  bcf_hdr_append(bcfHeader, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">") ;
   
   int i, j ;
   for (i = 0 ; i < p->M/2 ; ++i)
     {
       if (p->samples)
-        bcf_hdr_add_sample(bcf_hdr, sampleName(sample (p, 2*i))) ;
+        bcf_hdr_add_sample(bcfHeader, sampleName(sample (p, 2*i))) ;
       else
         {
           kstring_t sname = {0,0,0} ;
           ksprintf(&sname, "PBWT%d", i) ;
-          bcf_hdr_add_sample(bcf_hdr, sname.s) ;
+          bcf_hdr_add_sample(bcfHeader, sname.s) ;
           free(sname.s) ;
         }
     }
-  bcf_hdr_add_sample(bcf_hdr, 0) ; /* required to update internal structures */
-  bcf_hdr_write(bcf_fp, bcf_hdr) ;
+  bcf_hdr_add_sample(bcfHeader, 0) ; /* required to update internal structures */
+  bcf_hdr_write(fp, bcfHeader) ;
 
-  bcf1_t *bcf_rec = bcf_init1() ;
+  bcf1_t *bcfRecord = bcf_init1() ;
   uchar *hap = myalloc (p->M, uchar) ;
   int32_t *gts = myalloc (p->M, int32_t) ;
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
@@ -260,13 +260,13 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode)
   for (i = 0 ; i < p->N ; ++i)
     {
       Site *s = arrp(p->sites, i, Site) ;
-      bcf_float_set_missing(bcf_rec->qual) ;
-      bcf_rec->rid = bcf_hdr_name2id(bcf_hdr, p->chrom) ;
-      bcf_rec->pos = s->x - 1 ;
+      bcf_float_set_missing(bcfRecord->qual) ;
+      bcfRecord->rid = bcf_hdr_name2id(bcfHeader, p->chrom) ;
+      bcfRecord->pos = s->x - 1 ;
       char *als = strdup( dictName(variationDict, s->varD) ), *ss = als ;
       while ( *ss ) { if ( *ss=='\t' ) *ss = ',' ; ss++ ; }
-      bcf_update_alleles_str(bcf_hdr, bcf_rec, als) ;
-      bcf_add_filter(bcf_hdr, bcf_rec, bcf_hdr_id2int(bcf_hdr, BCF_DT_ID, "PASS")) ;
+      bcf_update_alleles_str(bcfHeader, bcfRecord, als) ;
+      bcf_add_filter(bcfHeader, bcfRecord, bcf_hdr_id2int(bcfHeader, BCF_DT_ID, "PASS")) ;
 
       for (j = 0 ; j < p->M ; ++j)
         {
@@ -283,15 +283,15 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode)
         }
       int an = ac[0] + ac[1] ;
 
-      if ( bcf_update_genotypes(bcf_hdr, bcf_rec, gts, p->M) ) die("Could not update GT field\n");
+      if ( bcf_update_genotypes(bcfHeader, bcfRecord, gts, p->M) ) die("Could not update GT field\n");
 
       // example of adding INFO fields
-      bcf_update_info_int32(bcf_hdr, bcf_rec, "AC", &ac[1], 1) ;
-      bcf_update_info_int32(bcf_hdr, bcf_rec, "AN", &an, 1) ;
+      bcf_update_info_int32(bcfHeader, bcfRecord, "AC", &ac[1], 1) ;
+      bcf_update_info_int32(bcfHeader, bcfRecord, "AN", &an, 1) ;
 
       //write and progress
-      bcf_write(bcf_fp, bcf_hdr, bcf_rec) ;
-      bcf_clear(bcf_rec) ;
+      bcf_write(fp, bcfHeader, bcfRecord) ;
+      bcf_clear(bcfRecord) ;
 
       pbwtCursorForwardsRead(u) ;
     }
@@ -300,9 +300,9 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode)
   free(hap) ;
   free(gts) ;
   /*  pbwtCursorDestroy(u) ; */
-  bcf_hdr_destroy(bcf_hdr) ;
-  bcf_destroy1(bcf_rec);
-  hts_close(bcf_fp) ;
+  bcf_hdr_destroy(bcfHeader) ;
+  bcf_destroy1(bcfRecord);
+  hts_close(fp) ;
 }
 
 /******* end of file ********/
