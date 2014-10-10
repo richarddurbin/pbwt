@@ -263,7 +263,9 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode)
       bcf_float_set_missing(bcf_rec->qual) ;
       bcf_rec->rid = bcf_hdr_name2id(bcf_hdr, p->chrom) ;
       bcf_rec->pos = s->x - 1 ;
-      bcf_update_alleles_str(bcf_hdr, bcf_rec, dictName(variationDict, s->varD)) ;
+      char *als = strdup( dictName(variationDict, s->varD) ), *ss = als ;
+      while ( *ss ) { if ( *ss=='\t' ) *ss = ',' ; ss++ ; }
+      bcf_update_alleles_str(bcf_hdr, bcf_rec, als) ;
       bcf_add_filter(bcf_hdr, bcf_rec, bcf_hdr_id2int(bcf_hdr, BCF_DT_ID, "PASS")) ;
 
       for (j = 0 ; j < p->M ; ++j)
