@@ -132,7 +132,7 @@ int main (int argc, char *argv[])
   FILE *fp ;
   PBWT *p = 0 ;
   Array test ;
-  char *reference_fname = NULL;
+  char *referenceFasta = NULL;
 
   pbwtInit () ;
 
@@ -188,7 +188,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -phase <n>                phase with n sparse pbwts\n") ;
       fprintf (stderr, "  -referencePhase <root>    phase current pbwt against reference whose root name is the argument - both pbwts need compatible sites! - only keep shared sites\n") ;
       fprintf (stderr, "  -referenceImpute <root>   impute current pbwt into reference whose root name is the argument - need compatible sites - does not rephase either pbwt\n") ;
-      fprintf (stderr, "  -genotypeCompare <root>   compare genotypes with those from referencewhose root name is the argument - need compatible sites\n") ;
+      fprintf (stderr, "  -genotypeCompare <root>   compare genotypes with those from reference whose root name is the argument - need compatible sites\n") ;
       fprintf (stderr, "  -imputeMissing            impute data marked as missing\n") ;
       fprintf (stderr, "  -fitAlphaBeta <model>     fit probabilistic model 1..3\n") ;
       fprintf (stderr, "  -llCopyModel <theta> <rho>  log likelihood of Li-Stephens model\n") ;
@@ -267,13 +267,13 @@ int main (int argc, char *argv[])
     else if (!strcmp (argv[0], "-writeGen") && argc > 1)
       { FOPEN("writeGen","w") ; pbwtWriteGen (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-referenceFasta") && argc > 1)
-      { reference_fname = strdup(argv[1]) ; argc -= 2 ; argv += 2 ; }
+      { referenceFasta = strdup(argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeVcf") && argc > 1)
-      { pbwtWriteVcf (p, argv[1], reference_fname, "w") ; argc -= 2 ; argv += 2 ; }
+      { pbwtWriteVcf (p, argv[1], referenceFasta, "w") ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeBcf") && argc > 1)
-      { pbwtWriteVcf (p, argv[1], reference_fname, "wbu") ; argc -= 2 ; argv += 2 ; }
+      { pbwtWriteVcf (p, argv[1], referenceFasta, "wbu") ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeBcfGZ") && argc > 1)
-      { pbwtWriteVcf (p, argv[1], reference_fname, "wb") ; argc -= 2 ; argv += 2 ; }
+      { pbwtWriteVcf (p, argv[1], referenceFasta, "wb") ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-checkpoint") && argc > 1)
       { nCheckPoint = atoi (argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-subsample") && argc > 2)
