@@ -166,9 +166,8 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -writeImputeRef <rootname> write .imputeHaps and .imputeLegend\n") ;
       fprintf (stderr, "  -writeImputeHapsG <file>  write haplotype file for IMPUTE -known_haps_g\n") ;
       fprintf (stderr, "  -haps <file>              write haplotype file; '-' for stdout\n") ;
-      fprintf (stderr, "  -writeVcf <file>          write VCF file; '-' for stdout\n") ;
-      fprintf (stderr, "  -writeBcf <file>          write uncompressed BCF file; '-' for stdout\n") ;
-      fprintf (stderr, "  -writeBcfGZ <file>        write bgzip compressed BCF file; '-' for stdout\n") ;
+      fprintf (stderr, "  -writeVcf|-writeVcfGz|-writeBcf|-writeBcfGz <file>\n") ;
+      fprintf (stderr, "                            write VCF or BCF; uncompressed or bgzip (Gz) compressed file; '-' for stdout\n") ;
       fprintf (stderr, "  -referenceFasta <file>    reference fasta filename for VCF/BCF writing (optional)\n") ;
       fprintf (stderr, "  -subsites <fmin> <frac>   subsample <frac> sites with AF > <fmin>\n") ;
       fprintf (stderr, "  -subsample <start> <n>    subsample <n> samples from index <start>\n") ;
@@ -270,9 +269,11 @@ int main (int argc, char *argv[])
       { referenceFasta = strdup(argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeVcf") && argc > 1)
       { pbwtWriteVcf (p, argv[1], referenceFasta, "w") ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writeVcfGz") && argc > 1)
+      { pbwtWriteVcf (p, argv[1], referenceFasta, "wz") ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeBcf") && argc > 1)
       { pbwtWriteVcf (p, argv[1], referenceFasta, "wbu") ; argc -= 2 ; argv += 2 ; }
-    else if (!strcmp (argv[0], "-writeBcfGZ") && argc > 1)
+    else if (!strcmp (argv[0], "-writeBcfGz") && argc > 1)
       { pbwtWriteVcf (p, argv[1], referenceFasta, "wb") ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-checkpoint") && argc > 1)
       { nCheckPoint = atoi (argv[1]) ; argc -= 2 ; argv += 2 ; }
