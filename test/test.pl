@@ -14,6 +14,7 @@ test_pbwt($opts, in=>'merge.1', out=>'merge.1.out');
 test_pbwt($opts, in=>'merge.2', out=>'merge.2.out');
 test_write_vcf($opts, in=>'merge.1', out=>'merge.1.vcf');
 test_read_vcf_gt($opts, in=>'read.vcf', out=>'write.vcf');
+test_pbwt_reference_impute($opts, in=>'refImpute.in', ref=>'OMNI', out=>'refImpute.out.vcf');
 test_merge($opts,in=>['merge.1','merge.2'],out=>'merge.12.out');
 test_merge_sites($opts,in=>['merge.1','merge.2'],out=>'merge.12.sites');
 
@@ -32,7 +33,7 @@ sub error
     my (@msg) = @_;
     if ( scalar @msg ) { confess @msg; }
     print 
-        "About: htslib consistency test script\n",
+        "About: pbwt consistency test script\n",
         "Usage: test.pl [OPTIONS]\n",
         "Options:\n",
         "   -r, --redo-outputs              Recreate expected output files.\n",
@@ -192,6 +193,14 @@ sub test_read_vcf_gt
 {
     my ($opts,%args) = @_;
     test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -readVcfGT $$opts{path}/read.vcf -writeVcf - 2>/dev/null | grep -v ^##pbwtVersion >$$opts{tmp}/$args{out}");
+}
+
+sub test_pbwt_reference_impute
+{
+    my ($opts,%args) = @_;
+    # create reference panel pbwt
+    cmd("$$opts{bin}/pbwt -readVcfGT $$opts{path}/$args{ref}.vcf -writeAll $$opts{tmp}/$args{ref} 2>/dev/null");
+    test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -readVcfGT $$opts{path}/$args{in}.vcf -referenceImpute $$opts{tmp}/$args{ref} -writeVcf - 2>/dev/null | grep -v ^##pbwtVersion > $$opts{tmp}/$args{out}");
 }
 
 sub test_merge
