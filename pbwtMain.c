@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 25 08:45 2014 (rd)
+ * Last edited: Oct 12 23:46 2014 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -103,10 +103,19 @@ static void siteFrequencySpectrum (PBWT *p)
 
   timeUpdate() ;
 
+  FILE *fp ;
+  if (p->sites) { fp = fopen ("sites.freq", "w") ; if (!fp) die ("can't open sites.freq") ; }
+
   for (i = 0 ; i < p->N ; ++i)
     { ++array(hist, p->M - u->c, int) ;
+      if (p->sites)
+	{ Site *s = arrp(p->sites,i,Site) ;
+	  s->freq = 1.0 - (double)u->c/(double)p->M ;
+	  fprintf (fp, "%s\t%d\t%.6f\t%s\n", p->chrom, s->x, s->freq, dictName (variationDict, s->varD)) ;
+	}
       pbwtCursorForwardsRead (u) ;
     }
+  if (p->sites) fclose (fp) ;
 
   n = 0 ; j = 0 ;
   for (i = 1 ; i < p->M ; ++i)
@@ -190,7 +199,8 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -llCopyModel <theta> <rho>  log likelihood of Li-Stephens model\n") ;
       fprintf (stderr, "  -paint <fileNameRoot>     output painting co-ancestry matrix\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
-      fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale)\n") ;
+      fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale) - also writes sites.freq file\n") ;
+      fprintf (stderr, "  -refFreq <file>           read site frequency information into the refFreq field of current sites\n") ;
       fprintf (stderr, "  -siteInfo <file> <kmin> <kmax> export PBWT information at sites with allele count kmin <= k < kmax\n") ;
       fprintf (stderr, "  -buildReverse             build reverse pbwt\n") ;
     }
@@ -300,6 +310,8 @@ int main (int argc, char *argv[])
       { FOPEN("siteInfo","w") ; exportSiteInfo (p, fp, atoi(argv[2]), atoi(argv[3])) ; FCLOSE ; argc -= 4 ; argv += 4 ; }
     else if (!strcmp (argv[0], "-sfs"))
       { siteFrequencySpectrum (p) ; argc -= 1 ; argv += 1 ; }
+    else if (!strcmp (argv[0], "-refFreq") && argc > 1)
+      { FOPEN("refFreq","r") ; pbwtReadRefFreq (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-maxWithin"))
       { pbwtLongMatches (p, 0) ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-longWithin") && argc > 1)

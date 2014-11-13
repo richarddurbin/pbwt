@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 22 23:00 2014 (rd)
+ * Last edited: Oct 12 23:43 2014 (rd)
  * * Sep 22 23:00 2014 (rd): change to 64bit arrays - version 3 .pbwt file
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
@@ -160,6 +160,7 @@ void pbwtWriteGen (PBWT *p, FILE *fp) ; /* write gen file as for impute etc. */
 PBWT *pbwtRead (FILE *fp) ;
 Array pbwtReadSitesFile (FILE *fp, char **chrom) ;
 void pbwtReadSites (PBWT *p, FILE *fp) ;
+void pbwtReadRefFreq (PBWT *p, FILE *fp) ;
 Array pbwtReadSamplesFile (FILE *fp) ;
 void pbwtReadSamples (PBWT *p, FILE *fp) ;
 void pbwtReadMissing (PBWT *p, FILE *fp) ;

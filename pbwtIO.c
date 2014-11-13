@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 22 23:02 2014 (rd)
+ * Last edited: Oct 18 16:56 2014 (rd)
  * * Sep 22 23:00 2014 (rd): change for 64bit arrays - version 3 .pbwt file
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
@@ -26,7 +26,7 @@
 
 int nCheckPoint = 0 ;	/* if set non-zero write pbwt and sites files every n sites when parsing external files */
 
-BOOL isWriteImputeRef = FALSE ;	/* modifies WriteSites() and WriteHaplotypes() for impute  */
+static BOOL isWriteImputeRef = FALSE ;	/* modifies WriteSites() and WriteHaplotypes() for pbwtWriteImputeRef */
 
 /* basic function to store packed PBWT */
 
@@ -253,6 +253,40 @@ void pbwtReadSites (PBWT *p, FILE *fp)
   p->sites = pbwtReadSitesFile (fp, &p->chrom) ;
   if (arrayMax(p->sites) != p->N)
     die ("sites file contains %ld sites not %d as in pbwt", arrayMax(p->sites), p->N) ;
+}
+
+Array readRefFreq (PBWT *p, FILE *fp)
+{
+  Array a = arrayCreate (p->N, Site) ;
+  char chrom[256], var[256] ;
+  int pos ;
+  double freq ;
+  while (!feof(fp))
+    { if (fscanf (fp, "%s\t%d\t%lf\t", chrom, &pos, &freq) != 3 && !feof (fp))
+	die ("can't read ref freq file properly") ;
+      if (strcmp (chrom, p->chrom))
+	die ("chromosome mismatch in readRefFreq '%s' is not '%s'", chrom, p->chrom) ;
+      char *cp = var ; while ((*cp = getc(fp)) != '\n' && !feof(fp)) ++cp ; *cp = 0 ;
+      Site *s = arrayp(a, arrayMax(a), Site) ;
+      s->x = pos ; 
+      s->refFreq = freq ;
+      dictAdd (variationDict, var, &s->varD) ;
+    }
+  return a ;
+}
+
+void pbwtReadRefFreq (PBWT *p, FILE *fp)
+{ if (!p || !p->sites) die ("pbwtReadRefFreq called without current site information") ;
+  Array a = readRefFreq (p, fp) ;
+  
+  int i = 0, j = 0 ;
+  Site *ps = arrp(p->sites,i,Site), *as = arrp(a,j,Site) ;
+  while (i < p->N)
+    { while (j < arrayMax(a) && 
+	     (as->x < ps->x || as->x == ps->x && as->varD < ps->varD)) { ++j ; ++as ; }
+      if (ps->x == as->x && ps->varD == as->varD) ps->refFreq = as->refFreq ;
+      ++i ; ++ps ;
+    }
 }
 
 Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
