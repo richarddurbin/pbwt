@@ -8,8 +8,10 @@ all: pbwt
 test:
 	./test/test.pl
 
-pbwt: pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtPaint.o pbwtLikelihood.o pbwtMerge.o pbwtHtslib.o utils
-	gcc $(CFLAGS) -o pbwt pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtLikelihood.o pbwtPaint.o pbwtMerge.o pbwtHtslib.o hash.o dict.o array.o utils.o $(HTSLIB) -lpthread -lz -lm
+PBWT_OBJS = pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtPaint.o pbwtLikelihood.o pbwtMerge.o pbwtGeneticMap.o pbwtHtslib.o
+
+pbwt:  $(PBWT_OBJS) utils 
+	gcc $(CFLAGS) -o pbwt $(PBWT_OBJS) hash.o dict.o array.o utils.o $(HTSLIB) -lpthread -lz -lm
 
 autozygExtract: autozygExtract.o
 	gcc $(CFLAGS) -o autozygExtract autozygExtract.o utils.o $(HTSLIB) -lpthread -lz -lm
@@ -40,6 +42,9 @@ pbwtPaint.o: pbwtPaint.c pbwt.h utils.h
 
 pbwtMerge.o: pbwtMerge.c pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtMerge.c
+
+pbwtGeneticMap.o: pbwtGeneticMap.c pbwt.h utils.h 
+	gcc $(CFLAGS) -c pbwtGeneticMap.c
 
 pbwtHtslib.o: pbwtHtslib.c pbwt.h utils.h 
 	gcc $(CFLAGS) -I$(HTSDIR) -c pbwtHtslib.c
