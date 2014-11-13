@@ -5,7 +5,7 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Oct  3 15:48 2014 (rd)
+ * Last edited: Nov 13 15:17 2014 (rd)
  * * Sep 22 23:03 2014 (rd): change for 64bit arrays
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
@@ -219,7 +219,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
   if (referenceFasta)
     {
       faidx_t *faidx = fai_load(referenceFasta);
-      if ( !faidx ) error("Could not load the reference %s. Has the fasta been indexed with 'samtools faidx'?\n", referenceFasta);
+      if ( !faidx ) die ("Could not load the reference %s. Has the fasta been indexed with 'samtools faidx'?\n", referenceFasta);
       pbwtSetContigs(bcfHeader, faidx);
       fai_destroy(faidx);
     }
