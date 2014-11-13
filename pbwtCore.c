@@ -15,7 +15,7 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 22 23:03 2014 (rd)
+ * Last edited: Oct 10 08:55 2014 (rd)
  * * Sep 22 23:02 2014 (rd): change for 64bit arrays
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
@@ -59,6 +59,10 @@ void pbwtDestroy (PBWT *p)
   if (p->aFend) free (p->aFend) ;
   if (p->aRstart) free (p->aRstart) ;
   if (p->aRend) free (p->aRend) ;
+  if (p->missingOffset) arrayDestroy (p->missingOffset) ;
+  if (p->zMissing) arrayDestroy (p->zMissing) ;
+  if (p->dosageOffset) arrayDestroy (p->dosageOffset) ;
+  if (p->zDosage) arrayDestroy (p->zDosage) ;
   free (p) ;
 }
 
@@ -98,7 +102,7 @@ PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac)
 
   pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
-  pNew->missing = pOld->missing ; pOld->missing = 0 ;
+  pNew->missingOffset = pOld->missingOffset ; pOld->missingOffset = 0 ;
   pNew->zMissing = pOld->zMissing ; pOld->zMissing = 0 ;
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ;
@@ -135,7 +139,7 @@ PBWT *pbwtSubRange (PBWT *pOld, int start, int end)
 
   pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
-  pNew->missing = pOld->missing ; pOld->missing = 0 ;
+  pNew->missingOffset = pOld->missingOffset ; pOld->missingOffset = 0 ;
   pNew->zMissing = pOld->zMissing ; pOld->zMissing = 0 ;
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ;
@@ -266,7 +270,7 @@ int pack3arrayAdd (uchar *yp, int M, Array ayz)
 /* pack M chars onto the end of array ayz - normally use this function */
 {
   long max = arrayMax(ayz) ;
-  array (ayz, max+M, uchar) = 0 ; /* ensure enough space to copy into */
+  arrayExtend (ayz, max+M) ; /* ensure enough space to copy into */
   int n = pack3 (yp, M, arrp(ayz,max,uchar)) ;
   arrayMax(ayz) = max + n ;
   return n ;

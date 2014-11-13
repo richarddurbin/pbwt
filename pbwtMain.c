@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Jul 25 08:45 2014 (rd)
+ * Last edited: Oct 17 02:07 2014 (rd)
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -24,22 +24,33 @@
 
 /*********************************************************/
 
-static PBWT *playGround (PBWT *p) /* iterate PBWT operation on p */
+#include "math.h"
+
+static PBWT *playGround (PBWT *p)
 {
-  int i, j ;
-  PBWT *pNew = pbwtCreate (p->M, p->N) ;
+  int k, j ;
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
-  PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
+  double *d = 0, sumDiff2 = 0 ;
 
-  for (i = 0 ; i < p->N ; ++i)
-    { for (j = 0 ; j < p->M ; ++j) uNew->y[j] = u->y[uNew->a[j]] ;
+  for (k = 0 ; k < p->N ; ++k)
+    { double psum = 0, xsum = 0, pxsum = 0 ;
+      d = pbwtDosageRetrieve (p, u, d, k) ;
+      for (j = 0 ; j < p->M ; ++j)
+	{ psum += d[j] ;
+	  if (d[j]) { xsum++ ; pxsum += d[j] ; }
+	}
+      psum /= p->M ; xsum /= p->M ; pxsum /= p->M ;
+      double varProd = psum*(1.0-psum)*xsum*(1.0-xsum) ;
+      double info = varProd ? (pxsum - psum*psum)/sqrt(varProd) : 1.0 ;
+      double diff = (info - arrp(p->sites,k,Site)->imputeInfo) ;
+      sumDiff2 += diff*diff ;
       pbwtCursorForwardsRead (u) ;
-      pbwtCursorWriteForwards (uNew) ;
     }
-  pbwtCursorToAFend (uNew, pNew) ;
 
-  pbwtCursorDestroy (u) ; pbwtCursorDestroy (uNew) ; pbwtDestroy (p) ;
-  return pNew ;
+  printf ("RMS info to zInfo %.4f\n", sqrt (sumDiff2/p->N)) ;
+
+  pbwtCursorDestroy (u) ; free (d) ;
+  return p ;
 }
 
 /*********************************************************/
@@ -122,6 +133,24 @@ static void siteFrequencySpectrum (PBWT *p)
 
 /*********************************************************/
 
+ char *commandLine = "" ;
+
+static void recordCommandLine (int argc, char *argv[])
+ {
+   if (!argc) return ;
+
+   int i, len = 0 ;
+   for (i = 0 ; i < argc ; ++i) len += (1 + strlen(argv[i])) ;
+   commandLine = myalloc (len, char) ;
+   strcpy (commandLine, argv[0]) ;
+   for (i = 1 ; i < argc ; ++i) 
+     { strcat (commandLine, " ") ; 
+       strcat (commandLine, argv[i]) ;
+     }
+ }
+
+/*********************************************************/
+
 /* a couple of utilities for opening/closing files */
 
 #define FOPEN(name,mode)  if (!strcmp (argv[1], "-")) fp = !strcmp(mode,"r") ? stdin : stdout ; else if (!(fp = fopen (argv[1],mode))) die ("failed to open %s file", name, argv[1])
@@ -136,6 +165,8 @@ int main (int argc, char *argv[])
   pbwtInit () ;
 
   --argc ; ++argv ;
+  recordCommandLine (argc, argv) ;
+
   if (!argc)			/* print help */
     { fprintf (stderr, "Usage: pbwt [ -<command> [options]* ]+\n") ;
       fprintf (stderr, "Commands:\n") ;
@@ -145,8 +176,9 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -readSites <file>         read sites file; '-' for stdin\n") ;
       fprintf (stderr, "  -readSamples <file>       read samples file; '-' for stdin\n") ;
       fprintf (stderr, "  -readMissing <file>       read missing file; '-' for stdin\n") ;
+      fprintf (stderr, "  -readDosage <file>        read dosage file; '-' for stdin\n") ;
       fprintf (stderr, "  -readReverse <file>       read reverse file; '-' for stdin\n") ;
-      fprintf (stderr, "  -readAll <rootname>       read .pbwt and if present .sites, .samples, .missing\n") ;
+      fprintf (stderr, "  -readAll <rootname>       read .pbwt and if present .sites, .samples, .missing - note not by default dosage\n") ;
       fprintf (stderr, "  -readVcfGT <file>         read GTs from vcf or bcf file; '-' for stdin vcf only ; biallelic sites only - require diploid!\n") ;
       fprintf (stderr, "  -readVcfPL <file>         read PLs from vcf or bcf file; '-' for stdin vcf only ; biallelic sites only - require diploid!\n") ;
       fprintf (stderr, "  -readMacs <file>          read MaCS output file; '-' for stdin\n") ;
@@ -160,8 +192,9 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -writeSites <file>        write sites file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeSamples <file>      write samples file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeMissing <file>      write missing file; '-' for stdout\n") ;
+      fprintf (stderr, "  -writeDosage <file>      write missing file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeReverse <file>      write reverse file; '-' for stdout\n") ;
-      fprintf (stderr, "  -writeAll <rootname>      write .pbwt and if present .sites, .samples, .missing\n") ;
+      fprintf (stderr, "  -writeAll <rootname>      write .pbwt and if present .sites, .samples, .missing, .dosage\n") ;
       fprintf (stderr, "  -writeImputeRef <rootname> write .imputeHaps and .imputeLegend\n") ;
       fprintf (stderr, "  -writeImputeHapsG <file>  write haplotype file for IMPUTE -known_haps_g\n") ;
       fprintf (stderr, "  -haps <file>              write haplotype file; '-' for stdout\n") ;
@@ -193,6 +226,8 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale)\n") ;
       fprintf (stderr, "  -siteInfo <file> <kmin> <kmax> export PBWT information at sites with allele count kmin <= k < kmax\n") ;
       fprintf (stderr, "  -buildReverse             build reverse pbwt\n") ;
+      fprintf (stderr, "  -readGeneticMap <file>    read Oxford format genetic map file\n") ;
+      fprintf (stderr, "  -4hapsStats               mu:rho 4 hap test stats\n") ;
     }
 
   timeUpdate() ;
@@ -226,6 +261,8 @@ int main (int argc, char *argv[])
       { FOPEN("readSamples","r") ; pbwtReadSamples (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readMissing") && argc > 1)
       { FOPEN("readMissing","r") ; pbwtReadMissing (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-readDosage") && argc > 1)
+      { FOPEN("readMissing","r") ; pbwtReadDosage (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readReverse") && argc > 1)
       { FOPEN("readReverse","r") ; pbwtReadReverse (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readAll") && argc > 1)
@@ -252,6 +289,8 @@ int main (int argc, char *argv[])
       { FOPEN("writeSamples","w") ; pbwtWriteSamples (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeMissing") && argc > 1)
       { FOPEN("writeMissing","w") ; pbwtWriteMissing (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writeDosage") && argc > 1)
+      { FOPEN("writeMissing","w") ; pbwtWriteDosage (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeReverse") && argc > 1)
       { FOPEN("writeReverse","w") ; pbwtWriteReverse (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeAll") && argc > 1)
@@ -328,6 +367,10 @@ int main (int argc, char *argv[])
       { pbwtLogLikelihoodCopyModel (p, atof(argv[1]), atof(argv[2])) ; 
 	argc -= 3 ; argv += 3 ; 
       }
+    else if (!strcmp (argv[0], "-readGeneticMap") && argc > 1)
+      {  FOPEN("readGeneticMap","r") ; readGeneticMap (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-4hapsStats"))
+      { pbwt4hapsStats (p) ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-paint") && argc > 1)
       { paintAncestryMatrix (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-play"))
