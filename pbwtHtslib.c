@@ -5,7 +5,7 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 22 23:16 2014 (rd)
+ * Last edited: Oct  3 15:48 2014 (rd)
  * * Sep 22 23:03 2014 (rd): change for 64bit arrays
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
@@ -108,14 +108,14 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
             { if (!wasMissing)
                 { p->zMissing = arrayCreate (10000, uchar) ;
                   array(p->zMissing, 0, uchar) = 0 ; /* needed so missing[] has offset > 0 */
-                  p->missing = arrayCreate (1024, long) ;
+                  p->missingOffset = arrayCreate (1024, long) ;
                 }
-              array(p->missing, p->N, long) = arrayMax(p->zMissing) ;
+              array(p->missingOffset, p->N, long) = arrayMax(p->zMissing) ;
               pack3arrayAdd (xMissing, p->M, p->zMissing) ; /* NB original order, not pbwt sort */
               nMissingSites++ ;
             }
           else if (nMissing)
-            array(p->missing, p->N, int) = 0 ;
+            array(p->missingOffset, p->N, int) = 0 ;
 
           // add the site
           Site *s = arrayp(p->sites, p->N++, Site) ;
@@ -133,7 +133,7 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
   free (xMissing) ;
 
   fprintf (stderr, "read genotypes from %s\n", filename) ;
-  if (p->missing) fprintf (stderr, "%ld missing values at %d sites\n", 
+  if (p->missingOffset) fprintf (stderr, "%ld missing values at %d sites\n", 
          nMissing, nMissingSites) ;
 
   return p ;

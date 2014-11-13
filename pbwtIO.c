@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Oct 18 16:56 2014 (rd)
+ * Last edited: Nov 13 15:04 2014 (rd)
  * * Sep 22 23:00 2014 (rd): change for 64bit arrays - version 3 .pbwt file
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
@@ -94,22 +94,28 @@ void pbwtWriteSamples (PBWT *p, FILE *fp)
   fprintf (stderr, "written %d samples\n", p->M/2) ;
 }
 
-void pbwtWriteMissing (PBWT *p, FILE *fp)
+void writeDataOffset (FILE *fp, char *name, Array offset, Array data, int N)
 {
-  if (!p || !p->zMissing) die ("pbwtWriteMissing called without data on missing") ;
+  if (!offset || !data) die ("write %s called without data", name) ;
   int dummy = -1 ;	/* ugly hack to mark that we now use longs not ints */
   if (fwrite (&dummy, sizeof(int), 1, fp) != 1)
-    die ("error writing in pbwtWriteMissing") ;
-  long n = arrayMax(p->zMissing) ;
+    die ("error writing marker in write %s", name) ;
+  long n = arrayMax(data) ;
   if (fwrite (&n, sizeof(long), 1, fp) != 1)
-    die ("error writing n in pbwtWriteMissing") ;
-  if (fwrite (arrp(p->zMissing, 0, uchar), sizeof(uchar), n, fp) != n)
-    die ("error writing zMissing in pbwtWriteMissing") ;
-  if (fwrite (arrp(p->missing, 0, long), sizeof(long), p->N, fp) != p->N)
-    die ("error writing missing in pbwtWriteMissing") ;
+    die ("error writing n in write %s", name) ;
+  if (fwrite (arrp(data, 0, uchar), sizeof(uchar), n, fp) != n)
+    die ("error writing data in write %s", name) ;
+  if (fwrite (arrp(offset, 0, long), sizeof(long), N, fp) != N)
+    die ("error writing offsets in write %s", name) ;
 
-  fprintf (stderr, "written %ld chars compressed missing data\n", n) ;
+  fprintf (stderr, "written %ld chars compressed %s data\n", n, name) ;
 }
+
+void pbwtWriteMissing (PBWT *p, FILE *fp)
+{ writeDataOffset (fp, "missing", p->zMissing, p->missingOffset, p->N) ; }
+
+void pbwtWriteDosage (PBWT *p, FILE *fp)
+{ writeDataOffset (fp, "dosage", p->zDosage, p->dosageOffset, p->N) ; }
 
 void pbwtWriteReverse (PBWT *p, FILE *fp)
 {
@@ -132,7 +138,8 @@ void pbwtWriteAll (PBWT *p, char *root)
   FOPEN_W("pbwt") ; pbwtWrite (p, fp) ; fclose (fp) ;
   if (p->sites) { FOPEN_W("sites") ; pbwtWriteSites (p, fp) ; fclose (fp) ; }
   if (p->samples) { FOPEN_W("samples") ; pbwtWriteSamples (p, fp) ; fclose (fp) ; }
-  if (p->missing) { FOPEN_W("missing") ; pbwtWriteMissing (p, fp) ; fclose (fp) ; }
+  if (p->missingOffset) { FOPEN_W("missing") ; pbwtWriteMissing (p, fp) ; fclose (fp) ; }
+  if (p->dosageOffset) { FOPEN_W("dosage") ; pbwtWriteDosage (p, fp) ; fclose (fp) ; }
   if (p->zz) { FOPEN_W("reverse") ; pbwtWriteReverse (p, fp) ; fclose (fp) ; }
 }
 
@@ -156,6 +163,7 @@ PBWT *pbwtRead (FILE *fp)
   long nz ;
   PBWT *p ;
   static char tag[5] = "test" ;
+  char pad[4] ;
   int version ;
 
   if (fread (tag, 1, 4, fp) != 4) die ("failed to read 4 char tag - is file readable?") ;
@@ -185,7 +193,7 @@ PBWT *pbwtRead (FILE *fp)
     }
   else
     if (fread (&nz, sizeof(long), 1, fp) != 1 ||
-	fread (tag, 1, 4, fp) != 4) die ("error reading pbwt file") ;
+	fread (pad, 1, 4, fp) != 4) die ("error reading pbwt file") ;
 
   p->yz = arrayCreate (nz, uchar) ;
   array(p->yz, nz-1, uchar) = 0 ; /* sets arrayMax */
@@ -335,37 +343,41 @@ void pbwtReadSamples (PBWT *p, FILE *fp)
   arrayDestroy (samples) ;
 }
 
-void pbwtReadMissing (PBWT *p, FILE *fp)
+static void readDataOffset (FILE *fp, char *name, Array *offset, Array *data, int N)
 {
-  if (!p) die ("pbwtReadSamples called without a valid pbwt") ;
-
-  long n ;			/* size of zMissing file */
+  long n ;			/* size of data file */
   int dummy ; 
   if (fread (&dummy, sizeof(int), 1, fp) != 1) 
-    die ("read error in pbwtReadMissing") ;
+    die ("read error in read %s", name) ;
   if (dummy != -1) n = dummy ;	/* old version with ints not longs */
   else if (fread (&n, sizeof(long), 1, fp) != 1) 
-    die ("read error in pbwtReadMissing") ;
+    die ("read error in read %s", name) ;
 
-  p->zMissing = arrayReCreate (p->zMissing, n, uchar) ;
-  if (fread (arrp(p->zMissing, 0, uchar), sizeof(uchar), n, fp) != n)
+  *data = arrayReCreate (*data, n, uchar) ;
+  if (fread (arrp(*data, 0, uchar), sizeof(uchar), n, fp) != n)
     die ("error reading zMissing in pbwtReadMissing") ;
-  arrayMax(p->zMissing) = n ;
+  arrayMax(*data) = n ;
   fprintf (stderr, "read %ld chars compressed missing data\n", n) ;
 
-  p->missing = arrayReCreate (p->missing, p->N, long) ;
+  *offset = arrayReCreate (*offset, N, long) ;
   if (dummy != -1)		/* old version with ints not longs */
-    { /* abuse p->missing to hold ints, then update in place */
-      if (fread (arrp(p->missing, 0, int), sizeof(int), p->N, fp) != p->N) 
+    { /* abuse *offset to hold ints, then update in place */
+      if (fread (arrp(*offset, 0, int), sizeof(int), N, fp) != N) 
 	die ("error reading missing in pbwtReadMissing") ;
-      for (n = p->N ; n-- ;) 
-	arr(p->missing, n, long) = arr(p->missing, n, int) ; /* !! */
+      for (n = N ; n-- ;) 
+	arr(*offset, n, long) = arr(*offset, n, int) ; /* !! */
     }
   else
-    if (fread (arrp(p->missing, 0, long), sizeof(long), p->N, fp) != p->N)
+    if (fread (arrp(*offset, 0, long), sizeof(long), N, fp) != N)
       die ("error reading missing in pbwtReadMissing") ;
-  arrayMax(p->missing) = p->N ;
+  arrayMax(*offset) = N ;
 }
+
+void pbwtReadMissing (PBWT *p, FILE *fp)
+{ readDataOffset (fp, "missing", &p->zMissing, &p->missingOffset, p->N) ; }
+
+void pbwtReadDosage (PBWT *p, FILE *fp)
+{ readDataOffset (fp, "dosage", &p->zDosage, &p->dosageOffset, p->N) ; }
 
 void pbwtReadReverse (PBWT *p, FILE *fp)
 {

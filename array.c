@@ -1,6 +1,7 @@
-/*  File: arraysub.c
- *  Author: Jean Thierry-Mieg (mieg@mrc-lmba.cam.ac.uk)
+/*  File: array.c
+ *  Author: Jean Thierry-Mieg (mieg@ncbi.nlm.nih.gov)
  *  Copyright (C) J Thierry-Mieg and R Durbin, 1989-
+ *  Copyright (C) Genome Research Limited, 1996-
  * -------------------------------------------------------------------
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,9 +27,9 @@
  * Exported functions:
  *              See header file: array.h (includes lots of macros)
  * HISTORY:
- * Last edited: Sep 22 22:58 2014 (rd)
+ * Last edited: Oct  8 21:56 2014 (rd)
  * * Sep 19 15:41 2014 (rd): switch to long indices to avoid overflow 
- * * May  5 10:55 2013 (rd): New RD address rd@sanger.ac.uk
+ * * May  5 10:55 2013 (rd): change RD address to rd@sanger.ac.uk
  * * Feb 14 11:21 2011 (rd): modified in 2009/10 by RD for stand-alone use
  * Created: Thu Dec 12 15:43:25 1989 (mieg)
  *-------------------------------------------------------------------

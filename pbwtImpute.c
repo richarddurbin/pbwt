@@ -16,8 +16,8 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 30 15:13 2014 (rd)
- * * Sep 22 23:10 2014 (rd): nove to 64 bit arrays
+ * Last edited: Nov 13 15:05 2014 (rd)
+ * * Sep 22 23:10 2014 (rd): move to 64 bit arrays
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -1138,6 +1138,10 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
   int *firstSeg = mycalloc (pOld->M, int) ; /* position in maxMatch to start looking at */
   int nConflicts = 0 ;
   uchar *missing = (pOld == pFrame) ? mycalloc (pRef->M, uchar) : 0 ;
+  double *xDosage = myalloc (pRef->M, double), *yDosage = myalloc (pRef->M, double) ;
+
+  pNew->dosageOffset = arrayReCreate (pNew->dosageOffset, pRef->N, long) ;
+  pNew->zDosage = arrayReCreate (pNew->zDosage, pRef->N*16, uchar) ;
 
   int kOld = 0, kRef = 0 ;
   while (kRef < pRef->N)
@@ -1151,8 +1155,8 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
       double psum = 0, xsum = 0, pxsum = 0 ; int n = 0 ;
       arrp(pRef->sites,kRef,Site)->refFreq = (uRef->M - uRef->c) / (double) pRef->M ;
       if (pOld == pFrame)	/* find which samples are missing at this site */
-	{ if (!arr(pRef->missing, kRef, long)) bzero (missing, pRef->M) ;
-	  else unpack3 (arrp(pRef->zMissing,arr(pRef->missing,kRef,long), uchar), 
+	{ if (!arr(pRef->missingOffset, kRef, long)) bzero (missing, pRef->M) ;
+	  else unpack3 (arrp(pRef->zMissing,arr(pRef->missingOffset,kRef,long), uchar), 
 			pRef->M, missing, 0) ;
 	}
       for (j = 0 ; j < pOld->M ; ++j)
@@ -1174,13 +1178,15 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	      ++m ;
 	    }
 	  if (sum == 0) 
-	    { x[j] = 0 ;
-	      if (isStats) pImp[kRef][j] = arrp(pRef->sites,kRef,Site)->refFreq ; 
+	    { x[j] = arrp(pRef->sites,kRef,Site)->refFreq > 0.5 ? 1 : 0 ;
+	      xDosage[j] = arrp(pRef->sites,kRef,Site)->refFreq ;
+	      if (isStats) pImp[kRef][j] = xDosage[j] ;
 	      ++nConflicts ;
 	    }
 	  else 
-	    { double p = (score+1)/(sum+2) ;
+	    { double p = score/sum ;
 	      x[j] = (p > 0.5) ? 1 : 0 ;
+	      xDosage[j] = p ;
 	      psum += p ;
 	      xsum += x[j] ;
 	      pxsum += p*x[j] ;
@@ -1191,6 +1197,10 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	  
       for (j = 0 ; j < pOld->M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* transfer to uNew */
       pbwtCursorWriteForwards (uNew) ;
+      /* need to sort the dosages into uNew cursor order as well */
+      for (j = 0 ; j < pOld->M ; ++j) yDosage[j] = xDosage[uNew->a[j]] ;
+      pbwtDosageStore (pNew, yDosage, kRef) ;
+      
       if (n) 
 	{ psum /= n ; xsum /= n ; pxsum /= n ;
 	  double varianceProduct = psum*(1.0-psum)*xsum*(1.0-xsum) ;
@@ -1210,6 +1220,7 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
   pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uRef) ; pbwtCursorDestroy (uNew) ;
   free (aRefInv) ; free (firstSeg) ;
   for (j = 0 ; j < pOld->M ; ++j) free (maxMatch[j]) ; free (maxMatch) ;
+  free (xDosage) ; free (yDosage) ; if (missing) free (missing) ;
   return pNew ;
 }
 
@@ -1278,7 +1289,7 @@ PBWT *imputeMissing (PBWT *pOld)
 {
   int k ;
 
-  if (!pOld->missing)
+  if (!pOld->missingOffset)
     { warn ("imputeMissing called but can't find missing data\n") ;
       return pOld ;
     }
@@ -1287,13 +1298,13 @@ PBWT *imputeMissing (PBWT *pOld)
     { int *nMiss = mycalloc (10,int), n0, i ;
       uchar *miss = myalloc (pOld->M, uchar) ;
       for (k = 0 ; k < pOld->N ; ++k)
-	if (arr(pOld->missing,k,long)) 
-	  { unpack3 (arrp(pOld->zMissing,arr(pOld->missing,k,int), uchar), 
+	if (arr(pOld->missingOffset,k,long)) 
+	  { unpack3 (arrp(pOld->zMissing,arr(pOld->missingOffset,k,int), uchar), 
 		     pOld->M, miss, &n0) ;
 	    n0 = pOld->M - n0 ;
 	    if (isCheck)
 	      { printf ("missing at %d: offset %ld, n0 %d", 
-			k, arr(pOld->missing,k,long), n0) ;
+			k, arr(pOld->missingOffset,k,long), n0) ;
 		putchar ('\n') ;
 	      }
 	    for (i = 0 ; n0 > 0 ; ++i) { ++nMiss[i] ; n0 /= 10 ; }
@@ -1309,7 +1320,7 @@ PBWT *imputeMissing (PBWT *pOld)
   /* first build frame */
   Array completeSites = arrayCreate (pOld->M, Site) ;
   for (k = 0 ; k < pOld->N ; ++k) 
-    if (!arr(pOld->missing,k,long)) 
+    if (!arr(pOld->missingOffset,k,long)) 
       array(completeSites,arrayMax(completeSites),Site) = arr(pOld->sites,k,Site) ;
   PBWT *pFrame = pbwtSelectSites (pOld, completeSites, TRUE) ;
   arrayDestroy (completeSites) ;
@@ -1331,19 +1342,21 @@ void genotypeCompare (PBWT *p, char *fileNameRoot)
   if (!p || !p->yz || !p->sites) 
     die ("genotypeCompare called without existing pbwt with sites") ;
   PBWT *pRef = pbwtReadAll (fileNameRoot) ;
+  if (strcmp(p->chrom,pRef->chrom)) die ("mismatch chrom %s to ref %f", p->chrom, pRef->chrom) ;
   if (!pRef->sites) die ("new pbwt %s in genotypeCompare has no sites", fileNameRoot) ;
   if (p->M != pRef->M) die ("mismatch of old M %d to ref M %d", p->M, pRef->M) ;
-  if (p->N != pRef->N) warn ("mismatch of old N %d to ref N %d", p->N, pRef->N) ;
+  if (p->N == pRef->N)
+      genotypeComparePbwt (p, pRef) ;
+  else		      /* reduce both down to the intersecting sites */
+    { warn ("mismatch of old N %d to ref N %d", p->N, pRef->N) ;
+      PBWT *pFrame = pbwtSelectSites (p, pRef->sites, TRUE) ;
+      pRef = pbwtSelectSites (pRef, p->sites, FALSE) ;
+      if (!pFrame->N) die ("no overlapping sites in genotypeCompare") ;
+      genotypeComparePbwt (pFrame, pRef) ;
+      pbwtDestroy(pFrame) ;
+    }
   
-  /* reduce both down to the intersecting sites */
-  PBWT *pFrame = pbwtSelectSites (p, pRef->sites, TRUE) ;
-  pRef = pbwtSelectSites (pRef, p->sites, FALSE) ;
-  if (!pFrame->N) die ("no overlapping sites in genotypeCompare") ;
-  if (strcmp(pFrame->chrom,pRef->chrom)) die ("mismatch chrom %s to ref %f", pFrame->chrom, pRef->chrom) ;
-
-  genotypeComparePbwt (pFrame, pRef) ;
-  
-  pbwtDestroy (pRef) ; pbwtDestroy(pFrame) ;
+  pbwtDestroy (pRef) ;
 }
 
 static void genotypeComparePbwt (PBWT *p, PBWT *q)
@@ -1356,6 +1369,10 @@ static void genotypeComparePbwt (PBWT *p, PBWT *q)
   int ni[17] ; for (i = 17 ; i-- ;) ni[i] = 0 ;
   long *ns = mycalloc (9*p->M, long) ;
   BOOL isRefFreq = FALSE ;
+  BOOL isDosage = p->dosageOffset ? TRUE : FALSE ;
+  double *dos = 0 ;
+  long nd[12] ; for (i = 12 ; i-- ;) nd[i] = 0 ;
+  long nd1[12] ; for (i = 12 ; i-- ;) nd1[i] = 0 ;
 
   PbwtCursor *up = pbwtCursorCreate (p, TRUE, TRUE) ;
   PbwtCursor *uq = pbwtCursorCreate (q, TRUE, TRUE) ;
@@ -1366,19 +1383,27 @@ static void genotypeComparePbwt (PBWT *p, PBWT *q)
       for (ff = 0 ; f*100 > fBound[ff] ; ) ++ff ; fsum[ff] += f*100 ; ++nsum[ff] ;
       if (arrp(p->sites,k,Site)->imputeInfo < 1.0) { isum[ff] += arrp(p->sites,k,Site)->imputeInfo ; ++ni[ff] ; }
       for (j = 0 ; j < p->M ; ++j) { xp[up->a[j]] = up->y[j] ; xq[uq->a[j]] = uq->y[j] ; }
+      if (isDosage) dos = pbwtDosageRetrieve (p, up, dos, k) ;
       for (j = 0 ; j < p->M ; j += 2) 
 	{ i = 3*(xp[j]+xp[j+1]) + xq[j]+xq[j+1] ;
 	  ++n[ff][i] ;
 	  ++ns[9*j + i] ;
+	  if (isDosage) 
+	    { int id ; 
+	      if (dos[j] == 0.0) id = 0 ; else if (dos[j] == 1.0) id = 11 ; else id = 1 + (int)(dos[j]*10.0) ;
+	      ++nd[id] ; if (xp[j]) ++nd1[id] ;
+	      if (dos[j+1] == 0.0) id = 0 ; else if (dos[j+1] == 1.0) id = 11 ; else id = 1 + (int)(dos[j+1]*10.0) ;
+	      ++nd[id] ; if (xp[j+1]) ++nd1[id] ;
+	    }
 	}
       pbwtCursorForwardsRead (up) ; pbwtCursorForwardsRead (uq) ;
     }
   pbwtCursorDestroy (up) ; pbwtCursorDestroy (uq) ;
 
+  /* report */
+
   if (isRefFreq) printf ("Genotype comparison results split on reference frequencies\n") ;
   else printf ("Genotype comparison results split on sample frequencies\n") ;
-
-  /* report */
   for (ff = 0 ; ff < 17 ; ++ff)
     { double tot = 0, xbar, ybar, r2, x2, y2 ;
       printf ("%-5.1f\t%-7.3f", fBound[ff], nsum[ff] ? fsum[ff]/nsum[ff] : 0.0) ;
@@ -1391,10 +1416,9 @@ static void genotypeComparePbwt (PBWT *p, PBWT *q)
 	  r2 = (n[ff][4] + 2*(n[ff][5] + n[ff][7]) + 4*n[ff][8]) / tot ;
 	  r2 = (r2 - xbar*ybar)/sqrt((x2 - xbar*xbar)*(y2 - ybar*ybar)) ;
 	  printf ("\tx,y,r2\t%.4f\t%.4f\t%.4f", xbar, ybar, r2) ;
-	  printf ("\t info %.4f\n", ni[ff] ? isum[ff]/ni[ff] : 0.0) ;
+	  if (ni[ff]) printf ("\t info %.4f", isum[ff]/ni[ff]) ;
 	}
-      else
-	putchar ('\n') ;
+      putchar ('\n') ;
     }
   int hist[101] ; for (i = 101 ; i-- ;) hist[i] = 0 ;
   for (j = 0 ; j < p->M ; ++j)
@@ -1411,10 +1435,20 @@ static void genotypeComparePbwt (PBWT *p, PBWT *q)
 	  ++hist[(int)(100*r2)] ;
 	}
     }
+
+  printf ("Genotype accuracy distribution across samples\n") ;
   if (hist[100]) printf ("%d samples with r2 == 1.0\n", hist[100]) ;
   for (i = 100 ; i-- ; ) 
     if (hist[i])
       printf ("%d samples with %.2f <= r2 < %.2f\n", hist[i], (i-1)*0.01, i*0.01) ;
+
+  if (isDosage)
+    { printf ("Dosage accuracy (currently at haplotype level)\n") ;
+      printf ("0.00  %.3f  %ld\n", nd[0] ? nd1[0]/(double)nd[0] : 0.0, nd[0]) ;
+      for (i = 1 ; i < 11 ; ++i)
+	printf ("%.2f  %.3f  %ld\n", 0.1*(i-0.5), nd[i] ? nd1[i]/(double)nd[i] : 0.0, nd[i]) ;
+      printf ("1.00  %.3f  %ld\n", nd[11] ? nd1[11]/(double)nd[11] : 0.0, nd[11]) ;
+    }
 }
 
 /*********** routines to corrupt data to explore robustness *************/
@@ -1546,6 +1580,87 @@ PBWT *pbwtCopySamples (PBWT *pOld, int Mnew, double meanLength)
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(xOld) ; free (copy) ;
   return pNew ;
+}
+
+/********** functions to store and retrieve packed dosages ************/
+
+/* these are actually posterior probabilities per haplotype
+   to get dosages for a genotype, add the two values, e.g. dg[n] = d[2*n] + d[2*n+1]
+   to get genotype likelihoods 
+   gl[n][0] = (1-d[2*n]) * (1-d[2*n+1])
+   gl[n][1] = d[2*n] + d[2*n+1] - 2*d[2*n]*d[2*n+1]
+   gl[n][2] = d[2*n] * d[2*n+1]
+*/
+
+static inline uchar dosageEncode (double d)
+{ if (d > 0.5) d = 1.0 - d ;
+  if (!d) return 0 ;
+  else return (uchar) (10.0 * (d + 0.0999999)) ; /* value from 0..5 */
+}
+
+static inline double dosageDecode (uchar x, uchar y)
+{ static double value[16] = { 0.0, 0.05, 0.15, 0.25, 0.35, 0.45, 0.0, 0.0,
+			      1.0, 0.95, 0.85, 0.75, 0.65, 0.55, 1.0, 1.0 } ;
+  return value[x + (y<<3)] ;
+}
+
+static inline uchar *dosageStore (uchar *z, uchar d, int count)
+{ if (!d)
+    { while (count >= (1 << 15)) { *z++ = 0xff ; count -= 31 << 10 ; }
+      if (count >= (1 << 10)) 
+	{ *z++ = (7 << 5) | (count >> 10) ; count |= 1023 ; }
+      if (count >= (1 << 5)) 
+	{ *z++ = (6 << 5) | (count >> 5) ; count |= 31 ; }
+      *z++ = count ;
+    }
+  else
+    { while (count >= (1 << 5)) { *z++ = (d << 5) | 31 ; count -= 31 ; }
+      *z++ = (d << 5) | count ;
+    }
+  return z ;
+}
+
+void pbwtDosageStore (PBWT *p, double *dosage, int k)
+{
+  if (!p->dosageOffset) die ("dosageStore called without p->dosageOffset") ;
+  long max = arrayMax(p->zDosage) ;
+  array(p->dosageOffset,k,long) = max ;
+  arrayExtend (p->zDosage, max + p->M) ; /* ensures enough space */
+  uchar *z = arrp(p->zDosage, max, uchar) ;
+  int i = 0, count = 0 ;
+  uchar dLast = 0xff ;
+  while (i < p->M)
+    { uchar d = dosageEncode (dosage[i]) ;
+      if (d != dLast)
+	{ if (dLast != 0xff) z = dosageStore (z, dLast, count) ;
+	  dLast = d ; count = 0 ;
+	}
+      ++count ;
+      ++i ;
+    }
+  z = dosageStore (z, dLast, count) ;
+  arrayMax(p->zDosage) += z - arrp(p->zDosage, max, uchar) ;
+}
+
+double *pbwtDosageRetrieve (PBWT *p, PbwtCursor *u, double *dosage, int k)
+{
+  if (!dosage) dosage = myalloc (p->M, double) ;
+  if (!p->dosageOffset) die ("dosageRetrieve called without p->dosageOffset") ;
+  uchar *z = arrp(p->zDosage, arr(p->dosageOffset,k,long), uchar) ;
+  int i = 0 ;
+  while (i < p->M)
+    { uchar x = *z >> 5 ;
+      int count = *z & 0x1f ;
+      if (x == 6) count <<= 5 ; else if (x == 7) count <<= 10 ;
+      while (count--)
+	{ /* if (i >= p->M) die ("problem in dosageRetrieve") ; */ 
+	  dosage[i] = dosageDecode (x, u->y[i]) ;
+	  ++i ;
+	}
+      ++z ;
+    }
+
+  return dosage ;
 }
 
 /******************* end of file *******************/
