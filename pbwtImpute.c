@@ -1180,7 +1180,7 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	    }
 	  else 
 	    { double p = (score+1)/(sum+2) ;
-	      x[j] = (p > 0.2) ? 1 : 0 ;
+	      x[j] = (p > 0.5) ? 1 : 0 ;
 	      psum += p ;
 	      xsum += x[j] ;
 	      pxsum += p*x[j] ;
