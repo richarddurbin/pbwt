@@ -190,7 +190,8 @@ void pbwtCheckPoint (PbwtCursor *u, PBWT *p) ; /* need cursor to write end index
 /* all these functions also read and write samples and sites */
 PBWT *pbwtReadVcfGT (char *filename) ;	/* read GTs from vcf/bcf using htslib */
 PBWT *pbwtReadVcfPL (char *filename) ;	/* read PLs from vcf/bcf using htslib */
-void pbwtWriteVcf (PBWT *p, char *filename) ;  /* write vcf using htslib */
+// mode: wb=compressed BCF; wbu=uncompressed BCF; wz=compressed VCF; w=uncompressed VCF
+void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode) ;  /* write vcf/bcf using htslib */
 
 /* pbwtMatch.c - functions as in Bioinformatics 2014 paper */
 

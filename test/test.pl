@@ -187,6 +187,9 @@ sub test_write_vcf
 {
     my ($opts,%args) = @_;
     test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -read $$opts{tmp}/$args{in}.pbwt -readSites $$opts{tmp}/$args{in}.sites -writeVcf - 2>/dev/null | grep -v ^##pbwtVersion >$$opts{tmp}/$args{out}");
+    test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -read $$opts{tmp}/$args{in}.pbwt -readSites $$opts{tmp}/$args{in}.sites -writeVcfGz - 2>/dev/null | $$opts{bin}/pbwt -readVcfGT - -writeVcf - 2>/dev/null | grep -v ^##pbwtVersion >$$opts{tmp}/$args{out}");
+    test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -read $$opts{tmp}/$args{in}.pbwt -readSites $$opts{tmp}/$args{in}.sites -writeBcf - 2>/dev/null | $$opts{bin}/pbwt -readVcfGT - -writeVcf - 2>/dev/null | grep -v ^##pbwtVersion >$$opts{tmp}/$args{out}");
+    test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -read $$opts{tmp}/$args{in}.pbwt -readSites $$opts{tmp}/$args{in}.sites -writeBcfGz - 2>/dev/null | $$opts{bin}/pbwt -readVcfGT - -writeVcf - 2>/dev/null | grep -v ^##pbwtVersion >$$opts{tmp}/$args{out}");
 }
 
 sub test_read_vcf_gt
@@ -216,5 +219,3 @@ sub test_merge_sites
 	my $files = join(' ', map( "$$opts{tmp}/$_.pbwt" , @{$args{in}}));
 	test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -merge $files -write - -writeSites $$opts{tmp}/$args{out} 2>/dev/null");
 }
-
-

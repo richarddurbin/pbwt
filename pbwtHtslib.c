@@ -14,6 +14,7 @@
 #include "utils.h"
 #include "pbwt.h"
 #include <htslib/synced_bcf_reader.h>
+#include <htslib/faidx.h>
 
 static void readVcfSamples (PBWT *p, bcf_hdr_t *hr)
 {
@@ -191,64 +192,81 @@ PBWT *pbwtReadVcfPL (char *filename)  /* read PLs from vcf/bcf using htslib */
   return p ;
 }
 
-void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
+static void pbwtSetContigs(bcf_hdr_t *hdr, faidx_t *fai)
 {
-  htsFile *bcf_fp = NULL ;
-  bcf_hdr_t *bcf_hdr = NULL ;
+  int i, n = faidx_nseq(fai) ;
+  for (i=0; i<n; i++)
+    {
+      const char *seq = faidx_iseq(fai,i) ;
+      int len = faidx_seq_len(fai, seq) ;
+      bcf_hdr_printf(hdr, "##contig=<ID=%s,length=%d>", seq, len) ;
+    }
+}
 
-  // wb .. compressed BCF
-  // wbu .. uncompressed BCF
-  // wz .. compressed VCF
-  // w .. uncompressed VCF
-  // write out uncompressed VCF for the moment. BCF needs ##contig metadata complete in header
-  bcf_fp = hts_open(filename,"w");
+void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
+{
+  htsFile *fp = NULL ;
+  bcf_hdr_t *bcfHeader = NULL ;
+
+  fp = hts_open(filename,mode) ;
+  if (!fp) die ("could not open file for writing: %s", filename) ;
   if (!p) die ("pbwtWriteVcf called without a valid pbwt") ;
   if (!p->sites) die ("pbwtWriteVcf called without sites") ;
-  int samples_known = 1 ;
-  if (!p->samples)
-    {
-      fprintf (stderr, "Warning: pbwtWriteVcf called without samples... using fake sample names PBWT0, PBWT1 etc...\n") ;
-      samples_known = 0 ;
-    }
+  if (!p->samples) fprintf (stderr, "Warning: pbwtWriteVcf called without samples... using fake sample names PBWT0, PBWT1 etc...\n") ;
 
   // write header
-  bcf_hdr = bcf_hdr_init("w") ;
+  bcfHeader = bcf_hdr_init("w") ;
+  if (referenceFasta)
+    {
+      faidx_t *faidx = fai_load(referenceFasta);
+      if ( !faidx ) error("Could not load the reference %s. Has the fasta been indexed with 'samtools faidx'?\n", referenceFasta);
+      pbwtSetContigs(bcfHeader, faidx);
+      fai_destroy(faidx);
+    }
+  else if (p->chrom)
+    {
+      bcf_hdr_printf(bcfHeader, "##contig=<ID=%s,length=%d>", p->chrom, 0x7fffffff);   // MAX_CSI_COOR
+    }
   kstring_t str = {0,0,0} ;
   ksprintf(&str, "##pbwtVersion=%d.%d+htslib-%s", 
 	   pbwtMajorVersion, pbwtMinorVersion, hts_version()) ;
-  bcf_hdr_append(bcf_hdr, str.s) ;
+  bcf_hdr_append(bcfHeader, str.s) ;
   free(str.s) ;
-  bcf_hdr_append(bcf_hdr, "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count in genotypes\">") ;
-  bcf_hdr_append(bcf_hdr, "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">") ;
-  bcf_hdr_append(bcf_hdr, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">") ;
+  bcf_hdr_append(bcfHeader, "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count in genotypes\">") ;
+  bcf_hdr_append(bcfHeader, "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">") ;
+  bcf_hdr_append(bcfHeader, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">") ;
   
   int i, j ;
   for (i = 0 ; i < p->M/2 ; ++i)
     {
-      if (samples_known)
-        bcf_hdr_add_sample(bcf_hdr, sampleName(sample (p, 2*i))) ;
+      if (p->samples)
+        bcf_hdr_add_sample(bcfHeader, sampleName(sample (p, 2*i))) ;
       else
         {
           kstring_t sname = {0,0,0} ;
           ksprintf(&sname, "PBWT%d", i) ;
-          bcf_hdr_add_sample(bcf_hdr, sname.s) ;
+          bcf_hdr_add_sample(bcfHeader, sname.s) ;
           free(sname.s) ;
         }
     }
-  bcf_hdr_add_sample(bcf_hdr, 0) ; /* required to update internal structures */
-  bcf_hdr_write(bcf_fp, bcf_hdr) ;
+  bcf_hdr_add_sample(bcfHeader, 0) ; /* required to update internal structures */
+  bcf_hdr_write(fp, bcfHeader) ;
 
-  bcf1_t *bcf_rec = bcf_init1() ;
+  bcf1_t *bcfRecord = bcf_init1() ;
   uchar *hap = myalloc (p->M, uchar) ;
+  int32_t *gts = myalloc (p->M, int32_t) ;
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
 
   for (i = 0 ; i < p->N ; ++i)
     {
-      kstring_t rec = {0,0,0} ;
       Site *s = arrp(p->sites, i, Site) ;
-      ksprintf(&rec, "%s\t%d\t.\t%s\t.\tPASS\t.\tGT", 
-        p->chrom ? p->chrom : ".", 
-        s->x, dictName(variationDict, s->varD));
+      bcf_float_set_missing(bcfRecord->qual) ;
+      bcfRecord->rid = bcf_hdr_name2id(bcfHeader, p->chrom) ;
+      bcfRecord->pos = s->x - 1 ;
+      char *als = strdup( dictName(variationDict, s->varD) ), *ss = als ;
+      while ( *ss ) { if ( *ss=='\t' ) *ss = ',' ; ss++ ; }
+      bcf_update_alleles_str(bcfHeader, bcfRecord, als) ;
+      bcf_add_filter(bcfHeader, bcfRecord, bcf_hdr_id2int(bcfHeader, BCF_DT_ID, "PASS")) ;
 
       for (j = 0 ; j < p->M ; ++j)
         {
@@ -257,38 +275,34 @@ void pbwtWriteVcf (PBWT *p, char *filename)  /* write vcf/bcf using htslib */
       int ac[2] = {0,0};
       for (j = 0 ; j < p->M ; j+=2)
         {
-          // write out phased or unphased? phased flag could be stored in pbwt struct?
-          // could add PS or other FORMAT fields here?
           // todo: handle missing data
-          ksprintf(&rec, "\t%d|%d", hap[j], hap[j+1]) ;
+          gts[j] = bcf_gt_unphased(hap[j]);
+          gts[j+1] = bcf_gt_phased(hap[j+1]);
           ac[hap[j]]++ ;
           ac[hap[j+1]]++ ;
         }
       int an = ac[0] + ac[1] ;
 
-      // parse VCF record string into bcf record. 
-      // could be quicker to load directly into bcf, but this is easy
-
-      vcf_parse(&rec, bcf_hdr, bcf_rec) ; 
+      if ( bcf_update_genotypes(bcfHeader, bcfRecord, gts, p->M) ) die("Could not update GT field\n");
 
       // example of adding INFO fields
-      bcf_update_info_int32(bcf_hdr, bcf_rec, "AC", &ac[1], 1) ;
-      bcf_update_info_int32(bcf_hdr, bcf_rec, "AN", &an, 1) ;
+      bcf_update_info_int32(bcfHeader, bcfRecord, "AC", &ac[1], 1) ;
+      bcf_update_info_int32(bcfHeader, bcfRecord, "AN", &an, 1) ;
 
       //write and progress
-      bcf_write1(bcf_fp, bcf_hdr, bcf_rec) ;
-      bcf_clear1(bcf_rec) ;
+      bcf_write(fp, bcfHeader, bcfRecord) ;
+      bcf_clear(bcfRecord) ;
 
-      free(rec.s) ;
       pbwtCursorForwardsRead(u) ;
     }
 
   // cleanup
   free(hap) ;
+  free(gts) ;
   /*  pbwtCursorDestroy(u) ; */
-  bcf_hdr_destroy(bcf_hdr) ;
-  bcf_destroy1(bcf_rec);
-  hts_close(bcf_fp) ;
+  bcf_hdr_destroy(bcfHeader) ;
+  bcf_destroy1(bcfRecord);
+  hts_close(fp) ;
 }
 
 /******* end of file ********/
