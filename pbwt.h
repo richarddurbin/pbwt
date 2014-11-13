@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 22 23:00 2014 (rd)
+ * Last edited: Nov 13 15:06 2014 (rd)
  * * Sep 22 23:00 2014 (rd): change to 64bit arrays - version 3 .pbwt file
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
@@ -42,7 +42,11 @@ typedef struct PBWTstruct {
   /* NB aRend is the lexicographic sort order for the data, and aFend the reverse lex order */
   /* probably it is optimal to have aFstart == aRend and vice versa: to be done */
   Array zMissing ;		/* compressed array of uchar - natural not sort order */
-  Array missing ;		/* of long, site index into zMissing, 0 if no missing data at site */
+  Array missingOffset ;		/* of long, site index into zMissing, 0 if no missing data at site */
+  Array zDosage ;		/* run-length compressed array of uchar in local sort order */
+  Array dosageOffset ;		/* of long, site index into zDosage, 0 if no dosage data */
+  BOOL  isRefFreq ;		/* some flags for the whole VCF */
+  BOOL  isUnphased ;
 } PBWT ;
 
 /* philosophy is to be lazy about PBWT - only fill items for which we have info */
@@ -77,6 +81,10 @@ typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
   int *b ;			/* for local operations - no long term meaning */
   int *e ;			/* for local operations - no long term meaning */
 } PbwtCursor ;
+
+/* pbwtMain.c */
+
+extern char *commandLine ;	/* a copy of the command line */
 
 /* pbwtCore.c */
 
@@ -154,15 +162,18 @@ void pbwtWrite (PBWT *p, FILE *fp) ; /* just writes packed PBWT p->yz */
 void pbwtWriteSites (PBWT *p, FILE *fp) ;
 void pbwtWriteSamples (PBWT *p, FILE *fp) ;
 void pbwtWriteMissing (PBWT *p, FILE *fp) ;
+void pbwtWriteDosage (PBWT *p, FILE *fp) ;
 void pbwtWriteReverse (PBWT *p, FILE *fp) ;
 void pbwtWriteAll (PBWT *p, char *fileNameRoot) ;
 void pbwtWriteGen (PBWT *p, FILE *fp) ; /* write gen file as for impute etc. */
 PBWT *pbwtRead (FILE *fp) ;
 Array pbwtReadSitesFile (FILE *fp, char **chrom) ;
 void pbwtReadSites (PBWT *p, FILE *fp) ;
+void pbwtReadRefFreq (PBWT *p, FILE *fp) ;
 Array pbwtReadSamplesFile (FILE *fp) ;
 void pbwtReadSamples (PBWT *p, FILE *fp) ;
 void pbwtReadMissing (PBWT *p, FILE *fp) ;
+void pbwtReadDosage (PBWT *p, FILE *fp) ;
 void pbwtReadReverse (PBWT *p, FILE *fp) ;
 PBWT *pbwtReadAll (char *fileNameRoot) ; /* reads .pbwt, .sites, .samples, .missing  */
 PBWT *pbwtReadMacs (FILE *fp) ;
@@ -182,7 +193,7 @@ PBWT *pbwtReadVcfPL (char *filename) ;	/* read PLs from vcf/bcf using htslib */
 // mode: wb=compressed BCF; wbu=uncompressed BCF; wz=compressed VCF; w=uncompressed VCF
 void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode) ;  /* write vcf/bcf using htslib */
 
-/* pbwtMatch.c - functions as in Bioinformatics paper */
+/* pbwtMatch.c - functions as in Bioinformatics 2014 paper */
 
 void matchMaximalWithin (PBWT *p, void (*report)(int, int, int, int)) ;
 void pbwtLongMatches (PBWT *p, int L) ; /* internal matches longer than L, maximal if L=0 */
@@ -203,6 +214,9 @@ PBWT *imputeMissing (PBWT *p) ;
 PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange) ;
 PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange) ;
 PBWT *pbwtCopySamples (PBWT *pOld, int Mnew, double meanLength) ;
+void pbwtDosageStore (PBWT *p, double *dosage, int k) ;
+double *pbwtDosageRetrieve (PBWT *p, PbwtCursor *u, double *dosage, int k) ; 
+/* if arg dosage == 0 then create and return, else fill and return; uses u->y */
 
 /* pbwtLikelihood.c */
 
@@ -216,5 +230,11 @@ void paintAncestryMatrix (PBWT *p, char *fileRoot) ;
 /* pbwtMerge.c */
 
 PBWT *pbwtMerge(const char **file_names, int nfiles);
+
+/* pbwtGeneticMap.c */
+
+void readGeneticMap (FILE *fp) ;
+double geneticMap (int x) ;
+void pbwt4hapsStats (PBWT *p) ;
 
 /******************* end of file *******************/
