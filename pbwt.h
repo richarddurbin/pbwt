@@ -25,6 +25,9 @@
 
 static int pbwtMajorVersion = 3, pbwtMinorVersion = 0 ;
 
+char *pbwtVersion(void);
+const char *pbwtHtslibVersion(void);
+
 /* data types */
 
 typedef unsigned char uchar ;

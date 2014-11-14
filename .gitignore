@@ -19,3 +19,6 @@ utils
 *.exe
 *.out
 *.app
+
+# Version file
+/version.h

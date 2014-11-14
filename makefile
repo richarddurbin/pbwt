@@ -5,6 +5,20 @@ HTSLIB = $(HTSDIR)/libhts.a
 
 all: pbwt
 
+PACKAGE_VERSION = 3.0
+ifneq "$(wildcard .git)" ""
+GIT_HASH = $(shell git describe --always --dirty | sed 's/^$(PACKAGE_VERSION)-//')
+PACKAGE_VERSION := $(shell echo "$(PACKAGE_VERSION)-$(GIT_HASH)")
+version.h: $(if $(wildcard version.h),$(if $(findstring "$(PACKAGE_VERSION)",$(shell cat version.h)),,force))
+endif
+version.h:
+	echo '#define PBWT_VERSION "$(PACKAGE_VERSION)"' > $@
+
+force:
+
+.c.o:
+	gcc -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@
+
 test:
 	./test/test.pl
 
@@ -16,7 +30,7 @@ pbwt:  $(PBWT_OBJS) utils
 autozygExtract: autozygExtract.o
 	gcc $(CFLAGS) -o autozygExtract autozygExtract.o utils.o $(HTSLIB) -lpthread -lz -lm
 
-pbwtMain.o: pbwtMain.c pbwt.h utils.h
+pbwtMain.o: pbwtMain.c version.h pbwt.h utils.h
 	gcc $(CFLAGS) -c pbwtMain.c
 
 pbwtCore.o: pbwtCore.c pbwt.h utils.h
@@ -72,7 +86,7 @@ utils.o: utils.c utils.h
 	gcc $(CFLAGS) -c utils.c
 
 clean:
-	rm -f *.o pbwt *~
+	rm -f *.o pbwt *~ version.h
 
-.PHONY: all test clean
+.PHONY: all test clean force
 
