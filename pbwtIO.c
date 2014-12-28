@@ -15,8 +15,8 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 13 15:04 2014 (rd)
- * * Sep 22 23:00 2014 (rd): change for 64bit arrays - version 3 .pbwt file
+ * Last edited: Dec 28 15:04 2014 (dl)
+ * readPhase updated for chromopainter and chromopainter v2 formats
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -677,18 +677,35 @@ PBWT *pbwtReadHap (FILE *fp, char *chrom)
 
 PBWT *pbwtReadPhase (FILE *fp) /* Li and Stephens PHASE format */
 {
-  fgetword (fp) ; if (getc(fp) != '\n') die ("bad first line in phase file") ;
-  int m = atoi (fgetword (fp)) ;  if (getc(fp) != '\n') die ("bad second line in phase file") ;
-  int n = atoi (fgetword (fp)) ;  if (getc(fp) != '\n') die ("bad third line in phase file") ;
-  PBWT *p = pbwtCreate (2*m, n) ;
+  int nhaps=0,nsnps=0,ninds=0;
+  int version=2;
+  int l1=atoi(fgetword (fp)) ; if (getc(fp) != '\n') die ("bad first line in phase file") ;
+  int l2 = atoi (fgetword (fp)) ;  if (getc(fp) != '\n') die ("bad second line in phase file") ;
+  char * tc=fgetword (fp);
+  int l3 = atoi (tc) ;  
+  if (getc(fp) != '\n') { // version 2
+    nhaps=l1;
+    nsnps=l2;
+    ninds=nhaps/2;
+  }else{ // version 1
+    ninds=l2;
+    nhaps=l2*2;
+    nsnps=l3;
+    fgetword (fp);
+    version=1;
+  }
+  printf("Read %i SNPs %i haplotypes and %i individuals from PHASE format version %i\n",nsnps,nhaps,ninds,version);
+  PBWT *p = pbwtCreate (nhaps, nsnps) ;
   p->chrom = strdup (fgetword(fp)) ; /* example 4th line is P followed by site positions */
   p->sites = arrayCreate (4096, Site) ;
   int i ; for (i = 0 ; i < p->N ; ++i) arrayp(p->sites,i,Site)->x = atoi (fgetword(fp)) ;
   if (getc(fp) != '\n') die ("bad 4th line in phase file") ;
+  if(version==1){
   char var[2] ; var[1] = 0 ;
   for (i = 0 ; i < p->N ; ++i) 
     { *var = getc(fp) ; dictAdd (variationDict, var, &(arrayp(p->sites,i,Site)->varD)) ; }
   if (getc(fp) != '\n') die ("bad 5th line in phase file") ;
+  }
   uchar **data = myalloc (p->N, uchar*) ;
   for (i = 0 ; i < p->N ; ++i) data[i] = myalloc (p->M, uchar) ;
   int j ; for (j = 0 ; j < p->M ; ++j)

@@ -1,5 +1,6 @@
 /*  File: utils.h
  *  Author: Richard Durbin (rd@sanger.ac.uk)
+ *  Modified by Daniel Lawson (dan.lawson@bristol.ac.uk) in December 2014, adding gzip output for paintSparse
  *  Copyright (C) Genome Research Limited, 2011
  * -------------------------------------------------------------------
  * This library is free software; you can redistribute it and/or
@@ -19,7 +20,8 @@
  * Description: includes standard system headers and own headers
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 23 16:16 2014 (rd)
+ * Last edited: Dec 28 14:02 2014 (dl)
+ * adding gzip output for paintSparse
  * Created: Wed Jan  5 16:13:48 2011 (rd)
  *-------------------------------------------------------------------
  */
@@ -28,6 +30,8 @@
 #include <stdlib.h>		/* malloc(), free(), ... notation */
 #include <string.h>		/* memset() */
 #include <limits.h>		/* INT_MAX etc. */
+#include "zlib.h"
+
 
 #ifndef BOOL_DEFINED
 #define BOOL_DEFINED
@@ -47,6 +51,7 @@ void *_myalloc (long size) ;
 #define mycalloc(n,type) (type*)_mycalloc(n,sizeof(type))
 void *_mycalloc (long number, int size) ;
 FILE *fopenTag (char* root, char* tag, char* mode) ;
+gzFile gzopenTag (char* root, char* tag, char* mode) ;
 char *fgetword (FILE *f) ;	/* not threadsafe */
 void timeUpdate (void) ;	/* report to stderr resources used since last called */
 
