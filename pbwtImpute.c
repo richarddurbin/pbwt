@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 13 15:05 2014 (rd)
+ * Last edited: Nov 18 11:41 2014 (rd)
  * * Sep 22 23:10 2014 (rd): move to 64 bit arrays
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
@@ -1608,9 +1608,9 @@ static inline uchar *dosageStore (uchar *z, uchar d, int count)
 { if (!d)
     { while (count >= (1 << 15)) { *z++ = 0xff ; count -= 31 << 10 ; }
       if (count >= (1 << 10)) 
-	{ *z++ = (7 << 5) | (count >> 10) ; count |= 1023 ; }
+	{ *z++ = (7 << 5) | (count >> 10) ; count &= 1023 ; }
       if (count >= (1 << 5)) 
-	{ *z++ = (6 << 5) | (count >> 5) ; count |= 31 ; }
+	{ *z++ = (6 << 5) | (count >> 5) ; count &= 31 ; }
       *z++ = count ;
     }
   else
