@@ -1,5 +1,6 @@
 /*  File: utils.c
  *  Author: Richard Durbin (rd@sanger.ac.uk)
+ *  Modified by Daniel Lawson (dan.lawson@bristol.ac.uk) in December 2014, adding gzip output for paintSparse
  *  Copyright (C) Genome Research Limited, 1996-
  *-------------------------------------------------------------------
  * This library is free software; you can redistribute it and/or modify it under
@@ -16,7 +17,8 @@
  * Description: core utility functions
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 23 14:02 2014 (rd)
+ * Last edited: Dec 28 14:02 2014 (dl)
+ * adding gzip output for paintSparse
  * Created: Thu Aug 15 18:32:26 1996 (rd)
  *-------------------------------------------------------------------
  */
@@ -55,7 +57,7 @@ void warn (char *format, ...)
   if (++count > 9) die ("too many errors") ;
 }
 
-int totalAllocated = 0 ;
+long int totalAllocated = 0 ;
 
 void *_myalloc (long size)
 {
@@ -83,6 +85,18 @@ FILE *fopenTag (char* root, char* tag, char* mode)
   strcat (fileName, ".") ;
   strcat (fileName, tag) ;
   FILE *f = fopen (fileName, mode) ;
+  free (fileName) ;
+  return f ;
+}
+
+gzFile gzopenTag (char* root, char* tag, char* mode)
+{
+  if (strlen (tag) > 40) die ("tag %s in gzopenTag too long - should be < 30 chars", tag) ;
+  char *fileName = myalloc (strlen (root) + 42, char) ;
+  strcpy (fileName, root) ;
+  strcat (fileName, ".") ;
+  strcat (fileName, tag) ;
+  gzFile f = gzopen (fileName, mode) ;
   free (fileName) ;
   return f ;
 }
@@ -174,6 +188,7 @@ void timeUpdate (void)
       if (usecs < 0) { usecs += 1000000 ; secs -= 1 ; }
       fprintf (stderr, "\tsystem\t%d.%06d", secs, usecs) ;
       fprintf (stderr, "\tmax_RSS\t%ld", rNew.ru_maxrss - rOld.ru_maxrss) ;
+      fprintf (stderr, "\tMemory\t%li", totalAllocated) ;   
       fputc ('\n', stderr) ;
     }
   else

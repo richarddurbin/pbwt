@@ -15,8 +15,8 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 13 15:06 2014 (rd)
- * * Sep 22 23:00 2014 (rd): change to 64bit arrays - version 3 .pbwt file
+ * Last edited: Dec 28 15:06 2014 (dl)
+ * added paintSparse function
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -225,7 +225,8 @@ void pbwtLogLikelihoodCopyModel (PBWT *p, double theta, double rho) ;
 
 /* pbwtPaint.c */
 
-void paintAncestryMatrix (PBWT *p, char *fileRoot) ;
+void paintAncestryMatrix (PBWT *p, char *fileRoot,int chunksperregion) ;
+void paintAncestryMatrixSparse (PBWT *p, char *fileRoot,int chunksperregion,int cutoff) ;
 
 /* pbwtMerge.c */
 

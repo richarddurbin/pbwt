@@ -15,7 +15,8 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 13 15:04 2014 (rd)
+ * Last edited: Dec 28 15:04 2014 (dl)
+ * paintSparse added
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -233,7 +234,8 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -imputeMissing            impute data marked as missing\n") ;
       fprintf (stderr, "  -fitAlphaBeta <model>     fit probabilistic model 1..3\n") ;
       fprintf (stderr, "  -llCopyModel <theta> <rho>  log likelihood of Li-Stephens model\n") ;
-      fprintf (stderr, "  -paint <fileNameRoot>     output painting co-ancestry matrix\n") ;
+      fprintf (stderr, "  -paint <fileNameRoot> <n> output painting co-ancestry matrix to fileroot, optionally specififying the number per region\n") ;
+      fprintf (stderr, "  -paintSparse <fileNameRoot> <n> output sparse painting to fileroot, optionally specififying the number per region\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale) - also writes sites.freq file\n") ;
       fprintf (stderr, "  -refFreq <file>           read site frequency information into the refFreq field of current sites\n") ;
@@ -395,7 +397,19 @@ int main (int argc, char *argv[])
     else if (!strcmp (argv[0], "-4hapsStats"))
       { pbwt4hapsStats (p) ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-paint") && argc > 1)
-      { paintAncestryMatrix (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
+      { 
+	int npr=100;
+       	if(argc>2) if(argv[2][0] !='-') npr=atoi(argv[2]);
+	paintAncestryMatrix (p, argv[1],npr) ; argc -= 2 ; argv += 2 ; 
+       	if(argc>0) if(argv[0][0] !='-') {--argc;++argv; }
+      }
+    else if (!strcmp (argv[0], "-paintSparse") && argc > 1)
+      { 
+	int npr=100;
+       	if(argc>2) if(argv[2][0] !='-') npr=atoi(argv[2]);
+	paintAncestryMatrixSparse (p, argv[1],npr,0) ; argc -= 2 ; argv += 2 ; 
+       	if(argc>0) if(argv[0][0] !='-') {--argc;++argv; }
+      }
     else if (!strcmp (argv[0], "-play"))
       { p = playGround (p) ; argc -= 1 ; argv += 1 ; }
     else
