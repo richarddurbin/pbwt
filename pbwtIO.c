@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 28 15:04 2014 (dl)
+ * Last edited: Jan 20 00:55 2015 (rd)
  * readPhase updated for chromopainter and chromopainter v2 formats
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
@@ -291,7 +291,7 @@ void pbwtReadRefFreq (PBWT *p, FILE *fp)
   Site *ps = arrp(p->sites,i,Site), *as = arrp(a,j,Site) ;
   while (i < p->N)
     { while (j < arrayMax(a) && 
-	     (as->x < ps->x || as->x == ps->x && as->varD < ps->varD)) { ++j ; ++as ; }
+	     (as->x < ps->x || (as->x == ps->x && as->varD < ps->varD))) { ++j ; ++as ; }
       if (ps->x == as->x && ps->varD == as->varD) ps->refFreq = as->refFreq ;
       ++i ; ++ps ;
     }
