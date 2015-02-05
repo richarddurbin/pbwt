@@ -20,7 +20,7 @@
  * Description: includes standard system headers and own headers
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 28 14:02 2014 (dl)
+ * Last edited: Jan 20 01:01 2015 (rd)
  * adding gzip output for paintSparse
  * Created: Wed Jan  5 16:13:48 2011 (rd)
  *-------------------------------------------------------------------
@@ -30,8 +30,8 @@
 #include <stdlib.h>		/* malloc(), free(), ... notation */
 #include <string.h>		/* memset() */
 #include <limits.h>		/* INT_MAX etc. */
+#include <errno.h>
 #include "zlib.h"
-
 
 #ifndef BOOL_DEFINED
 #define BOOL_DEFINED
