@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 28 15:06 2014 (dl)
+ * Last edited: Jan 31 15:36 2015 (rd)
  * added paintSparse function
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
@@ -201,14 +201,15 @@ void matchSequencesNaive (PBWT *p, FILE *fp) ; /* fp is a pbwt file of sequences
 void matchSequencesIndexed (PBWT *p, FILE *fp) ;
 void matchSequencesDynamic (PBWT *p, FILE *fp) ;
 void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int, int, int, int)) ;
-void matchSequencesDynamic2 (PBWT *p, FILE *fp) ;
+void matchSequencesSweepSparse (PBWT *p, PBWT *q, int nSparse,
+				void (*report)(int, int, int, int, BOOL)) ;
 
 /* pbwtImpute.c */
 
 void imputeExplore (PBWT *p, int test) ;
 PBWT *phase (PBWT *p, int nSparse) ;
 PBWT *referencePhase (PBWT *p, char *fileNameRoot) ;
-PBWT *referenceImpute (PBWT *p, char *fileNameRoot) ;
+PBWT *referenceImpute (PBWT *p, char *fileNameRoot, int nSparse, double fSparse) ;
 void genotypeCompare (PBWT *p, char *fileNameRoot) ;
 PBWT *imputeMissing (PBWT *p) ;
 PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange) ;

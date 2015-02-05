@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 18 11:41 2014 (rd)
+ * Last edited: Feb  5 18:04 2015 (rd)
  * * Sep 22 23:10 2014 (rd): move to 64 bit arrays
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
@@ -1107,24 +1107,52 @@ PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
 
 static double **pImp = 0 ;	/* use with stats to store p values */
 
-static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
+int matchSegmentCompare (const void *a, const void *b) /* for sorting */
+{
+  return ((MatchSegment*)a)->start - ((MatchSegment*)b)->start ;
+}
+
+/* overload a high-end bit of the ->end field of MatchSegment to record if match is sparse */
+static int SPARSE_BIT = 1 << 30 ;
+static int SPARSE_MASK = (1 << 30) - 1 ;
+
+static void reportMatchSparse (int iq, int jRef, int start, int end, BOOL isSparse)
+{
+  MatchSegment *ms = arrayp (maxMatch[iq], arrayMax(maxMatch[iq]), MatchSegment) ;
+  ms->jRef = jRef ; ms->start = start ; ms->end = end ;
+  if (isSparse) ms->end |= SPARSE_BIT ;
+}
+
+static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame, 
+			       int nSparse, double fSparse)
 /* Require pOld and pFrame to have the same sites, a subset of sites of pRef, */
 /* and pRef and pFrame to have the same samples. */
 /* Impute only missing sites in pRef if pOld == pFrame. */
+/* Added nSparse to allow also matching at sparse positions */
 {
   int i, j, k ;
 
   fprintf (stderr, "Reference impute using maximal matches: ") ;
+  if (nSparse > 1) fprintf (stderr, "(nSparse = %d, fSparse = %.2f) ", nSparse, fSparse) ;
 
   /* build the array of maximal matches into pFrame for each sequence in pOld */
   maxMatch = myalloc (pOld->M, Array) ;
   for (j = 0 ; j < pOld->M ; ++j) maxMatch[j] = arrayCreate (1024, MatchSegment) ;
-  if (pOld == pFrame)		/* self-imputing */
+  if (pOld == pFrame)		/* self-imputing - no sparse option yet */
     matchMaximalWithin (pFrame, reportMatch) ;
   else
-    matchSequencesSweep (pFrame, pOld, reportMatch) ;
-  for (j = 0 ; j < pOld->M ; ++j)		    /* add terminating element to arrays */
-    { MatchSegment *ms = arrayp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
+    matchSequencesSweepSparse (pFrame, pOld, nSparse, reportMatchSparse) ;
+
+  for (j = 0 ; j < pOld->M ; ++j)	/* add terminating element to arrays */
+    { if (nSparse > 1) /* can't guarantee order of sparse segments */
+	if (mergesort (arrp(maxMatch[j], 0, MatchSegment), arrayMax(maxMatch[j]), 
+		       sizeof(MatchSegment), matchSegmentCompare))
+	  die ("error %d in mergesort", errno) ;
+      /* mergesort() because they are close to being already sorted */
+      if (isCheck) fprintf (stderr, "%ld matches found to query %d\n", 
+			    arrayMax(maxMatch[j]), j) ;
+      /* add an end marker */
+      MatchSegment *ms = arrayp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
       ms->jRef = ms[-1].jRef ; ms->end = pOld->N+1 ; ms->start = pOld->N ;
     }
 
@@ -1149,7 +1177,7 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	  && arrp(pRef->sites,kRef,Site)->varD == arrp(pFrame->sites,kOld,Site)->varD)
 	{ pbwtCursorForwardsRead (uOld) ; ++kOld ;
 	  for (j = 0 ; j < pOld->M ; ++j)
-	    while (kOld >= arrp(maxMatch[j],firstSeg[j],MatchSegment)->end) ++firstSeg[j] ;
+	    while (kOld >= (arrp(maxMatch[j],firstSeg[j],MatchSegment)->end & SPARSE_MASK)) ++firstSeg[j] ;
 	}
       for (i = 0 ; i < pRef->M ; ++i) aRefInv[uRef->a[i]] = i ;
       double psum = 0, xsum = 0, pxsum = 0 ; int n = 0 ;
@@ -1169,12 +1197,12 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	  MatchSegment *m = arrp(maxMatch[j],firstSeg[j],MatchSegment) ;
 	  MatchSegment *mStop = arrp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
 	  while (m->start <= kOld && m < mStop)
-	    { bit = (kOld - m->start + 1) * (m->end - kOld) ; if (!bit) bit = 1 ;
-	      if (bit < 0)
-		die ("refImpute2 kRef %d kOld %d j %d m->start %d m->end %d firstSeg %d\n", 
-		     kRef, kOld, j, m->start, m->end, firstSeg[j]) ;
-	      sum += bit ;
-	      if (uRef->y[aRefInv[m->jRef]]) score += bit ;
+	    { bit = (kOld - m->start + 1) * ((m->end & SPARSE_MASK) - kOld) ;
+	      if (m->end & SPARSE_BIT) bit *= fSparse ;
+	      if (bit > 0)
+		{ sum += bit ;
+		  if (uRef->y[aRefInv[m->jRef]]) score += bit ;
+		}
 	      ++m ;
 	    }
 	  if (sum == 0) 
@@ -1211,7 +1239,6 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 	    arrp(pRef->sites,kRef,Site)->imputeInfo = 1.0 ;
 	}
       pbwtCursorForwardsRead (uRef) ; ++kRef ;
-      if (isCheck && !(kRef % 10000)) fprintf (stderr, " %d %d\n", kRef, kOld) ;
     }
   pbwtCursorToAFend (uNew, pNew) ;
 
@@ -1226,7 +1253,7 @@ static PBWT *referenceImpute2 (PBWT *pOld, PBWT *pRef, PBWT *pFrame)
 
 /*********************************************************************/
 
-PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot)
+  PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot, int nSparse, double fSparse)
 {
   /* Preliminaries */
   fprintf (stderr, "impute against reference %s\n", fileNameRoot) ;
@@ -1256,7 +1283,7 @@ PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot)
       int k ; for (k = 0 ; k < pRef->N ; ++k) pImp[k] = myalloc (pOld->M, double) ;
     }
 
-  PBWT *pNew = referenceImpute2 (pOld, pRef, pFrame) ;
+  PBWT *pNew = referenceImpute3 (pOld, pRef, pFrame, nSparse, fSparse) ;
   pNew->sites = pRef->sites ; pRef->sites = 0 ; 
   pNew->chrom = pRef->chrom ; pRef->chrom = 0 ;
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
@@ -1326,7 +1353,7 @@ PBWT *imputeMissing (PBWT *pOld)
   arrayDestroy (completeSites) ;
 
   /* then impute, using a special mode of impute2() */
-  PBWT *pNew = referenceImpute2 (pFrame, pOld, pFrame) ;
+  PBWT *pNew = referenceImpute3 (pFrame, pOld, pFrame, 1, 0) ;
   pNew->sites = pOld->sites ; pOld->sites = 0 ;
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
   pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;

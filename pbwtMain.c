@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 28 15:04 2014 (dl)
+ * Last edited: Feb  5 17:55 2015 (rd)
  * paintSparse added
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
@@ -228,14 +228,15 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -matchDynamic <file>      maximal match seqs in pbwt file to reference\n") ;
       fprintf (stderr, "  -imputeExplore <n>        n'th impute test\n") ;
       fprintf (stderr, "  -phase <n>                phase with n sparse pbwts\n") ;
-      fprintf (stderr, "  -referencePhase <root>    phase current pbwt against reference whose root name is the argument - both pbwts need compatible sites! - only keep shared sites\n") ;
-      fprintf (stderr, "  -referenceImpute <root>   impute current pbwt into reference whose root name is the argument - need compatible sites - does not rephase either pbwt\n") ;
+      fprintf (stderr, "  -referencePhase <root>    phase current pbwt against reference whose root name is the argument - only keeps shared sites\n") ;
+      fprintf (stderr, "  -referenceImpute <root> [nSparse=1] [fSparse=1]  impute current pbwt into reference whose root name is the first argument;\n") ;
+      fprintf (stderr, "                            does not rephase either pbwt; optional nSparse > 1 also does sparse matching, fSparse is relative weight\n") ;
       fprintf (stderr, "  -genotypeCompare <root>   compare genotypes with those from reference whose root name is the argument - need compatible sites\n") ;
       fprintf (stderr, "  -imputeMissing            impute data marked as missing\n") ;
       fprintf (stderr, "  -fitAlphaBeta <model>     fit probabilistic model 1..3\n") ;
       fprintf (stderr, "  -llCopyModel <theta> <rho>  log likelihood of Li-Stephens model\n") ;
-      fprintf (stderr, "  -paint <fileNameRoot> <n> output painting co-ancestry matrix to fileroot, optionally specififying the number per region\n") ;
-      fprintf (stderr, "  -paintSparse <fileNameRoot> <n> output sparse painting to fileroot, optionally specififying the number per region\n") ;
+      fprintf (stderr, "  -paint <fileNameRoot> [n] output painting co-ancestry matrix to fileroot, optionally specififying the number per region\n") ;
+      fprintf (stderr, "  -paintSparse <fileNameRoot> [n] output sparse painting to fileroot, optionally specififying the number per region\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale) - also writes sites.freq file\n") ;
       fprintf (stderr, "  -refFreq <file>           read site frequency information into the refFreq field of current sites\n") ;
@@ -381,7 +382,18 @@ int main (int argc, char *argv[])
     else if (!strcmp (argv[0], "-referencePhase") && argc > 1)
       { p = referencePhase (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-referenceImpute") && argc > 1)
-      { p = referenceImpute (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
+      { int nSparse = 1 ; double fSparse = 1.0 ;
+	char *fileNameRoot = argv[1] ;  argc -= 2 ; argv += 2 ; 
+	if (argc && argv[0][0] != '-')
+	  { if (!(nSparse = atoi(argv[0]))) die ("bad refImpute nSparse %s", argv[0]) ;
+	    else { --argc ; ++argv ; }
+	  }
+	if (argc && argv[0][0] != '-')
+	  { if (!(fSparse = atof(argv[0]))) die ("bad refImpute fSparse %s", argv[0]) ;
+	    else { --argc ; ++argv ; }
+	  }
+	p = referenceImpute (p, fileNameRoot, nSparse, fSparse) ;
+      }
     else if (!strcmp (argv[0], "-genotypeCompare") && argc > 1)
       { genotypeCompare (p, argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-imputeMissing"))

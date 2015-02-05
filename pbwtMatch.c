@@ -15,7 +15,7 @@
  * Description: match functions in pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Sep 22 23:28 2014 (rd)
+ * Last edited: Feb  1 18:58 2015 (rd)
  * Created: Thu Apr  4 11:55:48 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -351,11 +351,15 @@ typedef struct {
 void matchSequencesDynamic (PBWT *p, FILE *fp)
 {
   PBWT *q = pbwtRead (fp) ;	/* q for "query" of course */
-  matchSequencesSweep (p, q, reportMatch) ; /* (new) sweep is better than (old) sweep2 */
+  matchSequencesSweep (p, q, reportMatch) ;
   pbwtDestroy (q) ;
 }
 
-void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int start, int end))/* this is simpler and faster - just keep track of best match with its start */
+/* Simple and fast dynamic search - use also for imputation and painting.
+   Just keep track of best match with its start. When it ends report and update.
+*/
+
+void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int start, int end))
 {
   if (q->N != p->N) die ("query length in matchSequences %d != PBWT length %d", q->N, p->N) ;
   PbwtCursor *up = pbwtCursorCreate (p, TRUE, TRUE) ;
@@ -435,6 +439,165 @@ void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int s
 
   pbwtCursorDestroy (up) ; pbwtCursorDestroy (uq) ;
   free (f) ; free (d) ;
+}
+
+/* the next version also reports sparse matches */
+/* first split out the report and update section */
+
+static int nSparseStore ;
+static void (*sweepSparseReport)(int ai, int bi, int start, int end, BOOL isSparse) ;
+static long totLen, nTot ;
+
+static void reportAndUpdate (int j, int k, uchar x, PbwtCursor *up, int *f, int *d, BOOL isSparse)
+/* problem that sparse arrays are only progressing at half the rate so k is too big */
+{
+  /* first see if there is any match of the same length that can be extended */
+  int iPlus = f[j] ; /* is an index into *up greater than f[j] */
+  while (++iPlus < up->M && up->d[iPlus] <= d[j])
+    if (up->y[iPlus] == x) { f[j] = iPlus ; return ; }
+  /* if not, then report these matches */
+  int dj = isSparse ? (nSparseStore * d[j] + k % nSparseStore) : d[j] ;
+  int i ; for (i = f[j] ; i < iPlus ; ++i) (*sweepSparseReport) (j, up->a[i], dj, k, isSparse) ;
+  nTot += (iPlus - f[j]) ; totLen += (k - dj)*(iPlus - f[j]) ;
+
+  if (isCheck && isSparse)	/* local sparse version of checkMatchMaximal() */
+    for (i = f[j] ; i < iPlus ; ++i) 
+      { uchar *x = checkHapsA[j], *y = checkHapsB[up->a[i]] ;
+	if (dj >= nSparseStore && x[dj-nSparseStore] == y[dj-nSparseStore])
+	  die ("match not maximal - can extend backwards") ;
+	if (k < Ncheck && x[k] == y[k])
+	  die ("match not maximal - can extend forwards") ;
+	int ii ; for (ii = dj ; ii < k ; ii += nSparseStore)
+		   if (x[ii] != y[ii]) die ("match not a match at %d", ii) ;
+      }
+
+  /* then find new top longest match that can be extended */
+  /* we extend out the interval [iMinus, iPlus] until we find this best match */
+  int iMinus = f[j] ; /* an index into *up less than f[j] */
+  int dPlus = (iPlus < up->M) ? up->d[iPlus] : (isSparse ? k/nSparseStore : k) ;
+  int dMinus = up->d[iMinus] ;
+  while (TRUE)
+    if (dMinus <= dPlus)
+      { i = -1 ;	/* impossible value */
+	while (up->d[iMinus] <= dMinus) /* up->d[0] = k+1 prevents underflow */
+	  if (up->y[--iMinus] == x) i = iMinus ;
+	if (i >= 0) { f[j] = i ; d[j] = dMinus ; return ; }
+	dMinus = up->d[iMinus] ;
+      }
+    else		/* dPlus < dMinus */
+      { while (iPlus < up->M && up->d[iPlus] <= dPlus)
+	  if (up->y[iPlus] == x) { f[j] = iPlus ; d[j] = dPlus ; return ; }
+	  else ++iPlus ;
+	dPlus = (iPlus < up->M) ? up->d[iPlus] : (isSparse ? k/nSparseStore : k) ;
+	if (!iMinus && iPlus == up->M) 
+	  { fprintf (stderr, "no match to query %d value %d at site %d\n", j, x, k) ;
+	    d[j] = 1 + (isSparse ? k/nSparseStore : k) ;
+	    return ; 
+	  }
+      }
+}
+
+void matchSequencesSweepSparse (PBWT *p, PBWT *q, int nSparse,
+	   void (*report)(int ai, int bi, int start, int end, BOOL isSparse))
+{
+  nSparseStore = nSparse ;
+  sweepSparseReport = report ;
+  if (q->N != p->N) die ("query length in matchSequences %d != PBWT length %d", q->N, p->N) ;
+  PbwtCursor *up = pbwtCursorCreate (p, TRUE, TRUE) ;
+  PbwtCursor *uq = pbwtCursorCreate (q, TRUE, TRUE) ;
+  PbwtCursor **upp ;
+  int *f = mycalloc (q->M, int) ; /* first location in *up of longest match to j'th query */
+  int *d = mycalloc (q->M, int) ; /* start of longest match to j'th query */
+  int **ff, **dd ;
+  uchar *xp ;
+  int kk ;
+  if (nSparse > 1)
+    { upp = myalloc (nSparse, PbwtCursor*) ; 
+      ff = myalloc (nSparse, int*) ;
+      dd = myalloc (nSparse, int*) ;
+      for (kk = 0 ; kk < nSparse ; ++kk) 
+	{ upp[kk] = pbwtNakedCursorCreate (p->M, 0) ;
+	  ff[kk] = mycalloc (q->M, int) ;
+	  dd[kk] = mycalloc (q->M, int) ;
+	}
+      xp = myalloc (p->M, uchar) ;
+    }
+  nTot = 0 ; totLen = 0 ;
+
+  if (isCheck) { checkHapsA = pbwtHaplotypes (q) ; checkHapsB = pbwtHaplotypes (p) ; Ncheck = p->N ; }
+
+  int i, j, k ;
+  for (k = 0 ; k < p->N ; ++k)
+    { if (nSparse > 1)
+	{ kk = k % nSparse ;
+	  for (j = 0 ; j < p->M ; ++j) xp[up->a[j]] = up->y[j] ;
+	  for (j = 0 ; j < p->M ; ++j) upp[kk]->y[j] = xp[upp[kk]->a[j]] ;
+	}
+
+      /* first check if matches extend, and if not report and update f, d */
+      for (j = 0 ; j < q->M ; ++j)
+	{ int jj = uq->a[j] ;
+	  uchar xq = uq->y[j] ;
+	  if (up->y[f[jj]] != xq) /* this match ends here */
+	    reportAndUpdate (jj, k, xq, up, f, d, FALSE) ;
+	  if (nSparse > 1 && upp[kk]->y[ff[kk][jj]] != xq)
+	    reportAndUpdate (jj, k, xq, upp[kk], ff[kk], dd[kk], TRUE) ;
+	}
+      /* next update the match location f[] of each query */
+      pbwtCursorCalculateU (up) ;
+      for (j = 0 ; j < q->M ; ++j)
+	{ int jj = uq->a[j] ;
+	  f[jj] = pbwtCursorMap (up, uq->y[j], f[jj]) ;
+	  /* trap if x == 1 and all up->y[] == 0, so d[jj] == k+1 (see above) */
+	  if (f[jj] == p->M) f[jj] = 0 ; 
+	}
+
+      if (nSparse > 1)		/* and the relevant sparse entry */
+	{ pbwtCursorCalculateU (upp[kk]) ;
+	  for (j = 0 ; j < q->M ; ++j)
+	    { int jj = uq->a[j] ;
+	      ff[kk][jj] = pbwtCursorMap (upp[kk], uq->y[j], ff[kk][jj]) ;
+	      if (ff[kk][jj] == p->M) ff[kk][jj] = 0 ;
+	    }
+	  /* now move the sparse cursor forward, before updating the primary ones */
+	  pbwtCursorForwardsAD (upp[kk], k/nSparse) ;
+	}
+
+	/* finish the main loop by moving the primary cursors forwards */
+      pbwtCursorForwardsReadAD (up, k) ;
+      pbwtCursorForwardsRead (uq) ;
+    }
+
+  /* finally need to record the matches ending at p->N */
+  for (j = 0 ; j < q->M ; ++j)
+    { int jj = uq->a[j] ;
+      (*report) (jj, up->a[f[jj]], d[jj], p->N, FALSE) ;
+      for (i = f[jj] ; ++i < p->M && up->d[i] <= d[jj] ; )
+	(*report) (jj, up->a[i], d[jj], p->N, FALSE) ;
+      nTot += (i - f[jj]) ; totLen += (p->N - d[jj])*(i - f[jj]) ;
+    }
+
+  if (nSparse > 1) 
+    for (kk = 0 ; kk < nSparse ; ++kk)
+      for (j = 0 ; j < q->M ; ++j)
+	{ int jj = uq->a[j] ;
+	  int dj = nSparse*dd[kk][jj] + kk ;
+	  (*report) (jj, upp[kk]->a[ff[kk][jj]], dj, p->N, TRUE) ;
+	  for (i = ff[kk][jj] ; ++i < p->M && upp[kk]->d[i] <= dd[kk][jj] ; )
+	    (*report) (jj, upp[kk]->a[i], dj, p->N, TRUE) ;
+	  nTot += (i - ff[kk][jj]) ; totLen += (p->N - dd[kk][jj])*(i - ff[kk][jj]) ;
+	}
+
+  fprintf (stderr, "Average number of best matches including alternates %.1f, Average length %.1f, Av number per position %.1f\n", 
+	   nTot/(double)q->M, totLen/(double)nTot, totLen/(double)(q->M*q->N)) ;
+
+  pbwtCursorDestroy (up) ; pbwtCursorDestroy (uq) ;
+  free (f) ; free (d) ;
+  if (nSparse > 1)
+    { for (kk = 0 ; kk < nSparse ; ++kk)
+	{ pbwtCursorDestroy (upp[kk]) ; free (ff[kk]) ; free (dd[kk]) ;	}
+      free (upp) ; free (ff) ; free (dd) ; free (xp) ;
+    }
 }
 
 /******************* end of file *******************/

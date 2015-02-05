@@ -15,7 +15,7 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Oct 10 08:55 2014 (rd)
+ * Last edited: Jan 26 00:50 2015 (rd)
  * * Sep 22 23:02 2014 (rd): change for 64bit arrays
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
@@ -514,7 +514,7 @@ void pbwtCursorCalculateU (PbwtCursor *x)
     { x->u[i] = u ;
       if (x->y[i] == 0)	++u ;
     }
-  x->u[i] = u ;			/* need one off the end of update intervals */
+  x->c = x->u[i] = u ;		/* need one off the end of update intervals */
 }
 
 /* We need to be careful about isBlockEnd in the routines below because when reading
