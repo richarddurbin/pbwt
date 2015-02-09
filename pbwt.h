@@ -23,7 +23,10 @@
 
 #include "utils.h"
 
-static int pbwtMajorVersion = 3, pbwtMinorVersion = 0 ;
+const static int pbwtMajorVersion = 3, pbwtMinorVersion = 0 ;
+
+const char *pbwtCommitHash(void);
+const char *pbwtHtslibVersionString(void);
 
 /* data types */
 

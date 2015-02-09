@@ -22,6 +22,7 @@
  */
 
 #include "pbwt.h"
+#include "version.h"
 
 /*********************************************************/
 
@@ -166,6 +167,11 @@ static void recordCommandLine (int argc, char *argv[])
 #define FOPEN(name,mode)  if (!strcmp (argv[1], "-")) fp = !strcmp(mode,"r") ? stdin : stdout ; else if (!(fp = fopen (argv[1],mode))) die ("failed to open %s file", name, argv[1])
 #define FCLOSE if (strcmp(argv[1], "-")) fclose(fp)
 
+const char *pbwtCommitHash(void)
+{
+    return PBWT_COMMIT_HASH ;
+}
+
 int main (int argc, char *argv[])
 {
   FILE *fp ;
@@ -179,7 +185,13 @@ int main (int argc, char *argv[])
   recordCommandLine (argc, argv) ;
 
   if (!argc)			/* print help */
-    { fprintf (stderr, "Usage: pbwt [ -<command> [options]* ]+\n") ;
+    { fprintf (stderr, "Program: pbwt\n") ;
+      if (strcmp(pbwtCommitHash(),"")!=0)
+          fprintf (stderr, "Version: %d.%d-%s (using htslib %s)\n", pbwtMajorVersion, pbwtMinorVersion, pbwtCommitHash(), pbwtHtslibVersionString()) ;
+      else
+          fprintf (stderr, "Version: %d.%d (using htslib %s)\n", pbwtMajorVersion, pbwtMinorVersion, pbwtHtslibVersionString()) ;
+      fprintf (stderr, "Contact: Richard Durbin [rd@sanger.ac.uk]\n") ;
+      fprintf (stderr, "Usage: pbwt [ -<command> [options]* ]+\n") ;
       fprintf (stderr, "Commands:\n") ;
       fprintf (stderr, "  -check                    do various checks\n") ;
       fprintf (stderr, "  -stats                    print stats depending on commands; writes to stdout\n") ;
