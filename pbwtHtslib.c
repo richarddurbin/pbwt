@@ -324,6 +324,9 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
         {
           if ( bcf_update_info_float(bcfHeader, bcfRecord, "DR2", &info, 1) ) die("Could not update INFO/DS field\n") ;
           int k ;
+          // dosages stored as double, but BCF required floats
+          // may be a better way to handle this, but it works
+          // for the moment
           for (k = 0 ; k < p->M ; ++k)
             fls[k] = (float)(ad[k]) ;
           if ( bcf_update_format_float(bcfHeader, bcfRecord, "AD", fls, p->M) ) die("Could not update FORMAT/AD field\n") ;
