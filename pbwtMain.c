@@ -186,10 +186,8 @@ int main (int argc, char *argv[])
 
   if (!argc)			/* print help */
     { fprintf (stderr, "Program: pbwt\n") ;
-      if (strcmp(pbwtCommitHash(),"")!=0)
-          fprintf (stderr, "Version: %d.%d-%s (using htslib %s)\n", pbwtMajorVersion, pbwtMinorVersion, pbwtCommitHash(), pbwtHtslibVersionString()) ;
-      else
-          fprintf (stderr, "Version: %d.%d (using htslib %s)\n", pbwtMajorVersion, pbwtMinorVersion, pbwtHtslibVersionString()) ;
+      fprintf (stderr, "Version: %d.%d%s%s (using htslib %s)\n", pbwtMajorVersion, pbwtMinorVersion, 
+                       strcmp(pbwtCommitHash(),"")==0 ? "" : "-", pbwtCommitHash(), pbwtHtslibVersionString()) ;
       fprintf (stderr, "Contact: Richard Durbin [rd@sanger.ac.uk]\n") ;
       fprintf (stderr, "Usage: pbwt [ -<command> [options]* ]+\n") ;
       fprintf (stderr, "Commands:\n") ;
