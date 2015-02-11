@@ -1159,6 +1159,7 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
   PbwtCursor *uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;
   PBWT *pNew = pbwtCreate (pOld->M, pRef->N) ;	/* this will hold the imputed sequence */
+  pNew->isRefFreq = TRUE ;
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
   uchar *x = myalloc (pOld->M, uchar) ;     /* uNew->y values in original sort order */
   double *p = myalloc (pOld->M, double) ;   /* estimated prob of uNew->y in original sort order */
