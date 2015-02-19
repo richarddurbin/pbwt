@@ -20,6 +20,21 @@ Richard Durbin <rd@sanger.ac.uk>
 
 May 2013, updated September 2014
 
+Installation instructions
+------------------------
+Download htslib from https://github.com/samtools/htslib, and compile it
+
+   git clone https://github.com/samtools/htslib
+   cd htslib
+   make
+   cd ..
+
+Download and make pbwt
+
+   git clone https://github.com/richarddurbin/pbwt
+   cd pbwt
+   make
+
 Brief usage instructions
 ------------------------
 

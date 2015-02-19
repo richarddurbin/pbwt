@@ -1,5 +1,6 @@
 
-CFLAGS= -g
+COMPILER= gcc
+CFLAGS= -g -O3
 HTSDIR = ../htslib
 HTSLIB = $(HTSDIR)/libhts.a
 
@@ -10,47 +11,47 @@ test:
 
 PBWT_OBJS = pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtPaint.o pbwtLikelihood.o pbwtMerge.o pbwtGeneticMap.o pbwtHtslib.o
 
-pbwt:  $(PBWT_OBJS) utils 
-	gcc $(CFLAGS) -o pbwt $(PBWT_OBJS) hash.o dict.o array.o utils.o $(HTSLIB) -lpthread -lz -lm
+pbwt:  $(PBWT_OBJS) utils
+	$(COMPILER) $(CFLAGS) -o pbwt $(PBWT_OBJS) hash.o dict.o array.o utils.o $(HTSLIB) -lpthread -lz -lm
 
 autozygExtract: autozygExtract.o
-	gcc $(CFLAGS) -o autozygExtract autozygExtract.o utils.o $(HTSLIB) -lpthread -lz -lm
+	$(COMPILER) $(CFLAGS) -o autozygExtract autozygExtract.o utils.o $(HTSLIB) -lpthread -lz -lm
 
 pbwtMain.o: pbwtMain.c pbwt.h utils.h
-	gcc $(CFLAGS) -c pbwtMain.c
+	$(COMPILER) $(CFLAGS) -c pbwtMain.c
 
 pbwtCore.o: pbwtCore.c pbwt.h utils.h
-	gcc $(CFLAGS) -c pbwtCore.c
+	$(COMPILER) $(CFLAGS) -c pbwtCore.c
 
 pbwtSample.o: pbwtSample.c pbwt.h utils.h
-	gcc $(CFLAGS) -c pbwtSample.c
+	$(COMPILER) $(CFLAGS) -c pbwtSample.c
 
 pbwtIO.o: pbwtIO.c pbwt.h utils.h
-	gcc $(CFLAGS) -c pbwtIO.c
+	$(COMPILER) $(CFLAGS) -c pbwtIO.c
 
 pbwtMatch.o: pbwtMatch.c pbwt.h utils.h
-	gcc $(CFLAGS) -c pbwtMatch.c
+	$(COMPILER) $(CFLAGS) -c pbwtMatch.c
 
 pbwtImpute.o: pbwtImpute.c pbwt.h utils.h
-	gcc $(CFLAGS) -c pbwtImpute.c
+	$(COMPILER) $(CFLAGS) -c pbwtImpute.c
 
 pbwtLikelihood.o: pbwtLikelihood.c pbwt.h utils.h
-	gcc $(CFLAGS) -c pbwtLikelihood.c
+	$(COMPILER) $(CFLAGS) -c pbwtLikelihood.c
 
 pbwtPaint.o: pbwtPaint.c pbwt.h utils.h
-	gcc $(CFLAGS) -c pbwtPaint.c
+	$(COMPILER) $(CFLAGS) -c pbwtPaint.c
 
 pbwtMerge.o: pbwtMerge.c pbwt.h utils.h
-	gcc $(CFLAGS) -c pbwtMerge.c
+	$(COMPILER) $(CFLAGS) -c pbwtMerge.c
 
-pbwtGeneticMap.o: pbwtGeneticMap.c pbwt.h utils.h 
-	gcc $(CFLAGS) -c pbwtGeneticMap.c
+pbwtGeneticMap.o: pbwtGeneticMap.c pbwt.h utils.h
+	$(COMPILER) $(CFLAGS) -c pbwtGeneticMap.c
 
-pbwtHtslib.o: pbwtHtslib.c pbwt.h utils.h 
-	gcc $(CFLAGS) -I$(HTSDIR) -c pbwtHtslib.c
+pbwtHtslib.o: pbwtHtslib.c pbwt.h utils.h
+	$(COMPILER) $(CFLAGS) -I$(HTSDIR) -c pbwtHtslib.c
 
 autozygExtract.o: autozygExtract.c
-	gcc $(CFLAGS) -I$(HTSDIR) -c autozygExtract.c
+	$(COMPILER) $(CFLAGS) -I$(HTSDIR) -c autozygExtract.c
 
 #################################
 
@@ -60,16 +61,16 @@ utils: hash.o dict.o array.o utils.o
 utils.h: hash.h dict.h array.h
 
 hash.o: hash.c utils.h
-	gcc $(CFLAGS) -c hash.c
+	$(COMPILER) $(CFLAGS) -c hash.c
 
 dict.o: dict.c utils.h
-	gcc $(CFLAGS) -c dict.c
+	$(COMPILER) $(CFLAGS) -c dict.c
 
 array.o: array.c utils.h
-	gcc $(CFLAGS) -c array.c
+	$(COMPILER) $(CFLAGS) -c array.c
 
 utils.o: utils.c utils.h
-	gcc $(CFLAGS) -c utils.c
+	$(COMPILER) $(CFLAGS) -c utils.c
 
 clean:
 	rm -f *.o pbwt *~
