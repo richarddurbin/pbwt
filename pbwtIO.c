@@ -571,6 +571,38 @@ static PBWT *pbwtReadLineFile (FILE *fp, char* type, ParseLineFunc parseLine)
   return p ;
 }
 
+typedef BOOL (*ParseTwoLineFunc)(PBWT** pp, FILE *f, FILE *l, Array a) ;
+
+static PBWT *pbwtReadLineTwoFile (FILE *fp, FILE *lp, char* type, ParseTwoLineFunc parseLine)
+{
+  PBWT *p = 0 ;
+  int j ;
+  uchar *x ;		/* original, sorted, compressed */
+  int *a ;
+  Array xArray = arrayCreate (10000, uchar) ;
+  PbwtCursor *u ;
+
+  while ((*parseLine) (&p, fp, lp, xArray)) /* create p first time round */
+    { if (!p->yz)		/* first line; p was just made! */
+	{ p->yz = arrayCreate(4096*32, uchar) ;
+	  u = pbwtCursorCreate (p, TRUE, TRUE) ;
+	}
+      x = arrp(xArray,0,uchar) ;
+      for (j = 0 ; j < p->M ; ++j) u->y[j] = x[u->a[j]] ;
+      pbwtCursorWriteForwards (u) ;
+      if (nCheckPoint && !(p->N % nCheckPoint))	pbwtCheckPoint (u, p) ;
+    }
+  pbwtCursorToAFend (u, p) ;
+
+  fprintf (stderr, "read %s file", type) ;
+  if (p->chrom) fprintf (stderr, " for chromosome %s", p->chrom) ;
+  fprintf (stderr, ": M, N are\t%d\t%d; yz length is %ld\n", p->M, p->N, arrayMax(p->yz)) ;
+
+  arrayDestroy(xArray) ; pbwtCursorDestroy (u) ;
+
+  return p ;
+}
+
 PBWT *pbwtReadVcfq (FILE *fp) { return pbwtReadLineFile (fp, "vcfq", parseVcfqLine) ; }
 
 /*************** read impute2 .gen format - contains sites not samples **********/
@@ -620,15 +652,15 @@ static BOOL parseGenLine (PBWT **pp, FILE *fp, Array x) /* based on parseVcfqLin
   return TRUE ;
 }
 
-static BOOL parseHapLine (PBWT **pp, FILE *fp, Array x) /* same as parseGenLine - slightly simpler */
+static BOOL parseHapLine (PBWT **pp, FILE *fp, FILE *lp, Array x) /* same as parseGenLine - slightly simpler */
 {
   PBWT *p = *pp ;
   
-  fgetword(fp) ; fgetword(fp) ;	/* ignore first two name fields */
+  fgetword(lp) ;	/* ignore first name field */
   
-  int pos = atoi (fgetword (fp)) ;
-  char *var = getVariation (fp) ; /* but need to change ' ' separator to '\t' */
-  if (feof (fp)) return FALSE ;
+  int pos = atoi (fgetword (lp)) ;
+  char *var = getVariation (lp) ; /* but need to change ' ' separator to '\t' */
+  if (feof (lp)) return FALSE ;
   char *cp = var ; while (*cp && *cp != ' ') ++cp ; if (*cp == ' ') *cp = '\t' ; else die ("missing separator in line %d, var is %d", p?p->N:0, var) ;
   
   int m = 0, nscan ;
@@ -668,9 +700,9 @@ PBWT *pbwtReadGen (FILE *fp, char *chrom)
   return p ;
 }
 
-PBWT *pbwtReadHap (FILE *fp, char *chrom)
+PBWT *pbwtReadHap (FILE *fp, FILE *lp, char *chrom)
 {
-  PBWT *p = pbwtReadLineFile (fp, "hap", parseHapLine) ;
+  PBWT *p = pbwtReadLineTwoFile (fp, lp, "hap", parseHapLine) ;
   p->chrom = strdup (chrom) ;
   return p ;
 }
