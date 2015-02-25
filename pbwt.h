@@ -179,7 +179,8 @@ PBWT *pbwtReadAll (char *fileNameRoot) ; /* reads .pbwt, .sites, .samples, .miss
 PBWT *pbwtReadMacs (FILE *fp) ;
 PBWT *pbwtReadVcfq (FILE *fp) ;	/* reduced VCF style file made by vcf query */
 PBWT *pbwtReadGen (FILE *fp, char *chrom) ;	/* gen file as used by impute2 (unphased) */
-PBWT *pbwtReadHap (FILE *fp, FILE *lp, char *chrom) ; /* hap file as used by impute2 (phased) */
+PBWT *pbwtReadHap (FILE *fp, char *chrom) ;	/* hap file as used by impute2 (unphased) */
+PBWT *pbwtReadHapLegend (FILE *fp, FILE *lp, char *chrom) ; /* hap and legend file as used by impute2 (phased) */
 PBWT *pbwtReadPhase (FILE *fp) ; /* Li and Stephens PHASE file */
 void pbwtWriteHaplotypes (FILE *fp, PBWT *p) ;
 void pbwtWriteImputeRef (PBWT *p, char *fileNameRoot) ;

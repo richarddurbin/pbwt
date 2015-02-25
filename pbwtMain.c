@@ -198,8 +198,9 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -readMacs <file>          read MaCS output file; '-' for stdin\n") ;
       fprintf (stderr, "  -readVcfq <file>          read VCFQ file; '-' for stdin\n") ;
       fprintf (stderr, "  -readGen <file> <chrom>   read impute2 gen file - must set chrom\n") ;
-      fprintf (stderr, "  -readHap <hap_file> <legend_file> <chrom>\n") ;
-      fprintf (stderr, "                            read impute2 hap file - must set chrom\n") ;
+      fprintf (stderr, "  -readHap <file> <chrom>   read impute2 hap file - must set chrom\n") ;
+      fprintf (stderr, "  -readHapLegend <hap_file> <legend_file> <chrom>\n") ;
+      fprintf (stderr, "                            read impute2 hap and legend file - must set chrom\n") ;
       fprintf (stderr, "  -readPhase <file>         read Li and Stephens phase file\n") ;
       fprintf (stderr, "  -checkpoint <n>           checkpoint every n sites while reading\n") ;
       fprintf (stderr, "  -merge <file> ...         merge two or more pbwt files\n") ;
@@ -297,8 +298,10 @@ int main (int argc, char *argv[])
       { if (p) pbwtDestroy (p) ; FOPEN("readVcfq","r") ; p = pbwtReadVcfq (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readGen") && argc > 2)
       { if (p) pbwtDestroy (p) ; FOPEN("readGen","r") ; p = pbwtReadGen (fp, argv[2]) ; FCLOSE ; argc -= 3 ; argv += 3 ; }
-    else if (!strcmp (argv[0], "-readHap") && argc > 3)
-    { if (p) pbwtDestroy (p) ; FOPEN("readHap","r") ; LOPEN("readHap","r") ; p = pbwtReadHap (fp, lp, argv[3]) ; FCLOSE ; LCLOSE ; argc -= 4 ; argv += 4 ; }
+    else if (!strcmp (argv[0], "-readHap") && argc > 2)
+      { if (p) pbwtDestroy (p) ; FOPEN("readHap","r") ; p = pbwtReadHap (fp, argv[2]) ; FCLOSE ; argc -= 3 ; argv += 3 ; }
+    else if (!strcmp (argv[0], "-readHapLegend") && argc > 3)
+    { if (p) pbwtDestroy (p) ; FOPEN("readHap","r") ; LOPEN("readHap","r") ; p = pbwtReadHapLegend (fp, lp, argv[3]) ; FCLOSE ; LCLOSE ; argc -= 4 ; argv += 4 ; }
     else if (!strcmp (argv[0], "-readPhase") && argc > 1)
       { if (p) pbwtDestroy (p) ; FOPEN("readPhase","r") ; p = pbwtReadPhase (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-write") && argc > 1)
