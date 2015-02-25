@@ -582,6 +582,11 @@ static PBWT *pbwtReadLineTwoFile (FILE *fp, FILE *lp, char* type, ParseTwoLineFu
   Array xArray = arrayCreate (10000, uchar) ;
   PbwtCursor *u ;
 
+  /* skip header of legend file */
+  while (!feof(lp))
+  {  char c = getc(fp) ; if (c == '\n') break ;
+     }
+
   while ((*parseLine) (&p, fp, lp, xArray)) /* create p first time round */
     { if (!p->yz)		/* first line; p was just made! */
 	{ p->yz = arrayCreate(4096*32, uchar) ;
@@ -662,7 +667,10 @@ static BOOL parseHapLine (PBWT **pp, FILE *fp, FILE *lp, Array x) /* same as par
   char *var = getVariation (lp) ; /* but need to change ' ' separator to '\t' */
   if (feof (lp)) return FALSE ;
   char *cp = var ; while (*cp && *cp != ' ') ++cp ; if (*cp == ' ') *cp = '\t' ; else die ("missing separator in line %d, var is %d", p?p->N:0, var) ;
-  
+  while (!feof(lp))
+  {  char c = getc(fp) ; if (c == '\n') break ;
+     }
+
   int m = 0, nscan ;
   while (!feof(fp))
   { char c = getc(fp) ; if (c == '\n') break ; else if (!isspace(c)) ungetc (c, fp) ;
