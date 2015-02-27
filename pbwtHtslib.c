@@ -69,36 +69,56 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
       if (!p->chrom) p->chrom = strdup (chrom) ;
       else if (strcmp (chrom, p->chrom)) break ;
       int pos = line->pos + 1 ;       // bcf coordinates are 0-based
-      // if (line->n_allele != 2) continue ;  // not a biallelic site - skip these
       const char *ref = line->d.allele[0] ;
 
       // get a copy of GTs
       int ngt = bcf_get_genotypes(hr, line, &gt_arr, &mgt_arr) ;
       if (ngt <= 0) continue ;  // it seems that -1 is used if GT is not in the FORMAT
-      if (ngt != p->M) die ("%d != %d GT values at %s:%d - not diploid?", 
+      if (ngt != p->M && p->M != 2*ngt) die ("%d != %d GT values at %s:%d - not haploid or diploid?", 
           ngt, p->M, chrom, pos) ;
 
       memset (xMissing, 0, p->M) ;
       long wasMissing = nMissing ;
-
       /* copy the genotypes into array x[] */
-      for (i = 0 ; i < p->M ; i++)
-        { if (gt_arr[i] == bcf_int32_vector_end) 
-            x[i] = bcf_gt_allele(gt_arr[i-1]); // treat haploid genotypes as diploid homozygous A/A
-          if (gt_arr[i] == bcf_gt_missing)
-            { x[i] = 0 ; /* use ref for now */
-              xMissing[i] = 1 ;
-              ++nMissing ;
+      if (p->M == 2*ngt) // all GTs haploid: treat haploid genotypes as diploid homozygous A/A
+        {
+          for (i = 0 ; i < ngt ; i++)
+            { if (gt_arr[i] == bcf_gt_missing)
+                { x[2*i] = 0 ;
+                  x[2*i+1] = 0; /* use ref for now */
+                  xMissing[2*i] = 1 ;
+                  xMissing[2*i+1] = 1;
+                  nMissing+=2 ;
+                }
+              else {
+                x[2*i] = bcf_gt_allele(gt_arr[i]) ;  // convert from BCF binary to 0 or 1
+                x[2*i+1] = x[2*i] ;  // convert from BCF binary to 0 or 1
+              }
             }
-          else 
-            x[i] = bcf_gt_allele(gt_arr[i]) ;  // convert from BCF binary to 0 or 1
         }
+      else
+        {
+          for (i = 0 ; i < p->M ; i++)
+            { if (gt_arr[i] == bcf_int32_vector_end) 
+                x[i] = bcf_gt_allele(gt_arr[i-1]); // treat haploid genotypes as diploid homozygous A/A
+              if (gt_arr[i] == bcf_gt_missing)
+                { x[i] = 0 ; /* use ref for now */
+                  xMissing[i] = 1 ;
+                  ++nMissing ;
+                }
+              else 
+                x[i] = bcf_gt_allele(gt_arr[i]) ;  // convert from BCF binary to 0 or 1
+            }
+        }
+
+      BOOL no_alt = line->n_allele == 1;
+      int n_allele = no_alt ? 2 : line->n_allele;
 
       /* split into biallelic sites filling in as REF ALT alleles */
       /* not in the REF/ALT site */
-      for (i = 1 ; i < line->n_allele ; i++)
+      for (i = 1 ; i < n_allele ; i++)
         {
-          const char *alt = line->d.allele[i] ;
+          const char *alt = no_alt ? "." : line->d.allele[i] ;
 
           /* and pack them into the PBWT */
           for (j = 0 ; j < p->M ; ++j) u->y[j] = x[u->a[j]] == i ? 1 : 0;
@@ -116,7 +136,7 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
               nMissingSites++ ;
             }
           else if (nMissing)
-            array(p->missingOffset, p->N, int) = 0 ;
+            array(p->missingOffset, p->N, long) = 0 ;
 
           // add the site
           Site *s = arrayp(p->sites, p->N++, Site) ;
