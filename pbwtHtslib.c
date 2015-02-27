@@ -69,7 +69,9 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
       if (!p->chrom) p->chrom = strdup (chrom) ;
       else if (strcmp (chrom, p->chrom)) break ;
       int pos = line->pos + 1 ;       // bcf coordinates are 0-based
-      const char *ref = line->d.allele[0] ;
+      char *ref, *REF; 
+      ref = REF = strdup(line->d.allele[0]);
+      while ( *ref++ = toupper(*ref) );
 
       // get a copy of GTs
       int ngt = bcf_get_genotypes(hr, line, &gt_arr, &mgt_arr) ;
@@ -118,7 +120,9 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
       /* not in the REF/ALT site */
       for (i = 1 ; i < n_allele ; i++)
         {
-          const char *alt = no_alt ? "." : line->d.allele[i] ;
+          char *alt, *ALT; 
+          alt = ALT = no_alt ? "." : strdup(line->d.allele[i]) ;
+          if (!no_alt) while ( *alt++ = toupper(*alt) );
 
           /* and pack them into the PBWT */
           for (j = 0 ; j < p->M ; ++j) u->y[j] = x[u->a[j]] == i ? 1 : 0;
@@ -141,7 +145,7 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
           // add the site
           Site *s = arrayp(p->sites, p->N++, Site) ;
           s->x = pos ;
-          s->varD = variation (p, ref, alt) ;          
+          s->varD = variation (p, REF, ALT) ;          
         }
 
       if (nCheckPoint && !(p->N % nCheckPoint))  pbwtCheckPoint (u, p) ;
