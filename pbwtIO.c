@@ -402,6 +402,7 @@ PBWT *pbwtReadAll (char *root)
   if ((fp = fopenTag (root, "sites","r")))  { pbwtReadSites (p, fp) ; fclose (fp) ; }
   if ((fp = fopenTag (root, "samples","r"))) { pbwtReadSamples (p, fp) ; fclose (fp) ; }
   if ((fp = fopenTag (root, "missing","r"))) { pbwtReadMissing (p, fp) ; fclose (fp) ; }
+  if ((fp = fopenTag (root, "dosage","r"))) { pbwtReadDosage (p, fp) ; fclose (fp) ; }
   if ((fp = fopenTag (root, "reverse","r"))) { pbwtReadReverse (p, fp) ; fclose (fp) ; }
 
   return p ;
