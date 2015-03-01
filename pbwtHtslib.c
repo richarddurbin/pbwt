@@ -16,6 +16,11 @@
 #include <htslib/synced_bcf_reader.h>
 #include <htslib/faidx.h>
 
+const char *pbwtHtslibVersionString(void)
+{
+    return hts_version();
+}
+
 static void readVcfSamples (PBWT *p, bcf_hdr_t *hr)
 {
   int i, k ;
@@ -229,8 +234,11 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
       bcf_hdr_printf(bcfHeader, "##contig=<ID=%s,length=%d>", p->chrom, 0x7fffffff);   // MAX_CSI_COOR
     }
   kstring_t str = {0,0,0} ;
-  ksprintf(&str, "##pbwtVersion=%d.%d+htslib-%s", 
-	   pbwtMajorVersion, pbwtMinorVersion, hts_version()) ;
+  ksprintf(&str, "##pbwtVersion=%d.%d%s%s+htslib-%s", pbwtMajorVersion, pbwtMinorVersion, 
+          strcmp(pbwtCommitHash(),"")==0 ? "" : "-", pbwtCommitHash(), pbwtHtslibVersionString()) ;
+  bcf_hdr_append(bcfHeader, str.s) ;
+  str.l = 0;
+  ksprintf(&str, "##pbwtCommand=pbwt %s", commandLine) ;
   bcf_hdr_append(bcfHeader, str.s) ;
   free(str.s) ;
   bcf_hdr_append(bcfHeader, "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count in genotypes\">") ;
