@@ -799,21 +799,37 @@ void pbwtWriteGen (PBWT *p, FILE *fp)
   int i, j ;
   uchar *hap = myalloc (p->M, uchar) ;
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
+  BOOL isDosage = p->dosageOffset ? TRUE : FALSE ;
+  double *d = 0, *ad = isDosage ? myalloc (p->M, double) : NULL;
 
   for (i = 0 ; i < p->N ; ++i)
     { Site *s = arrp(p->sites, i, Site) ;
-      fprintf (fp, "site%d\tsite%d\t%d", i+1, i+1, s->x) ;
-      fprintf (fp, "\t%s", dictName (variationDict, s->varD)) ;
+      char *als = strdup( dictName(variationDict, s->varD) ), *ss = als ;
+      while ( *ss ) { if ( *ss=='\t' ) *ss = '_' ; ss++ ; }
+      fprintf (fp, "%s:%d_%s %s:%d_%s %d", p->chrom, s->x, als, p->chrom, s->x, als, s->x) ;
+      ss = als ;
+      while ( *ss ) { if ( *ss=='_' ) *ss = ' ' ; ss++ ; }
+      fprintf (fp, " %s", als) ;
+      free(als) ;
+      if (isDosage) d = pbwtDosageRetrieve (p, u, d, i) ;
       
-      for (j = 0 ; j < p->M ; ++j) hap[u->a[j]] = u->y[j] ;
-      for (j = 0 ; j < p->M ; j+=2) 
-	if (hap[j] + hap[j+1] == 0) fprintf (fp, " 1 0 0") ;
-	else if (hap[j] + hap[j+1] == 1) fprintf (fp, " 0 1 0") ;
-	else fprintf (fp, " 0 0 1") ;
+      for (j = 0 ; j < p->M ; ++j)
+        { hap[u->a[j]] = u->y[j] ;
+          if (isDosage) ad[u->a[j]] = d[j] ;
+        }
+      if (isDosage)
+          for (j = 0 ; j < p->M ; j+=2) 
+            fprintf (fp, " %f %f %f", (1-ad[j]) * (1-ad[j+1]), ad[j] + ad[j+1] - 2*ad[j]*ad[j+1], ad[j] * ad[j+1]) ;
+      else
+          for (j = 0 ; j < p->M ; j+=2) 
+            if (hap[j] + hap[j+1] == 0) fprintf (fp, " 1 0 0") ;
+            else if (hap[j] + hap[j+1] == 1) fprintf (fp, " 0 1 0") ;
+            else fprintf (fp, " 0 0 1") ;
       putc ('\n', fp) ; fflush (fp) ;
       pbwtCursorForwardsRead (u) ;
     }
 
+  if (ad) free(ad) ;
   free (hap) ; pbwtCursorDestroy (u) ;
 }
 

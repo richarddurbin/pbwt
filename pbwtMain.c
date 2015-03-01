@@ -209,6 +209,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -writeImputeRef <rootname> write .imputeHaps and .imputeLegend\n") ;
       fprintf (stderr, "  -writeImputeHapsG <file>  write haplotype file for IMPUTE -known_haps_g\n") ;
       fprintf (stderr, "  -haps <file>              write haplotype file; '-' for stdout\n") ;
+      fprintf (stderr, "  -writeGen <file>          write impute2 gen file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeVcf|-writeVcfGz|-writeBcf|-writeBcfGz <file>\n") ;
       fprintf (stderr, "                            write VCF or BCF; uncompressed or bgzip (Gz) compressed file; '-' for stdout\n") ;
       fprintf (stderr, "  -referenceFasta <file>    reference fasta filename for VCF/BCF writing (optional)\n") ;
