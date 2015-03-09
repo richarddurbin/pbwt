@@ -1165,8 +1165,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   int *aRefInv = myalloc (pRef->M, int) ;   /* holds the inverse mapping from uRef->a[i] -> i */
   int *firstSeg = mycalloc (pOld->M, int) ; /* position in maxMatch to start looking at */
   int nConflicts = 0 ;
-  uchar *missing = (pOld == pFrame) ? mycalloc (pRef->M, uchar) : 0 ;
-  double *xDosage = myalloc (pRef->M, double), *yDosage = myalloc (pRef->M, double) ;
+  uchar *missing = (pOld == pFrame) ? mycalloc (pOld->M, uchar) : 0 ;
+  double *xDosage = myalloc (pOld->M, double), *yDosage = myalloc (pOld->M, double) ;
 
   pNew->dosageOffset = arrayReCreate (pNew->dosageOffset, pRef->N, long) ;
   pNew->zDosage = arrayReCreate (pNew->zDosage, pRef->N*16, uchar) ;
