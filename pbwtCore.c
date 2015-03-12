@@ -596,23 +596,29 @@ PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
   pNew->sites = arrayCreate (arrayMax(sites), Site) ;
   while (ip < pOld->N && ia < arrayMax(sites))
     { if (sp->x < sa->x) 
-	{ ++ip ; ++sp ;
-	  pbwtCursorForwardsRead (uOld) ;
-	}
+        { ++ip ; ++sp ;
+          pbwtCursorForwardsRead (uOld) ;
+        }
       else if (sp->x > sa->x) { ++ia ; ++sa ; }
-      else if (sp->varD < sa->varD)
-	{ ++ip ; ++sp ;
-	  pbwtCursorForwardsRead (uOld) ;
-	}
-      else if (sp->varD > sa->varD) { ++ia ; ++sa ; }
-      else
-	{ array(pNew->sites,pNew->N++,Site) = *sp ;
-	  ++ip ; ++sp ; ++ia ; ++sa ;
-	  for (j = 0 ; j < pOld->M ; ++j) x[uOld->a[j]] = uOld->y[j] ;
-	  pbwtCursorForwardsRead (uOld) ;
-	  for (j = 0 ; j < pNew->M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
-	  pbwtCursorWriteForwards (uNew) ;
-	}
+      else 
+        {
+          char *sa_als = dictName(variationDict, sa->varD) ;
+          char *sp_als = dictName(variationDict, sp->varD) ;
+          BOOL noAlt = sa_als[strlen(sa_als)-1] == '.' || sp_als[strlen(sp_als)-1] == '.';
+          if (!noAlt && sp->varD < sa->varD)
+            { ++ip ; ++sp ;
+              pbwtCursorForwardsRead (uOld) ;
+            }
+          else if (!noAlt && sp->varD > sa->varD) { ++ia ; ++sa ; }
+          else
+            { array(pNew->sites,pNew->N++,Site) = *sp ;
+              ++ip ; ++sp ; ++ia ; ++sa ;
+              for (j = 0 ; j < pOld->M ; ++j) x[uOld->a[j]] = uOld->y[j] ;
+              pbwtCursorForwardsRead (uOld) ;
+              for (j = 0 ; j < pNew->M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
+              pbwtCursorWriteForwards (uNew) ;
+            }
+        }
     }
   pbwtCursorToAFend (uNew, pNew) ;
 
