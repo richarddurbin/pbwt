@@ -15,7 +15,7 @@
  * Description: genetic map code for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Oct 19 17:44 2014 (rd)
+ * Last edited: Mar  1 20:26 2015 (rd)
  * Created: Thu Oct 16 22:53:32 2014 (rd)
  *-------------------------------------------------------------------
  */
@@ -105,7 +105,13 @@ double geneticMap (int x)
 
 /*****************************************/
 
-static long nMinus[20], nPlus[20], len[20] ;
+typedef struct { 
+  int lastPat[20], lastPos[20] ;
+  double lastMap[20], glen[20] ;
+  long nMinus[20], nPlus[20], len[20] ; 
+} Hap4Stats ;
+static Hap4Stats *stats ;
+
 static double rateBoundary[20] = {
   0.1, 0.15, 0.2, 0.3, 0.5, 0.7,
   1.0, 1.5, 2.0, 3.0, 5.0, 7.0,
@@ -113,30 +119,34 @@ static double rateBoundary[20] = {
   100.0, 1000.0
 } ;
 
-static void reportMinus (int x1, double g1, int x0, double g0)
+static void reportMinus (int varD, int x1, double g1, int x0, double g0)
 {
   double rate = 1000000.0 * (g1 - g0) / (x1 - x0) ;
   int i = 0 ; while (rateBoundary[i] < rate) ++i ;
-  ++nMinus[i] ;
-  len[i] += x1 - x0 ;
+  ++stats[varD].nMinus[i] ;
+  stats[varD].glen[i] += g1 - g0 ;
+  stats[varD].len[i] += x1 - x0 ;
 }
 
-static void reportPlus (int x1, double g1, int x0, double g0)
+static void reportPlus (int varD, int x1, double g1, int x0, double g0)
 {
   double rate = 1000000.0 * (g1 - g0) / (x1 - x0) ;
   int i = 0 ; while (rateBoundary[i] < rate) ++i ;
-  ++nPlus[i] ;
-  len[i] += x1 - x0 ;
+  ++stats[varD].nPlus[i] ;
+  stats[varD].glen[i] += g1 - g0 ;
+  stats[varD].len[i] += x1 - x0 ;
 }
 
 static void finalReport (void) 
 { 
-  int i ;
-  printf ("rate\tfrac\t\tlen\t\tminus\t\tplus\n") ;
-  for (i = 0 ; i < 20 ; ++i)
-    if (nMinus[i] + nPlus[i])
-      printf ("%.2f\t%.4f\t%12ld\t%12ld\t%12ld\n", rateBoundary[i],
-	      nPlus[i] / (double)(nMinus[i]+nPlus[i]), len[i], nMinus[i], nPlus[i]) ;
+  int v, i ;
+  printf (" rate\tvar\t\tlen\tglen\tminus\t\tplus\n") ;
+  for (v = 0 ; v < dictMax(variationDict) ; ++v)
+    for (i = 0 ; i < 20 ; ++i)
+      if (stats[v].nMinus[i] + stats[v].nPlus[i])
+	printf ("%.2f\t%s\t%12ld\t%.4g\t%12ld\t%12ld\n", rateBoundary[i],
+		dictName (variationDict, v), stats[v].len[i], stats[v].glen[i],
+		stats[v].nMinus[i], stats[v].nPlus[i]) ;
 }
 
 void pbwt4hapsStats (PBWT *p)
@@ -156,36 +166,42 @@ void pbwt4hapsStats (PBWT *p)
   else if (strcmp (p->chrom, map.chrom)) 
     warn ("chrom mismatch in hap4stats: %s != %s", p->chrom, map.chrom) ;
 
+  stats = mycalloc (dictMax(variationDict), Hap4Stats) ;
+
   int i, k ;
-  int *lastPat = myalloc (p->M, int) ;
-  for (i = 0 ; i < p->M ; ++i) lastPat[i] = -1 ;
-  int *lastPos = mycalloc (p->M, int) ;
-  double *lastMap = mycalloc (p->M, double) ;
+  int v ; 
+  for (v = dictMax(variationDict) ; v-- ; ) 
+    for (i = 0 ; i < p->M ; ++i) stats[v].lastPat[i] = -1 ;
   uchar *x = myalloc (p->M, uchar) ;
   
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
   for (k = 0 ; k < p->N ; ++k)
     { int pos = arrp(p->sites, k, Site)->x ;
       double g = geneticMap (pos) ;
+      v = arrp(p->sites,k,Site)->varD ;
       if (u->M - u->c >= 2)	/* at least two 1s */
 	{ for (i = 0 ; i < p->M ; ++i) x[u->a[i]] = u->y[i] ;
 	  for (i = 0 ; i+4 <= p->M ; i += 4)
 	    if (x[i] + x[i+1] + x[i+2] + x[i+3] == 2) /* doubleton */
 	      { int pat = x[i] + (x[i+1]<<1) + (x[i+2]<<2) + (x[i+3]<<3) ;
-		if (lastPat[i] >= 0)
-		  { if (pat == lastPat[i] || pat + lastPat[i] == 15)
-		      reportMinus (pos, g, lastPos[i], lastMap[i]) ;
+		if (stats[v].lastPat[i] >= 0)
+		  { if (pat == stats[v].lastPat[i] || pat + stats[v].lastPat[i] == 15)
+		      reportMinus (v, pos, g, 
+				   stats[v].lastPos[i], stats[v].lastMap[i]) ;
 		    else
-		      reportPlus (pos, g, lastPos[i], lastMap[i]) ;
+		      reportPlus (v, pos, g, 
+				  stats[v].lastPos[i], stats[v].lastMap[i]) ;
 		  }
-		lastPat[i] = pat ; lastPos[i] = pos ; lastMap[i] = g ;
+		stats[v].lastPat[i] = pat ; 
+		stats[v].lastPos[i] = pos ; 
+		stats[v].lastMap[i] = g ;
 	      }
 	}
       pbwtCursorForwardsRead (u) ;
     }
 
   finalReport () ;
-  free (lastMap) ; free (lastPat) ;
+  free (stats) ;
 }
 
 /************** end of file **************/
