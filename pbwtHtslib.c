@@ -272,7 +272,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
     {
       bcf_hdr_append(bcfHeader, "##INFO=<ID=RefPanelAF,Number=A,Type=Float,Description=\"Allele frequency in imputation reference panel\">") ;
       bcf_hdr_append(bcfHeader, "##INFO=<ID=DR2,Number=A,Type=Float,Description=\"Estimated haploid dosage r^2 from imputation\">") ;
-      bcf_hdr_append(bcfHeader, "##FORMAT=<ID=AD,Number=R,Type=Float,Description=\"Allele dosage\">") ;
+      bcf_hdr_append(bcfHeader, "##FORMAT=<ID=ADS,Number=R,Type=Float,Description=\"Allele dosage\">") ;
       bcf_hdr_append(bcfHeader, "##FORMAT=<ID=DS,Number=1,Type=Float,Description=\"Genotype dosage\">") ;
       bcf_hdr_append(bcfHeader, "##FORMAT=<ID=GP,Number=G,Type=Float,Description=\"Genotype posterior probabilities\">") ;
     }
@@ -361,7 +361,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
           // for the moment
           for (k = 0 ; k < p->M ; ++k)
             fls[k] = (float)(ad[k]) ;
-          if ( bcf_update_format_float(bcfHeader, bcfRecord, "AD", fls, p->M) ) die("Could not update FORMAT/AD field\n") ;
+          if ( bcf_update_format_float(bcfHeader, bcfRecord, "ADS", fls, p->M) ) die("Could not update FORMAT/ADS field\n") ;
           for (k = 0 ; k < p->M/2 ; ++k)
             fls[k] = (float)(ds[k]) ;
           if ( bcf_update_format_float(bcfHeader, bcfRecord, "DS", fls, p->M/2) ) die("Could not update FORMAT/DS field\n") ;
