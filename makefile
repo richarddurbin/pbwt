@@ -1,13 +1,13 @@
 
 CFLAGS= -g
-HTSDIR = ../htslib
+HTSDIR = htslib-1.2.1
 HTSLIB = $(HTSDIR)/libhts.a
 
 all: pbwt
 
 PBWT_COMMIT_HASH = ""
 ifneq "$(wildcard .git)" ""
-PBWT_COMMIT_HASH = $(shell git describe --always --long --dirty | sed 's/^[0-9\.]*-*//')
+PBWT_COMMIT_HASH = $(shell git describe --always --long --dirty)
 version.h: $(if $(wildcard version.h),$(if $(findstring "$(PBWT_COMMIT_HASH)",$(shell cat version.h)),,force))
 endif
 version.h:
@@ -25,7 +25,7 @@ test:
 PBWT_OBJS = pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtPaint.o pbwtLikelihood.o pbwtMerge.o pbwtGeneticMap.o pbwtHtslib.o
 
 pbwt:  $(PBWT_OBJS) utils 
-	gcc $(CFLAGS) -o pbwt $(PBWT_OBJS) hash.o dict.o array.o utils.o $(HTSLIB) -lpthread -lz -lm
+	gcc $(CFLAGS) -o pbwt $(PBWT_OBJS) hash.o dict.o array.o utils.o $(HTSLIB) -lpthread -lz -lm -L/software/hgi/pkglocal/libbsd-0.7.0/lib -lbsd
 
 autozygExtract: autozygExtract.o
 	gcc $(CFLAGS) -o autozygExtract autozygExtract.o utils.o $(HTSLIB) -lpthread -lz -lm
