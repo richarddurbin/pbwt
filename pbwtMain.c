@@ -96,7 +96,7 @@ static void exportSiteInfo (PBWT *p, FILE *fp, int f1, int f2)
       pbwtCursorForwardsReadAD (u, i) ;
     }
   pbwtCursorDestroy (u) ;
-  fprintf (stderr, "%d rows exported with allele count f, %d <= f < %d\n", n, f1, f2) ;
+  fprintf (logFilePtr, "%d rows exported with allele count f, %d <= f < %d\n", n, f1, f2) ;
 }
 
 /************ AF distribution **************/
@@ -114,7 +114,7 @@ static void siteFrequencySpectrum (PBWT *p)
 		   100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000, 900000,
 		   1000000 } ;
 
-  timeUpdate() ;
+  timeUpdate(logFilePtr) ;
 
   FILE *fp ;
   if (p->sites) { fp = fopen ("sites.freq", "w") ; if (!fp) die ("can't open sites.freq") ; }
@@ -164,13 +164,17 @@ static void recordCommandLine (int argc, char *argv[])
 
 /* a couple of utilities for opening/closing files */
 
-#define FOPEN(name,mode)  if (!strcmp (argv[1], "-")) fp = !strcmp(mode,"r") ? stdin : stdout ; else if (!(fp = fopen (argv[1],mode))) die ("failed to open %s file", name, argv[1])
+#define FOPEN(name,mode)  if (!strcmp (argv[1], "-")) fp = !strcmp(mode,"r") ? stdin : stdout ; else if (!(fp = fopen (argv[1],mode))) die ("failed to open %s file %s", name, argv[1])
 #define FCLOSE if (strcmp(argv[1], "-")) fclose(fp)
+#define LOGOPEN(name) if (!strcmp (argv[1], "-")) logFilePtr = stderr ; else if (!(logFilePtr = fopen (argv[1],"w"))) die ("failed to open %s file %s", name, argv[1])
+#define LOGCLOSE if (logFilePtr && !(logFilePtr==stderr)) fclose(logFilePtr)
 
 const char *pbwtCommitHash(void)
 {
     return PBWT_COMMIT_HASH ;
 }
+
+FILE *logFilePtr ; /* log file pointer */
 
 int main (int argc, char *argv[])
 {
@@ -178,6 +182,8 @@ int main (int argc, char *argv[])
   PBWT *p = 0 ;
   Array test ;
   char *referenceFasta = NULL;
+
+  logFilePtr = stderr ;
 
   pbwtInit () ;
 
@@ -191,6 +197,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "Contact: Richard Durbin [rd@sanger.ac.uk]\n") ;
       fprintf (stderr, "Usage: pbwt [ -<command> [options]* ]+\n") ;
       fprintf (stderr, "Commands:\n") ;
+      fprintf (stderr, "  -log <file>               log file; '-' for stderr\n") ;
       fprintf (stderr, "  -check                    do various checks\n") ;
       fprintf (stderr, "  -stats                    print stats depending on commands; writes to stdout\n") ;
       fprintf (stderr, "  -read <file>              read pbwt file; '-' for stdin\n") ;
@@ -257,7 +264,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -4hapsStats               mu:rho 4 hap test stats\n") ;
     }
 
-  timeUpdate() ;
+  timeUpdate(logFilePtr) ;
   while (argc) {
     if (!(**argv == '-'))
       die ("not well formed command %s\nType pbwt without arguments for help", *argv) ;
@@ -278,6 +285,8 @@ int main (int argc, char *argv[])
         free(files);
         argc -= nfiles+1 ; argv += nfiles+1 ; 
     }
+    else if (!strcmp (argv[0], "-log") && argc > 1)
+      { LOGCLOSE ; LOGOPEN("log") ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-haps") && argc > 1)
       { FOPEN("haps","w") ; pbwtWriteHaplotypes (fp, p) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-read") && argc > 1)
@@ -437,12 +446,13 @@ int main (int argc, char *argv[])
       { p = playGround (p) ; argc -= 1 ; argv += 1 ; }
     else
       die ("unrecognised command %s\nType pbwt without arguments for help", *argv) ;
-    timeUpdate() ;
+    timeUpdate(logFilePtr) ;
   }
   if (p) pbwtDestroy(p) ;
   if (variationDict) dictDestroy(variationDict);
   sampleDestroy();
   fgetword (NULL) ;	// to keep valgrind happy, free malloced memory
+  LOGCLOSE ;
   return 0 ;
 }
 
