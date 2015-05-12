@@ -7,7 +7,7 @@ all: pbwt
 
 PBWT_COMMIT_HASH = ""
 ifneq "$(wildcard .git)" ""
-PBWT_COMMIT_HASH = $(shell git describe --always --long --dirty | sed 's/^[0-9\.]*-*//')
+PBWT_COMMIT_HASH = $(shell git describe --always --long --dirty)
 version.h: $(if $(wildcard version.h),$(if $(findstring "$(PBWT_COMMIT_HASH)",$(shell cat version.h)),,force))
 endif
 version.h:
