@@ -162,8 +162,9 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
   free (x) ; pbwtCursorDestroy (u) ;  
   free (xMissing) ;
 
-  fprintf (stderr, "read genotypes from %s\n", filename) ;
-  if (p->missingOffset) fprintf (stderr, "%ld missing values at %d sites\n", 
+  fprintf (logFilePtr, "read genotypes from %s with %ld sample names and %ld sites on chromosome %s: M, N are %d, %d\n", 
+         filename, arrayMax(p->samples)/2, arrayMax(p->sites), p->chrom, p->M, p->N) ;
+  if (p->missingOffset) fprintf (logFilePtr, "%ld missing values at %d sites\n", 
          nMissing, nMissingSites) ;
 
   return p ;
@@ -241,7 +242,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
   if (!fp) die ("could not open file for writing: %s", filename) ;
   if (!p) die ("pbwtWriteVcf called without a valid pbwt") ;
   if (!p->sites) die ("pbwtWriteVcf called without sites") ;
-  if (!p->samples) fprintf (stderr, "Warning: pbwtWriteVcf called without samples... using fake sample names PBWT0, PBWT1 etc...\n") ;
+  if (!p->samples) fprintf (logFilePtr, "Warning: pbwtWriteVcf called without samples... using fake sample names PBWT0, PBWT1 etc...\n") ;
   BOOL isDosage = p->dosageOffset ? TRUE : FALSE ;
 
   // write header
@@ -389,6 +390,8 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
   bcf_hdr_destroy(bcfHeader) ;
   bcf_destroy1(bcfRecord);
   hts_close(fp) ;
+
+  fprintf (logFilePtr, "written vcf file: %d records and %d samples\n", p->N, p->M/2) ;
 }
 
 /******* end of file ********/
