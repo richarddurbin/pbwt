@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Feb  5 18:04 2015 (rd)
+ * Last edited: May 18 20:14 2015 (rd)
  * * Sep 22 23:10 2014 (rd): move to 64 bit arrays
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
@@ -1166,8 +1166,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   int *aRefInv = myalloc (pRef->M, int) ;   /* holds the inverse mapping from uRef->a[i] -> i */
   int *firstSeg = mycalloc (pOld->M, int) ; /* position in maxMatch to start looking at */
   int nConflicts = 0 ;
-  uchar *missing = (pOld == pFrame) ? mycalloc (pRef->M, uchar) : 0 ;
-  double *xDosage = myalloc (pRef->M, double), *yDosage = myalloc (pRef->M, double) ;
+  uchar *missing = (pOld == pFrame) ? mycalloc (pOld->M, uchar) : 0 ;
+  double *xDosage = myalloc (pOld->M, double), *yDosage = myalloc (pOld->M, double) ;
 
   pNew->dosageOffset = arrayReCreate (pNew->dosageOffset, pRef->N, long) ;
   pNew->zDosage = arrayReCreate (pNew->zDosage, pRef->N*16, uchar) ;
