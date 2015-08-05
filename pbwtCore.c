@@ -15,7 +15,7 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 26 00:50 2015 (rd)
+ * Last edited: Aug  5 13:02 2015 (rd)
  * * Sep 22 23:02 2014 (rd): change for 64bit arrays
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
@@ -291,7 +291,7 @@ int unpack3 (uchar *yzp, int M, uchar *yp, int *n0)
       m += n ;
       yz = yz >> 7 ;
       if (n0 && !yz) *n0 += n ;
-      if (n > 63)
+      if (n > 63)		/* only call memset if big enough */
 	{ memset (yp, yz, n) ;
 	  yp += n ;
 	}
@@ -429,7 +429,8 @@ PbwtCursor *pbwtCursorCreate (PBWT *p, BOOL isForwards, BOOL isStart)
   if (isForwards) u->z = p->yz ; else u->z = p->zz ;
   if (isStart) 
     if (arrayMax(u->z))
-      { u->n = unpack3 (arrp(u->z,0,uchar), p->M, u->y, &u->c) ;
+      { u->nBlockStart = 0 ;
+	u->n = unpack3 (arrp(u->z,0,uchar), p->M, u->y, &u->c) ;
 	u->isBlockEnd = TRUE ;
       }
     else 
@@ -525,11 +526,14 @@ void pbwtCursorCalculateU (PbwtCursor *x)
 
 void pbwtCursorForwardsRead (PbwtCursor *u) /* move forwards and read (unless at end) */
 {
-  pbwtCursorForwardsA (u) ;
+  pbwtCursorForwardsAPacked (u) ;
   if (!u->isBlockEnd && u->n < arrayMax(u->z))  /* move to end of previous block */
-    u->n += unpack3 (arrp(u->z,u->n,uchar), u->M, u->y, 0) ;
+    { u->nBlockStart = u->n ;
+      u->n += unpack3 (arrp(u->z,u->n,uchar), u->M, u->y, 0) ;
+    }
   if (u->n < arrayMax(u->z))
-    { u->n += unpack3 (arrp(u->z,u->n,uchar), u->M, u->y, &u->c) ; /* read this block */
+    { u->nBlockStart = u->n ;
+      u->n += unpack3 (arrp(u->z,u->n,uchar), u->M, u->y, &u->c) ; /* read this block */
       u->isBlockEnd = TRUE ;
     }
   else
@@ -540,9 +544,12 @@ void pbwtCursorForwardsReadAD (PbwtCursor *u, int k) /* AD version of the above 
 {
   pbwtCursorForwardsAD (u, k) ;
   if (!u->isBlockEnd && u->n < arrayMax(u->z))  /* move to end of previous block */
-    u->n += unpack3 (arrp(u->z,u->n,uchar), u->M, u->y, 0) ;
+    { u->nBlockStart = u->n ;
+      u->n += unpack3 (arrp(u->z,u->n,uchar), u->M, u->y, 0) ;
+    }
   if (u->n < arrayMax(u->z))
-    { u->n += unpack3 (arrp(u->z,u->n,uchar), u->M, u->y, &u->c) ; /* read this block */
+    { u->nBlockStart = u->n ;
+      u->n += unpack3 (arrp(u->z,u->n,uchar), u->M, u->y, &u->c) ; /* read this block */
       u->isBlockEnd = TRUE ;
     }
   else
@@ -554,6 +561,7 @@ void pbwtCursorReadBackwards (PbwtCursor *u) /* read and go backwards (unless at
   if (u->isBlockEnd && u->n) u->n -= packCountReverse (arrp(u->z,u->n,uchar), u->M) ;
   if (u->n)
     { u->n -= packCountReverse (arrp(u->z,u->n,uchar), u->M) ;
+      u->nBlockStart = u->n ;
       unpack3 (arrp(u->z,u->n,uchar), u->M, u->y, &u->c) ;
       pbwtCursorBackwardsA (u) ;
       u->isBlockEnd = FALSE ;
@@ -581,6 +589,35 @@ void pbwtCursorToAFend (PbwtCursor *u, PBWT *p) /* utility to copy final u->a to
   if (!p->aFend) p->aFend = myalloc (p->M, int) ; 
   memcpy (p->aFend, u->a, p->M*sizeof(int)) ;
 }
+
+/***************************************************/
+
+void pbwtCursorForwardsAPacked (PbwtCursor *u)
+/* A replacement for pbwtCursorForwardsA()
+   We need u->nBlockStart = start of the packed array corresponding to current y,
+   then copy blocks of old a into new a.
+   Unfortunately we can't do this with AD because we need the maximum of d in a block.
+*/
+{
+  int c = 0, m = 0, n ;
+  uchar *zp = arrp(u->z,u->nBlockStart,uchar), *zp0 = zp, z ;
+  while (m < u->M) {
+    z = *zp++ ;
+    n = p3decode[z & 0x7f] ; z >>= 7 ;
+    if (z)
+      memcpy (u->b+(m-c), u->a+m, n*sizeof(int)) ;
+    else {
+      memcpy (u->e+c, u->a+m, n*sizeof(int)) ;
+      c += n ;
+    }
+    m += n ;
+  }
+  if (m != u->M) die ("error in forwardsAPacked()") ;
+
+  memcpy (u->a, u->e, u->c*sizeof(int)) ;
+  memcpy (u->a+u->c, u->b, (u->M-u->c)*sizeof(int)) ;
+}
+
 
 /***************************************************/
 

@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 31 15:36 2015 (rd)
+ * Last edited: Aug  5 13:05 2015 (rd)
  * added paintSparse function
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
@@ -83,6 +83,7 @@ typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
   int *u ;			/* number of 0s up to and including this position */
   int *b ;			/* for local operations - no long term meaning */
   int *e ;			/* for local operations - no long term meaning */
+  long nBlockStart ;		/* u->n at start of block encoding current u->y */
 } PbwtCursor ;
 
 /* pbwtMain.c */
@@ -112,6 +113,7 @@ PbwtCursor *pbwtCursorCreate (PBWT *p, BOOL isForwards, BOOL isStart) ;
 PbwtCursor *pbwtNakedCursorCreate (int M, int *aInit) ;
 void pbwtCursorDestroy (PbwtCursor *u) ;
 void pbwtCursorForwardsA (PbwtCursor *u) ; /* algorithm 1 in the manuscript */
+void pbwtCursorForwardsAPacked (PbwtCursor *u) ; /* faster version, when have read y and set u->nBlockStart */
 void pbwtCursorBackwardsA (PbwtCursor *u) ; /* undo algorithm 1 */
 void pbwtCursorForwardsAD (PbwtCursor *u, int k) ; /* algorithm 2 in the manuscript */
 void pbwtCursorCalculateU (PbwtCursor *x) ;   /* calculate u required for CursorMap */
