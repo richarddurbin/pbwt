@@ -5,7 +5,7 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Nov 13 15:17 2014 (rd)
+ * Last edited: Aug  5 13:12 2015 (rd)
  * * Sep 22 23:03 2014 (rd): change for 64bit arrays
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
@@ -15,6 +15,7 @@
 #include "pbwt.h"
 #include <htslib/synced_bcf_reader.h>
 #include <htslib/faidx.h>
+#include <ctype.h>		/* for toupper() */
 
 const char *pbwtHtslibVersionString(void)
 {
@@ -76,7 +77,7 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
       int pos = line->pos + 1 ;       // bcf coordinates are 0-based
       char *ref, *REF; 
       ref = REF = strdup(line->d.allele[0]);
-      while ( *ref++ = toupper(*ref) );
+      while ( (*ref = toupper(*ref)) ) ++ref ;
 
       // get a copy of GTs
       int ngt = bcf_get_genotypes(hr, line, &gt_arr, &mgt_arr) ;
@@ -127,7 +128,7 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
         {
           char *alt, *ALT; 
           alt = ALT = no_alt ? "." : strdup(line->d.allele[i]) ;
-          if (!no_alt) while ( *alt++ = toupper(*alt) );
+          if (!no_alt) while ( (*alt = toupper(*alt)) ) ++alt ;
 
           /* and pack them into the PBWT */
           for (j = 0 ; j < p->M ; ++j) u->y[j] = x[u->a[j]] == i ? 1 : 0;
