@@ -572,6 +572,43 @@ static PBWT *pbwtReadLineFile (FILE *fp, char* type, ParseLineFunc parseLine)
   return p ;
 }
 
+typedef BOOL (*ParseTwoLineFunc)(PBWT** pp, FILE *f, FILE *l, Array a) ;
+
+static PBWT *pbwtReadLineTwoFile (FILE *fp, FILE *lp, char* type, ParseTwoLineFunc parseLine)
+{
+  PBWT *p = 0 ;
+  int j ;
+  uchar *x ;		/* original, sorted, compressed */
+  int *a ;
+  Array xArray = arrayCreate (10000, uchar) ;
+  PbwtCursor *u ;
+
+  /* skip header of legend file */
+  while (!feof(lp))
+  {  char c = getc(lp) ; if (c == '\n') break ;
+     }
+
+  while ((*parseLine) (&p, fp, lp, xArray)) /* create p first time round */
+    { if (!p->yz)		/* first line; p was just made! */
+	{ p->yz = arrayCreate(4096*32, uchar) ;
+	  u = pbwtCursorCreate (p, TRUE, TRUE) ;
+	}
+      x = arrp(xArray,0,uchar) ;
+      for (j = 0 ; j < p->M ; ++j) u->y[j] = x[u->a[j]] ;
+      pbwtCursorWriteForwards (u) ;
+      if (nCheckPoint && !(p->N % nCheckPoint))	pbwtCheckPoint (u, p) ;
+    }
+  pbwtCursorToAFend (u, p) ;
+
+  fprintf (stderr, "read %s file", type) ;
+  if (p->chrom) fprintf (stderr, " for chromosome %s", p->chrom) ;
+  fprintf (stderr, ": M, N are\t%d\t%d; yz length is %ld\n", p->M, p->N, arrayMax(p->yz)) ;
+
+  arrayDestroy(xArray) ; pbwtCursorDestroy (u) ;
+
+  return p ;
+}
+
 PBWT *pbwtReadVcfq (FILE *fp) { return pbwtReadLineFile (fp, "vcfq", parseVcfqLine) ; }
 
 /*************** read impute2 .gen format - contains sites not samples **********/
@@ -625,13 +662,13 @@ static BOOL parseHapLine (PBWT **pp, FILE *fp, Array x) /* same as parseGenLine 
 {
   PBWT *p = *pp ;
   
-  fgetword(fp) ; fgetword(fp) ;	/* ignore first two name fields */
+  fgetword(fp) ;	fgetword(fp) ;	/* ignore first two name fields */
   
   int pos = atoi (fgetword (fp)) ;
   char *var = getVariation (fp) ; /* but need to change ' ' separator to '\t' */
   if (feof (fp)) return FALSE ;
   char *cp = var ; while (*cp && *cp != ' ') ++cp ; if (*cp == ' ') *cp = '\t' ; else die ("missing separator in line %d, var is %d", p?p->N:0, var) ;
-  
+
   int m = 0, nscan ;
   while (!feof(fp))
   { char c = getc(fp) ; if (c == '\n') break ; else if (!isspace(c)) ungetc (c, fp) ;
@@ -660,6 +697,47 @@ static BOOL parseHapLine (PBWT **pp, FILE *fp, Array x) /* same as parseGenLine 
 }
 
 
+static BOOL parseHapLegendLine (PBWT **pp, FILE *fp, FILE *lp, Array x) /* same as parseGenLine - slightly simpler */
+{
+  PBWT *p = *pp ;
+  
+  fgetword(lp) ;	/* ignore first name field */
+  
+  int pos = atoi (fgetword (lp)) ;
+  char *var = getVariation (lp) ; /* but need to change ' ' separator to '\t' */
+  if (feof (lp)) return FALSE ;
+  char *cp = var ; while (*cp && *cp != ' ') ++cp ; if (*cp == ' ') *cp = '\t' ; else die ("missing separator in line %d, var is %d", p?p->N:0, var) ;
+  while (!feof(lp))
+  {  char c = getc(lp) ; if (c == '\n') break ;
+     }
+
+  int m = 0, nscan ;
+  while (!feof(fp))
+  { char c = getc(fp) ; if (c == '\n') break ; else if (!isspace(c)) ungetc (c, fp) ;
+    float f0, f1 ;
+    if ((nscan = fscanf (fp, "%f %f", &f0, &f1) != 2))
+      { warn ("bad line %d, %d floats found, m %d, pos %d, var %s - aborting", p ? p->N : 0, nscan, m, pos, var) ;
+	return FALSE ;
+      }
+    array(x,m++,uchar) = f0 ; array(x,m++,uchar) = f1 ; /* haps are phased, put straight in as is */
+  }
+  
+  if (feof (fp)) return FALSE ;
+  if (p && m != p->M) die ("length mismatch reading haps line") ;
+  
+  if (!*pp)
+  { p = *pp = pbwtCreate (m, 0) ;
+    p->sites = arrayCreate(4096, Site) ;
+    array(x,p->M,uchar) = Y_SENTINEL ; /* sentinel required for packing */
+  }
+  Site *s = arrayp(p->sites, arrayMax(p->sites), Site) ;
+  s->x = pos ;
+  dictAdd (variationDict, var, &s->varD) ;
+  
+  ++p->N ;
+  return TRUE ;
+}
+
 PBWT *pbwtReadGen (FILE *fp, char *chrom) 
 { 
   nGenMissing = 0 ;
@@ -672,6 +750,13 @@ PBWT *pbwtReadGen (FILE *fp, char *chrom)
 PBWT *pbwtReadHap (FILE *fp, char *chrom)
 {
   PBWT *p = pbwtReadLineFile (fp, "hap", parseHapLine) ;
+  p->chrom = strdup (chrom) ;
+  return p ;
+}
+
+PBWT *pbwtReadHapLegend (FILE *fp, FILE *lp, char *chrom)
+{
+  PBWT *p = pbwtReadLineTwoFile (fp, lp, "hap-legend", parseHapLegendLine) ;
   p->chrom = strdup (chrom) ;
   return p ;
 }

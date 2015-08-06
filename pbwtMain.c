@@ -166,6 +166,8 @@ static void recordCommandLine (int argc, char *argv[])
 
 #define FOPEN(name,mode)  if (!strcmp (argv[1], "-")) fp = !strcmp(mode,"r") ? stdin : stdout ; else if (!(fp = fopen (argv[1],mode))) die ("failed to open %s file", name, argv[1])
 #define FCLOSE if (strcmp(argv[1], "-")) fclose(fp)
+#define LOPEN(name,mode)  if (!strcmp (argv[2], "-")) lp = !strcmp(mode,"r") ? stdin : stdout ; else if (!(lp = fopen (argv[2],mode))) die ("failed to open %s file", name, argv[2])
+#define LCLOSE if (strcmp(argv[2], "-")) fclose(lp)
 
 const char *pbwtCommitHash(void)
 {
@@ -175,6 +177,7 @@ const char *pbwtCommitHash(void)
 int main (int argc, char *argv[])
 {
   FILE *fp ;
+  FILE *lp ;
   PBWT *p = 0 ;
   Array test ;
   char *referenceFasta = NULL;
@@ -206,6 +209,8 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -readVcfq <file>          read VCFQ file; '-' for stdin\n") ;
       fprintf (stderr, "  -readGen <file> <chrom>   read impute2 gen file - must set chrom\n") ;
       fprintf (stderr, "  -readHap <file> <chrom>   read impute2 hap file - must set chrom\n") ;
+      fprintf (stderr, "  -readHapLegend <hap_file> <legend_file> <chrom>\n") ;
+      fprintf (stderr, "                            read impute2 hap and legend file - must set chrom\n") ;
       fprintf (stderr, "  -readPhase <file>         read Li and Stephens phase file\n") ;
       fprintf (stderr, "  -checkpoint <n>           checkpoint every n sites while reading\n") ;
       fprintf (stderr, "  -merge <file> ...         merge two or more pbwt files\n") ;
@@ -305,7 +310,9 @@ int main (int argc, char *argv[])
     else if (!strcmp (argv[0], "-readGen") && argc > 2)
       { if (p) pbwtDestroy (p) ; FOPEN("readGen","r") ; p = pbwtReadGen (fp, argv[2]) ; FCLOSE ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-readHap") && argc > 2)
-    { if (p) pbwtDestroy (p) ; FOPEN("readHap","r") ; p = pbwtReadHap (fp, argv[2]) ; FCLOSE ; argc -= 3 ; argv += 3 ; }
+      { if (p) pbwtDestroy (p) ; FOPEN("readHap","r") ; p = pbwtReadHap (fp, argv[2]) ; FCLOSE ; argc -= 3 ; argv += 3 ; }
+    else if (!strcmp (argv[0], "-readHapLegend") && argc > 3)
+    { if (p) pbwtDestroy (p) ; FOPEN("readHap","r") ; LOPEN("readHap","r") ; p = pbwtReadHapLegend (fp, lp, argv[3]) ; FCLOSE ; LCLOSE ; argc -= 4 ; argv += 4 ; }
     else if (!strcmp (argv[0], "-readPhase") && argc > 1)
       { if (p) pbwtDestroy (p) ; FOPEN("readPhase","r") ; p = pbwtReadPhase (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-write") && argc > 1)
