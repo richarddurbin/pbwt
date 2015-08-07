@@ -5,7 +5,7 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Aug  5 13:12 2015 (rd)
+ * Last edited: Aug  7 16:25 2015 (rd)
  * * Sep 22 23:03 2014 (rd): change for 64bit arrays
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
@@ -163,9 +163,9 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
   free (x) ; pbwtCursorDestroy (u) ;  
   free (xMissing) ;
 
-  fprintf (logFilePtr, "read genotypes from %s with %ld sample names and %ld sites on chromosome %s: M, N are %d, %d\n", 
+  fprintf (logFile, "read genotypes from %s with %ld sample names and %ld sites on chromosome %s: M, N are %d, %d\n", 
          filename, arrayMax(p->samples)/2, arrayMax(p->sites), p->chrom, p->M, p->N) ;
-  if (p->missingOffset) fprintf (logFilePtr, "%ld missing values at %d sites\n", 
+  if (p->missingOffset) fprintf (logFile, "%ld missing values at %d sites\n", 
          nMissing, nMissingSites) ;
 
   return p ;
@@ -243,7 +243,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
   if (!fp) die ("could not open file for writing: %s", filename) ;
   if (!p) die ("pbwtWriteVcf called without a valid pbwt") ;
   if (!p->sites) die ("pbwtWriteVcf called without sites") ;
-  if (!p->samples) fprintf (logFilePtr, "Warning: pbwtWriteVcf called without samples... using fake sample names PBWT0, PBWT1 etc...\n") ;
+  if (!p->samples) fprintf (logFile, "Warning: pbwtWriteVcf called without samples... using fake sample names PBWT0, PBWT1 etc...\n") ;
   BOOL isDosage = p->dosageOffset ? TRUE : FALSE ;
 
   // write header
@@ -392,7 +392,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
   bcf_destroy1(bcfRecord);
   hts_close(fp) ;
 
-  fprintf (logFilePtr, "written vcf file: %d records and %d samples\n", p->N, p->M/2) ;
+  fprintf (logFile, "written vcf file: %d records and %d samples\n", p->N, p->M/2) ;
 }
 
 /******* end of file ********/

@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Aug  7 15:47 2015 (rd)
+ * Last edited: Aug  7 16:20 2015 (rd)
  * paintSparse added
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
@@ -96,7 +96,7 @@ static void exportSiteInfo (PBWT *p, FILE *fp, int f1, int f2)
       pbwtCursorForwardsReadAD (u, i) ;
     }
   pbwtCursorDestroy (u) ;
-  fprintf (logFilePtr, "%d rows exported with allele count f, %d <= f < %d\n", n, f1, f2) ;
+  fprintf (logFile, "%d rows exported with allele count f, %d <= f < %d\n", n, f1, f2) ;
 }
 
 /************ AF distribution **************/
@@ -114,7 +114,7 @@ static void siteFrequencySpectrum (PBWT *p)
 		   100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000, 900000,
 		   1000000 } ;
 
-  timeUpdate(logFilePtr) ;
+  timeUpdate(logFile) ;
 
   FILE *fp ;
   if (p->sites) { fp = fopen ("sites.freq", "w") ; if (!fp) die ("can't open sites.freq") ; }
@@ -168,15 +168,15 @@ static void recordCommandLine (int argc, char *argv[])
 #define FCLOSE if (strcmp(argv[1], "-")) fclose(fp)
 #define LOPEN(name,mode)  if (!strcmp (argv[2], "-")) lp = !strcmp(mode,"r") ? stdin : stdout ; else if (!(lp = fopen (argv[2],mode))) die ("failed to open %s file", name, argv[2])
 #define LCLOSE if (strcmp(argv[2], "-")) fclose(lp)
-#define LOGOPEN(name) if (!strcmp (argv[1], "-")) logFilePtr = stderr ; else if (!(logFilePtr = fopen (argv[1],"w"))) die ("failed to open %s file %s", name, argv[1])
-#define LOGCLOSE if (logFilePtr && !(logFilePtr==stderr)) fclose(logFilePtr)
+#define LOGOPEN(name) if (!strcmp (argv[1], "-")) logFile = stderr ; else if (!(logFile = fopen (argv[1],"w"))) die ("failed to open %s file %s", name, argv[1])
+#define LOGCLOSE if (logFile && !(logFile==stderr)) fclose(logFile)
 
 const char *pbwtCommitHash(void)
 {
     return PBWT_COMMIT_HASH ;
 }
 
-FILE *logFilePtr ; /* log file pointer */
+FILE *logFile ; /* log file pointer */
 
 int main (int argc, char *argv[])
 {
@@ -186,7 +186,7 @@ int main (int argc, char *argv[])
   Array test ;
   char *referenceFasta = NULL;
 
-  logFilePtr = stderr ;
+  logFile = stderr ;
 
   pbwtInit () ;
 
@@ -269,7 +269,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -4hapsStats               mu:rho 4 hap test stats\n") ;
     }
 
-  timeUpdate(logFilePtr) ;
+  timeUpdate(logFile) ;
   while (argc) {
     if (!(**argv == '-'))
       die ("not well formed command %s\nType pbwt without arguments for help", *argv) ;
@@ -453,7 +453,7 @@ int main (int argc, char *argv[])
       { p = playGround (p) ; argc -= 1 ; argv += 1 ; }
     else
       die ("unrecognised command %s\nType pbwt without arguments for help", *argv) ;
-    timeUpdate(logFilePtr) ;
+    timeUpdate(logFile) ;
   }
   if (p) pbwtDestroy(p) ;
   if (variationDict) dictDestroy(variationDict);

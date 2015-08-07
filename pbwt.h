@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Aug  5 13:05 2015 (rd)
+ * Last edited: Aug  7 16:23 2015 (rd)
  * added paintSparse function
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
@@ -89,7 +89,7 @@ typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
 /* pbwtMain.c */
 
 extern char *commandLine ;	/* a copy of the command line */
-extern FILE *logFilePtr ;  /* log file pointer */
+extern FILE *logFile ;  /* log file pointer */
 
 /* pbwtCore.c */
 

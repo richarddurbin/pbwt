@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: May 18 20:14 2015 (rd)
+ * Last edited: Aug  7 16:23 2015 (rd)
  * * Sep 22 23:10 2014 (rd): move to 64 bit arrays
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
@@ -65,7 +65,7 @@ void imputeExplore (PBWT *p, int test)
 	    x[u->a[i]] = u->y[i] ;
 	  for (i = 0 ; i < M ; ++i)
 	    if (x[uz->a[i]] != uz->y[i]) 
-	      fprintf (logFilePtr, "forward-backward mismatch at k %d i %d\n", k, i) ;
+	      fprintf (logFile, "forward-backward mismatch at k %d i %d\n", k, i) ;
 	}
       if (k > 0.2*N && k < 0.8*N)     /* ignore ends */
 	{ f = (M - u->c) / (double)M ; for (ff = 0 ; f*100 > fBound[ff] ; ++ff) ;
@@ -200,15 +200,15 @@ static void phaseCompare (PBWT *p, PBWT *q)
 		}
 	    }
 	  if (isCheck && (xp[i]+xp[i+1] != xq[i]+xq[i+1])) 
-	    { fprintf (logFilePtr, "phaseCompare mismatch k %d sequence %d\np", k, i) ;
+	    { fprintf (logFile, "phaseCompare mismatch k %d sequence %d\np", k, i) ;
 	      uchar **pHaps = pbwtHaplotypes(p), **qHaps = pbwtHaplotypes(q) ;
 	      int kk ; 
 	      for (kk = 0 ; kk < 40 ; ++kk) 
-		fprintf (logFilePtr, " %d", pHaps[i][kk] + pHaps[i+1][kk]) ;
-	      fprintf (logFilePtr, "\nq") ;
+		fprintf (logFile, " %d", pHaps[i][kk] + pHaps[i+1][kk]) ;
+	      fprintf (logFile, "\nq") ;
 	      for (kk = 0 ; kk < 40 ; ++kk) 
-		fprintf (logFilePtr, " %d", qHaps[i][kk] + qHaps[i+1][kk]) ;
-	      fprintf (logFilePtr, "\n") ;
+		fprintf (logFile, " %d", qHaps[i][kk] + qHaps[i+1][kk]) ;
+	      fprintf (logFile, "\n") ;
 	      die ("phaseCompare mismatch: k %d, i %d, xp %d|%d, xq %d|%d", 
 		   k, i, xp[i], xp[i+1], xq[i], xq[i+1]) ;
 	    }
@@ -217,7 +217,7 @@ static void phaseCompare (PBWT *p, PBWT *q)
       pbwtCursorForwardsRead (uq) ;
     }
 
-  fprintf (logFilePtr, "%.1f switches per sample, %.3f per het, %.1f nSwitch1, %.1f nSwitch5\n", 
+  fprintf (logFile, "%.1f switches per sample, %.3f per het, %.1f nSwitch1, %.1f nSwitch5\n", 
 	   mFac*nSwitch, nSwitch/(double)nHet, mFac*nSwitch1, mFac*nSwitch5) ;
 
   if (isStats)
@@ -383,13 +383,13 @@ PBWT *phase (PBWT *p, int nSparse) /* return rephased p */
   if (isCheck)		/* flip p->zz round into p->yz and compare to r */
     { Array yzStore = p->yz ; p->yz = p->zz ;
       int *aFstartStore = p->aFstart ; p->aFstart = p->aRstart ;
-      fprintf (logFilePtr, "After reverse pass: ") ; phaseCompare (p, r) ;
+      fprintf (logFile, "After reverse pass: ") ; phaseCompare (p, r) ;
       p->yz = yzStore ; p->aFstart = aFstartStore ;
     }
   PBWT *q = phaseSweep (p, 0, TRUE, r, nSparse) ;
 
   /* compare new phasing to original and report switch rates */
-  fprintf (logFilePtr, "After forward pass: ") ; phaseCompare (p, q) ;
+  fprintf (logFile, "After forward pass: ") ; phaseCompare (p, q) ;
 
   pbwtDestroy (p) ;
   return q ;
@@ -408,7 +408,7 @@ PBWT *referencePhase0 (PBWT *p, PBWT *pRef)
     { if (!p->zz) pbwtBuildReverse (p) ;
       Array yzStore = p->yz ; p->yz = p->zz ;
       int *aFstartStore = p->aFstart ; p->aFstart = p->aRstart ;
-      fprintf (logFilePtr, "After reverse pass: ") ; phaseCompare (p, r) ;
+      fprintf (logFile, "After reverse pass: ") ; phaseCompare (p, r) ;
       p->yz = yzStore ; p->aFstart = aFstartStore ;
     }
   PBWT *q = phaseSweep (p, pRef, TRUE, r, nSparse) ;
@@ -904,7 +904,7 @@ static inline int phaseExtend (int x0, int x1, PbwtCursor *uRef, int j0,
 
 static PBWT *referencePhase4 (PBWT *pOld, PBWT *pRef)
 {
-  fprintf (logFilePtr, "Reference phase with extension method %s\n", extendMethodText) ;
+  fprintf (logFile, "Reference phase with extension method %s\n", extendMethodText) ;
   int i, j, jq, k ;
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
   uchar *xOld = myalloc (pOld->M, uchar) ;
@@ -1002,7 +1002,7 @@ static PBWT *referencePhase4 (PBWT *pOld, PBWT *pRef)
       pbwtCursorForwardsReadAD (uRef, k) ;
     }
 
-  fprintf (logFilePtr, "traceBackHeap final %ld, max %ld\n", 
+  fprintf (logFile, "traceBackHeap final %ld, max %ld\n", 
 	   arrayMax(traceBackHeap)-arrayMax(traceBackFreeStack), arrayMax(traceBackHeap)) ;
 
   /* now do the traceback - we write first into the reverse pbwt for pNew */
@@ -1057,7 +1057,7 @@ static PBWT *referencePhase4 (PBWT *pOld, PBWT *pRef)
   /* reporting */
   if (isCheck)
     for (jq = 0 ; jq < pOld->M ; jq +=2 )
-      fprintf (logFilePtr, "jq %d, nHets %d, liveAv %.2f, likeAv %.2f\n", jq, 
+      fprintf (logFile, "jq %d, nHets %d, liveAv %.2f, likeAv %.2f\n", jq, 
 	       checkHets[jq], checkLiveSum[jq]/(double)pRef->N, exp(checkLikeSum[jq]/pRef->N)) ;
 
   /* cleanup */
@@ -1076,7 +1076,7 @@ static PBWT *referencePhase4 (PBWT *pOld, PBWT *pRef)
 
 PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
 {
-  fprintf (logFilePtr, "phase against reference %s\n", fileNameRoot) ;
+  fprintf (logFile, "phase against reference %s\n", fileNameRoot) ;
   if (pOld->M % 2) die ("phase requires that M = %d is even", pOld->M) ;
   if (!pOld || !pOld->yz || !pOld->sites) 
     die ("referencePhase called without existing pbwt with sites") ;
@@ -1091,10 +1091,10 @@ PBWT *referencePhase (PBWT *pOld, char *fileNameRoot)
   pRef = pbwtSelectSites (pRef, pOld->sites, FALSE) ;
   if (!pOld->N) die ("no overlapping sites in referencePhase") ;
 
-  fprintf (logFilePtr, "Phase preliminaries: ") ; timeUpdate(logFilePtr) ;
+  fprintf (logFile, "Phase preliminaries: ") ; timeUpdate(logFile) ;
   PBWT *pNew = referencePhase4 (pOld, pRef) ;
-  fprintf (logFilePtr, "Phasing complete: ") ; timeUpdate(logFilePtr) ;
-  fprintf (logFilePtr, "After phasing: ") ; phaseCompare (pNew, pOld) ;
+  fprintf (logFile, "Phasing complete: ") ; timeUpdate(logFile) ;
+  fprintf (logFile, "After phasing: ") ; phaseCompare (pNew, pOld) ;
 
   pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
   pNew->sites = pOld->sites ; pOld->sites = 0 ;
@@ -1132,8 +1132,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 {
   int i, j, k ;
 
-  fprintf (logFilePtr, "Reference impute using maximal matches: ") ;
-  if (nSparse > 1) fprintf (logFilePtr, "(nSparse = %d, fSparse = %.2f) ", nSparse, fSparse) ;
+  fprintf (logFile, "Reference impute using maximal matches: ") ;
+  if (nSparse > 1) fprintf (logFile, "(nSparse = %d, fSparse = %.2f) ", nSparse, fSparse) ;
 
   /* build the array of maximal matches into pFrame for each sequence in pOld */
   maxMatch = myalloc (pOld->M, Array) ;
@@ -1149,7 +1149,7 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 		       sizeof(MatchSegment), matchSegmentCompare))
 	  die ("error %d in mergesort", errno) ;
       /* mergesort() because they are close to being already sorted */
-      if (isCheck) fprintf (logFilePtr, "%ld matches found to query %d\n", 
+      if (isCheck) fprintf (logFile, "%ld matches found to query %d\n", 
 			    arrayMax(maxMatch[j]), j) ;
       /* add an end marker */
       MatchSegment *ms = arrayp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
@@ -1243,7 +1243,7 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
     }
   pbwtCursorToAFend (uNew, pNew) ;
 
-  if (nConflicts) fprintf (logFilePtr, "%d times where no overlapping matches because query does not match any reference - set imputed value to 0\n", nConflicts) ;
+  if (nConflicts) fprintf (logFile, "%d times where no overlapping matches because query does not match any reference - set imputed value to 0\n", nConflicts) ;
 
   pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uRef) ; pbwtCursorDestroy (uNew) ;
   free (aRefInv) ; free (firstSeg) ;
@@ -1257,7 +1257,7 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot, int nSparse, double fSparse)
 {
   /* Preliminaries */
-  fprintf (logFilePtr, "impute against reference %s\n", fileNameRoot) ;
+  fprintf (logFile, "impute against reference %s\n", fileNameRoot) ;
   if (!pOld || !pOld->yz || !pOld->sites) 
     die ("referenceImpute called without existing pbwt with sites") ;
   PBWT *pRef = pbwtReadAll (fileNameRoot) ;
@@ -1268,7 +1268,7 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   /* identify the intersecting sites */
   PBWT *pFrame = pbwtSelectSites (pRef, pOld->sites, TRUE) ; /* keep the full ref to impute to */
   if (pFrame->N == pRef->N)
-    { fprintf (logFilePtr, "No additional sites to impute in referenceImpute\n") ;
+    { fprintf (logFile, "No additional sites to impute in referenceImpute\n") ;
       pbwtDestroy (pFrame) ; pbwtDestroy (pRef) ;
       return pOld ;
     }
@@ -1277,7 +1277,7 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   if (!pOld->N) die ("no overlapping sites in referenceImpute") ;
   if (!pOld->aFend) die ("pOld has no aFend in referenceImpute - your pbwt was made by a previous version of the code; buildReverse and resave the forwards pbwt") ;
 
-  fprintf (logFilePtr, "Imputation preliminaries: ") ; timeUpdate(logFilePtr) ;
+  fprintf (logFile, "Imputation preliminaries: ") ; timeUpdate(logFile) ;
 
   if (isStats)
     { pImp = myalloc (pRef->N, double*) ;
@@ -1298,11 +1298,11 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 	  for (j = 0 ; j < pNew->M ; ++j) ++his[ff][(int)(pImp[k][j]*10)] ;
 	}
       for (ff = 0 ; ff < 17 ; ++ff)
-	{ fprintf (logFilePtr, "%5.1f", fBound[ff]) ;
+	{ fprintf (logFile, "%5.1f", fBound[ff]) ;
 	  double tot = 0.0 ; for (j = 10 ; j-- ;)  tot += his[ff][j] ;
 	  for (j = 0 ; j < 10 ; ++j) 
-	    fprintf (logFilePtr, " %8.5f", his[ff][j]/tot) ;
-	  fprintf (logFilePtr, "\n") ;
+	    fprintf (logFile, " %8.5f", his[ff][j]/tot) ;
+	  fprintf (logFile, "\n") ;
 	}
     }
 
@@ -1366,7 +1366,7 @@ PBWT *imputeMissing (PBWT *pOld)
 
 void genotypeCompare (PBWT *p, char *fileNameRoot)
 {
-  fprintf (logFilePtr, "compare genotypes to reference %s\n", fileNameRoot) ;
+  fprintf (logFile, "compare genotypes to reference %s\n", fileNameRoot) ;
   if (!p || !p->yz || !p->sites) 
     die ("genotypeCompare called without existing pbwt with sites") ;
   PBWT *pRef = pbwtReadAll (fileNameRoot) ;
@@ -1516,7 +1516,7 @@ PBWT *pbwtCorruptSites (PBWT *pOld, double pSite, double pChange)
     }  
   pbwtCursorToAFend (uNew, pNew) ;
 
-  fprintf (logFilePtr, "corruptSites with pSite %f, pChange %f changes %.4f of values\n", 
+  fprintf (logFile, "corruptSites with pSite %f, pChange %f changes %.4f of values\n", 
 	   pSite, pChange, nChange/(N*(double)M)) ;
 
   pNew->sites = pOld->sites ; pOld->sites = 0 ; 
@@ -1564,7 +1564,7 @@ PBWT *pbwtCorruptSamples (PBWT *pOld, double pSample, double pChange)
     }  
   pbwtCursorToAFend (uNew, pNew) ;
 
-  fprintf (logFilePtr, "corruptSamples with pSample %f, pChange %f changes %.4f of values\n",
+  fprintf (logFile, "corruptSamples with pSample %f, pChange %f changes %.4f of values\n",
 	   pSample, pChange, nChange/(N*(double)M)) ;
   
   pNew->sites = pOld->sites ; pOld->sites = 0 ; 
@@ -1599,7 +1599,7 @@ PBWT *pbwtCopySamples (PBWT *pOld, int Mnew, double meanLength)
     }  
   pbwtCursorToAFend (uNew, pNew) ;
 
-  fprintf (logFilePtr, "copySamples made %d samples with mean switch length %.1f\n",
+  fprintf (logFile, "copySamples made %d samples with mean switch length %.1f\n",
 	   Mnew, meanLength) ;
   
   pNew->sites = pOld->sites ; pOld->sites = 0 ; 
