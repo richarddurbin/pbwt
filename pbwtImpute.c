@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Aug  7 16:23 2015 (rd)
+ * Last edited: Aug  7 16:52 2015 (rd)
  * * Sep 22 23:10 2014 (rd): move to 64 bit arrays
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
@@ -1145,10 +1145,15 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 
   for (j = 0 ; j < pOld->M ; ++j)	/* add terminating element to arrays */
     { if (nSparse > 1) /* can't guarantee order of sparse segments */
+#ifdef MERGESORT	
 	if (mergesort (arrp(maxMatch[j], 0, MatchSegment), arrayMax(maxMatch[j]), 
 		       sizeof(MatchSegment), matchSegmentCompare))
 	  die ("error %d in mergesort", errno) ;
       /* mergesort() because they are close to being already sorted */
+#else
+        qsort (arrp(maxMatch[j], 0, MatchSegment), arrayMax(maxMatch[j]), 
+	       sizeof(MatchSegment), matchSegmentCompare) ;
+#endif
       if (isCheck) fprintf (logFile, "%ld matches found to query %d\n", 
 			    arrayMax(maxMatch[j]), j) ;
       /* add an end marker */
