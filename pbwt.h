@@ -89,6 +89,7 @@ typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
 /* pbwtMain.c */
 
 extern char *commandLine ;	/* a copy of the command line */
+extern FILE *logFilePtr ;  /* log file pointer */
 
 /* pbwtCore.c */
 

@@ -159,11 +159,11 @@ void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion)
       fputc ('\n', fc2) ;
       fputc ('\n', fc3) ;
       if (isCheck && (i%2) && p->samples) 
-	fprintf (stderr, "%s %8.4g %8.4g\n", 
+	fprintf (logFilePtr, "%s %8.4g %8.4g\n", 
 		 sampleName (sample(p,i-1)), totCounts[i-1], totCounts[i]) ;
     }
   fclose (fc) ; fclose (fl) ; fclose (fc2) ;fclose (fc3) ;
-  timeUpdate();
+  timeUpdate(logFilePtr);
   /* clean up */
   for (i = 0 ; i < Ninds ; ++i) { free (counts[i]) ; free (counts2[i]) ; }
   free (counts) ; free (counts2) ; free (counts3) ; free (totCounts) ; free (nregions); free(totlengths);

@@ -53,6 +53,6 @@ void *_mycalloc (long number, int size) ;
 FILE *fopenTag (char* root, char* tag, char* mode) ;
 gzFile gzopenTag (char* root, char* tag, char* mode) ;
 char *fgetword (FILE *f) ;	/* not threadsafe */
-void timeUpdate (void) ;	/* report to stderr resources used since last called */
+void timeUpdate (FILE *f) ;	/* report to stderr resources used since last called */
 
 /************************/

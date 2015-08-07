@@ -38,7 +38,7 @@ void die (char *format, ...)
   fprintf (stderr, "\n") ;
   va_end (args) ;
 
-  timeUpdate () ;
+  timeUpdate (stderr) ;
 
   exit (-1) ;
 }
@@ -170,7 +170,7 @@ struct timeval {
 
 #endif /* RUSAGE STRUCTURE_DEFINITIONS */
 
-void timeUpdate (void)
+void timeUpdate (FILE *f)
 {
   static BOOL isFirst = TRUE ;
   static struct rusage rOld ;
@@ -182,14 +182,14 @@ void timeUpdate (void)
     { secs = rNew.ru_utime.tv_sec - rOld.ru_utime.tv_sec ;
       usecs =  rNew.ru_utime.tv_usec - rOld.ru_utime.tv_usec ;
       if (usecs < 0) { usecs += 1000000 ; secs -= 1 ; }
-      fprintf (stderr, "user\t%d.%06d", secs, usecs) ;
+      fprintf (f, "user\t%d.%06d", secs, usecs) ;
       secs = rNew.ru_stime.tv_sec - rOld.ru_stime.tv_sec ;
       usecs =  rNew.ru_stime.tv_usec - rOld.ru_stime.tv_usec ;
       if (usecs < 0) { usecs += 1000000 ; secs -= 1 ; }
-      fprintf (stderr, "\tsystem\t%d.%06d", secs, usecs) ;
-      fprintf (stderr, "\tmax_RSS\t%ld", rNew.ru_maxrss - rOld.ru_maxrss) ;
-      fprintf (stderr, "\tMemory\t%li", totalAllocated) ;   
-      fputc ('\n', stderr) ;
+      fprintf (f, "\tsystem\t%d.%06d", secs, usecs) ;
+      fprintf (f, "\tmax_RSS\t%ld", rNew.ru_maxrss - rOld.ru_maxrss) ;
+      fprintf (f, "\tMemory\t%li", totalAllocated) ;   
+      fputc ('\n', f) ;
     }
   else
     isFirst = FALSE ;
