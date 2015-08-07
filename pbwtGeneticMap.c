@@ -86,7 +86,7 @@ void readGeneticMap (FILE *fp)
 
   buildMap () ;
 
-  fprintf (stderr, "read %d genetic map entries from %d, %f to %d, %f\n",
+  fprintf (logFilePtr, "read %d genetic map entries from %d, %f to %d, %f\n",
 	   n, arr(map.x, 0, int), arr(map.g, 0, double), 
 	   arr(map.x, n-1, int), arr(map.g, n-1, double)) ;
 }
@@ -153,7 +153,7 @@ void pbwt4hapsStats (PBWT *p)
 {
   if (!p || !p->sites) die ("hap4stats called without a PBWT with sites") ;
   if (!map.x)
-    { fprintf (stderr, "hap4stats called without a map - using a linear 1cM/Mb map\n") ;
+    { fprintf (logFilePtr, "hap4stats called without a map - using a linear 1cM/Mb map\n") ;
       map.x = arrayCreate (2, int) ; 
       array(map.x,0,int) = arrp(p->sites,0,Site)->x ;
       array(map.x,1,int) = arrp(p->sites,arrayMax(p->sites)-1,Site)->x ;
