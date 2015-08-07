@@ -85,8 +85,8 @@ void pbwtWriteSamples (PBWT *p, FILE *fp)
     { Sample *s = sample (p, i) ;
       fprintf (fp, "%s", sampleName(s)) ;
       if (s->popD) fprintf (fp, "\tPOP:%s", popName(s)) ;
-      if (s->mother) fprintf (fp, "\tMOTHER:%s", sampleName(s)) ;
-      if (s->popD) fprintf (fp, "\tFATHER:%s", popName(s)) ;
+      if (s->mother) fprintf (fp, "\tMOTHER:%s", sampleName(sample (p, s->mother))) ;
+      if (s->father) fprintf (fp, "\tFATHER:%s", sampleName(sample (p, s->father))) ;
       fputc ('\n', fp) ;
     }     
   if (ferror (fp)) die ("error writing samples file") ;
@@ -331,6 +331,7 @@ Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
 
 void pbwtReadSamples (PBWT *p, FILE *fp)
 {
+  if (!p) die ("pbwtReadSamples called without a valid pbwt") ;
   Array samples = pbwtReadSamplesFile (fp) ;
   if (arrayMax(samples) != p->M/2) 
     die ("wrong number of diploid samples: %d needed", p->M/2) ;
