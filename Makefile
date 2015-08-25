@@ -15,15 +15,18 @@ endif
 version.h:
 	echo '#define PBWT_COMMIT_HASH "$(PBWT_COMMIT_HASH)"' > $@
 
-
 force:
 
-test:
+test: all
 	./test/test.pl
 
 PBWT_OBJS=pbwtMain.o pbwtCore.o pbwtSample.o pbwtIO.o pbwtMatch.o pbwtImpute.o pbwtPaint.o pbwtLikelihood.o pbwtMerge.o pbwtGeneticMap.o pbwtHtslib.o
 UTILS_OBJS=hash.o dict.o array.o utils.o
 AUTOZYG_OBJS=autozygExtract.o
+
+$(PBWT_OBJS): pbwt.h array.h dict.h hash.h utils.h
+$(UTILS_OBJS): utils.h array.h dict.h hash.h
+pbwtMain.o: version.h
 
 pbwt: $(PBWT_OBJS) $(UTILS_OBJS)
 	$(LINK.c) $^ $(LDLIBS) -o $@
@@ -40,7 +43,7 @@ install: all
 	install pbwt $(PREFIX)
 
 clean:
-	$(RM) *.o pbwt *~
+	$(RM) *.o pbwt *~ version.h
 
-.PHONY: all test clean force
+.PHONY: all test clean force install
 
