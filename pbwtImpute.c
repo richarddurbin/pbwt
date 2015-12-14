@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Aug  7 16:52 2015 (rd)
+ * Last edited: Dec 14 13:52 2015 (rd)
  * * Sep 22 23:10 2014 (rd): move to 64 bit arrays
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
@@ -322,7 +322,7 @@ PBWT *phaseSweep (PBWT *p, PBWT *ref, BOOL isStart, PBWT *r, int nSparse)
       int n2 = 0 ;
       for (i = 0 ; i < M ; i += 2) /* go through x in pairs */
 	if (x[i] != x[i+1]) { ++n2 ; xp[i] = xp[i+1] = 0.0 ; }  /* a het */
-      double s, thresh = ref ? 0.5 : 2*(nSparse + r?2:1) + 0.5 ;
+      double s, thresh = ref ? 0.5 : 2*(nSparse + (r?2:1)) + 0.5 ;
       while (n2 && thresh > 1.0)
 	{ int n2Old = n2 ; n2 = 0 ;
 	  for (i = 0 ; i < M ; i += 2) /* loop over genotype pairs in original order */

@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Aug  7 16:23 2015 (rd)
+ * Last edited: Dec 14 13:53 2015 (rd)
  * added paintSparse function
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
@@ -190,7 +190,7 @@ PBWT *pbwtReadHap (FILE *fp, char *chrom) ;	/* hap file as used by impute2 (unph
 PBWT *pbwtReadHapLegend (FILE *fp, FILE *lp, char *chrom) ; /* hap and legend file as used by impute2 (phased) */
 PBWT *pbwtReadPhase (FILE *fp) ; /* Li and Stephens PHASE file */
 void pbwtWriteHaplotypes (FILE *fp, PBWT *p) ;
-void pbwtWriteTransposedHaplotypes (FILE *fp, PBWT *p) ;
+void pbwtWriteTransposedHaplotypes (PBWT *p, FILE *fp) ;
 void pbwtWriteImputeRef (PBWT *p, char *fileNameRoot) ;
 void pbwtWriteImputeHapsG (PBWT *p, FILE *fp) ;
 void pbwtCheckPoint (PbwtCursor *u, PBWT *p) ; /* need cursor to write end index */

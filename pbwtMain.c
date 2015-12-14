@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Sept 30 19:44 2015 (djl)
+ * Last edited: Dec 14 13:44 2015 (rd)
  * paintSparse added
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
@@ -225,12 +225,13 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -writeSites <file>        write sites file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeSamples <file>      write samples file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeMissing <file>      write missing file; '-' for stdout\n") ;
-      fprintf (stderr, "  -writeDosage <file>      write missing file; '-' for stdout\n") ;
+      fprintf (stderr, "  -writeDosage <file>       write missing file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeReverse <file>      write reverse file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeAll <rootname>      write .pbwt and if present .sites, .samples, .missing, .dosage\n") ;
       fprintf (stderr, "  -writeImputeRef <rootname> write .imputeHaps and .imputeLegend\n") ;
       fprintf (stderr, "  -writeImputeHapsG <file>  write haplotype file for IMPUTE -known_haps_g\n") ;
-      fprintf (stderr, "  -writePhase <file>        write FineSTRUUCTURE/ChromoPainter input format (Impute/ShapeIT output format) phase file\n") ;
+      fprintf (stderr, "  -writePhase <file>        write FineSTRUCTURE/ChromoPainter input format (Impute/ShapeIT output format) phase file\n") ;
+      fprintf (stderr, "  -writeTransposeHaplotypes <file>    write transposed haplotype file (one hap per row); '-' for stdout\n") ;
       fprintf (stderr, "  -haps <file>              write haplotype file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeGen <file>          write impute2 gen file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeVcf|-writeVcfGz|-writeBcf|-writeBcfGz <file>\n") ;
@@ -347,6 +348,8 @@ int main (int argc, char *argv[])
       { FOPEN("writeGen","w") ; pbwtWriteGen (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writePhase") && argc > 1)
       { pbwtWritePhase (p,argv[1]) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writeTransposedHaplotypes") && argc > 1)
+      { FOPEN("writeTransposedHaplotypes",argv[0]) ; pbwtWriteTransposedHaplotypes (p, fp) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-referenceFasta") && argc > 1)
       { referenceFasta = strdup(argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeVcf") && argc > 1)

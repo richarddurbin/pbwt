@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Aug  7 16:21 2015 (rd)
+ * Last edited: Dec 14 13:51 2015 (rd)
  * readPhase updated for chromopainter and chromopainter v2 formats
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
@@ -152,7 +152,7 @@ void pbwtWritePhase (PBWT *p, char *filename)
   int i ; for (i = 0 ; i < p->N ; i++) fprintf(fp," %i",arrayp(p->sites,i,Site)->x);
   fprintf(fp,"\n");
 
-  pbwtWriteTransposedHaplotypes(fp,p);
+  pbwtWriteTransposedHaplotypes(p,fp);
 }
 
 void pbwtCheckPoint (PbwtCursor *u, PBWT *p)
@@ -856,36 +856,21 @@ void pbwtWriteHaplotypes (FILE *fp, PBWT *p)
   fprintf (logFile, "written haplotype file: %d rows of %d\n", p->N, M) ;
 }
 
-void pbwtWriteTransposedHaplotypes (FILE *fp, PBWT *p)
+void pbwtWriteTransposedHaplotypes (PBWT *p, FILE *fp)
 {
-  int i, j;
-  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
-  uchar **data = myalloc (p->N, uchar*) ;
-  for (i = 0 ; i < p->N ; ++i) data[i] = myalloc (p->M, uchar) ;
-
-  for (i = 0 ; i < p->N ; ++i)
-    { for (j = 0 ; j < p->M ; ++j)
-	{
-	  data[i][u->a[j]] = u->y[j]+'0';
-	}
-	  pbwtCursorForwardsRead (u) ;
-    }  
-  pbwtCursorDestroy (u) ;
+  int i, j ;
+  uchar **hap = pbwtHaplotypes (p) ;
   
   for (j = 0 ; j < p->M ; ++j)
-    {
-      for (i = 0 ; i < p->N ; ++i) 
-	{
-	  putc (data[i][j], fp) ;
-	}
+    { for (i = 0 ; i < p->N ; ++i) 
+	putc (hap[j][i], fp) ;
       putc ('\n', fp) ; fflush (fp) ;
     }
-  for (i = 0 ; i < p->N ; ++i) free(data[i]) ;
-  free (data) ;
+  
+  for (i = 0 ; j < p->M ; ++j) free(hap[j]) ;  free (hap) ;
   
   fprintf (logFile, "written transposed haplotype file: %d rows of %d\n", p->M,p->N) ;
 }
-
 
 /*************** write IMPUTE files ********************/
 
