@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Aug  7 16:20 2015 (rd)
+ * Last edited: Sept 30 19:44 2015 (djl)
  * paintSparse added
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
@@ -173,7 +173,7 @@ static void recordCommandLine (int argc, char *argv[])
 
 const char *pbwtCommitHash(void)
 {
-    return PBWT_COMMIT_HASH ;
+  return PBWT_COMMIT_HASH ;
 }
 
 FILE *logFile ; /* log file pointer */
@@ -230,6 +230,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -writeAll <rootname>      write .pbwt and if present .sites, .samples, .missing, .dosage\n") ;
       fprintf (stderr, "  -writeImputeRef <rootname> write .imputeHaps and .imputeLegend\n") ;
       fprintf (stderr, "  -writeImputeHapsG <file>  write haplotype file for IMPUTE -known_haps_g\n") ;
+      fprintf (stderr, "  -writePhase <file>        write FineSTRUUCTURE/ChromoPainter input format (Impute/ShapeIT output format) phase file\n") ;
       fprintf (stderr, "  -haps <file>              write haplotype file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeGen <file>          write impute2 gen file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeVcf|-writeVcfGz|-writeBcf|-writeBcfGz <file>\n") ;
@@ -344,6 +345,8 @@ int main (int argc, char *argv[])
       { FOPEN("writeImputeHaps","w") ; pbwtWriteImputeHapsG (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeGen") && argc > 1)
       { FOPEN("writeGen","w") ; pbwtWriteGen (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writePhase") && argc > 1)
+      { pbwtWritePhase (p,argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-referenceFasta") && argc > 1)
       { referenceFasta = strdup(argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeVcf") && argc > 1)

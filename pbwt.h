@@ -172,6 +172,7 @@ void pbwtWriteDosage (PBWT *p, FILE *fp) ;
 void pbwtWriteReverse (PBWT *p, FILE *fp) ;
 void pbwtWriteAll (PBWT *p, char *fileNameRoot) ;
 void pbwtWriteGen (PBWT *p, FILE *fp) ; /* write gen file as for impute etc. */
+void pbwtWritePhase (PBWT *p, char *filename); /* Write phase file as output by impute and input for chromopainter */
 PBWT *pbwtRead (FILE *fp) ;
 Array pbwtReadSitesFile (FILE *fp, char **chrom) ;
 void pbwtReadSites (PBWT *p, FILE *fp) ;
@@ -189,6 +190,7 @@ PBWT *pbwtReadHap (FILE *fp, char *chrom) ;	/* hap file as used by impute2 (unph
 PBWT *pbwtReadHapLegend (FILE *fp, FILE *lp, char *chrom) ; /* hap and legend file as used by impute2 (phased) */
 PBWT *pbwtReadPhase (FILE *fp) ; /* Li and Stephens PHASE file */
 void pbwtWriteHaplotypes (FILE *fp, PBWT *p) ;
+void pbwtWriteTransposedHaplotypes (FILE *fp, PBWT *p) ;
 void pbwtWriteImputeRef (PBWT *p, char *fileNameRoot) ;
 void pbwtWriteImputeHapsG (PBWT *p, FILE *fp) ;
 void pbwtCheckPoint (PbwtCursor *u, PBWT *p) ; /* need cursor to write end index */

@@ -143,6 +143,18 @@ void pbwtWriteAll (PBWT *p, char *root)
   if (p->zz) { FOPEN_W("reverse") ; pbwtWriteReverse (p, fp) ; fclose (fp) ; }
 }
 
+void pbwtWritePhase (PBWT *p, char *filename)
+{
+  FILE *fp ;
+  if (!(fp = fopen (filename, "w"))) die ("failed to open %s",filename);
+  fprintf(fp,"%i\n",p->M);
+  fprintf(fp,"%i\nP",p->N);
+  int i ; for (i = 0 ; i < p->N ; i++) fprintf(fp," %i",arrayp(p->sites,i,Site)->x);
+  fprintf(fp,"\n");
+
+  pbwtWriteTransposedHaplotypes(fp,p);
+}
+
 void pbwtCheckPoint (PbwtCursor *u, PBWT *p)
 {
   static BOOL isA = TRUE ;
@@ -770,34 +782,39 @@ PBWT *pbwtReadPhase (FILE *fp) /* Li and Stephens PHASE format */
   int l2 = atoi (fgetword (fp)) ;  if (getc(fp) != '\n') die ("bad second line in phase file") ;
   char * tc=fgetword (fp);
   int l3 = atoi (tc) ;  
-  if (getc(fp) != '\n') { // version 2
+  if (tc[0] == 'P') { // version 2
     nhaps=l1;
     nsnps=l2;
     ninds=nhaps/2;
   }else{ // version 1
+    if (getc(fp) != '\n') die ("bad third line in phase file") ;
     ninds=l2;
     nhaps=l2*2;
     nsnps=l3;
-    fgetword (fp);
+    fgetword (fp); /* Remove the initial P */
     version=1;
   }
-  printf("Read %i SNPs %i haplotypes and %i individuals from PHASE format version %i\n",nsnps,nhaps,ninds,version);
+  fprintf(logFile,"Reading %i SNPs %i haplotypes and %i individuals from PHASE format version %i\n",nsnps,nhaps,ninds,version);
   PBWT *p = pbwtCreate (nhaps, nsnps) ;
-  p->chrom = strdup (fgetword(fp)) ; /* example 4th line is P followed by site positions */
+  p->chrom = strdup ("0") ; /* chromosome number not available from phase files */
   p->sites = arrayCreate (4096, Site) ;
-  int i ; for (i = 0 ; i < p->N ; ++i) arrayp(p->sites,i,Site)->x = atoi (fgetword(fp)) ;
-  if (getc(fp) != '\n') die ("bad 4th line in phase file") ;
-  if(version==1){
-  char var[2] ; var[1] = 0 ;
-  for (i = 0 ; i < p->N ; ++i) 
-    { *var = getc(fp) ; dictAdd (variationDict, var, &(arrayp(p->sites,i,Site)->varD)) ; }
-  if (getc(fp) != '\n') die ("bad 5th line in phase file") ;
+  int i ; for (i = 0 ; i < p->N ; ++i) {
+    tc=fgetword(fp);
+    arrayp(p->sites,i,Site)->x = atoi (tc) ;
   }
+  if (getc(fp) != '\n') die ("bad location line in phase file") ;
+  char var[2] ="S\0"; var[1] = 0 ; /*dummy variation line - used to create variationDict */
+  for (i = 0 ; i < p->N ; ++i) 
+    {
+      if(version==1) *var = getc(fp) ;
+      dictAdd (variationDict, var, &(arrayp(p->sites,i,Site)->varD)) ; }
+  if(version==1) if (getc(fp) != '\n') die ("bad 5th line in phase file") ;
+
   uchar **data = myalloc (p->N, uchar*) ;
   for (i = 0 ; i < p->N ; ++i) data[i] = myalloc (p->M, uchar) ;
   int j ; for (j = 0 ; j < p->M ; ++j)
     { for (i = 0 ; i < p->N ; ++i) data[i][j] = getc(fp) - '0' ;
-      if (getc(fp) != '\n') die ("bad %dth line in phase file", 6+j) ;
+      if (getc(fp) != '\n') die ("bad %dth line in phase file", 7+j-version) ;
     }
   p->yz = arrayCreate(4096*32, uchar) ;
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
@@ -838,6 +855,37 @@ void pbwtWriteHaplotypes (FILE *fp, PBWT *p)
 
   fprintf (logFile, "written haplotype file: %d rows of %d\n", p->N, M) ;
 }
+
+void pbwtWriteTransposedHaplotypes (FILE *fp, PBWT *p)
+{
+  int i, j;
+  PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
+  uchar **data = myalloc (p->N, uchar*) ;
+  for (i = 0 ; i < p->N ; ++i) data[i] = myalloc (p->M, uchar) ;
+
+  for (i = 0 ; i < p->N ; ++i)
+    { for (j = 0 ; j < p->M ; ++j)
+	{
+	  data[i][u->a[j]] = u->y[j]+'0';
+	}
+	  pbwtCursorForwardsRead (u) ;
+    }  
+  pbwtCursorDestroy (u) ;
+  
+  for (j = 0 ; j < p->M ; ++j)
+    {
+      for (i = 0 ; i < p->N ; ++i) 
+	{
+	  putc (data[i][j], fp) ;
+	}
+      putc ('\n', fp) ; fflush (fp) ;
+    }
+  for (i = 0 ; i < p->N ; ++i) free(data[i]) ;
+  free (data) ;
+  
+  fprintf (logFile, "written transposed haplotype file: %d rows of %d\n", p->M,p->N) ;
+}
+
 
 /*************** write IMPUTE files ********************/
 
