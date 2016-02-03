@@ -863,7 +863,7 @@ void pbwtWriteTransposedHaplotypes (PBWT *p, FILE *fp)
   
   for (j = 0 ; j < p->M ; ++j)
     { for (i = 0 ; i < p->N ; ++i) 
-	putc (hap[j][i], fp) ;
+	putc (hap[j][i]+'0', fp) ;
       putc ('\n', fp) ; fflush (fp) ;
     }
   

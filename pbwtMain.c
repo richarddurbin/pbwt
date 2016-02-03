@@ -349,7 +349,7 @@ int main (int argc, char *argv[])
     else if (!strcmp (argv[0], "-writePhase") && argc > 1)
       { pbwtWritePhase (p,argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeTransposedHaplotypes") && argc > 1)
-      { FOPEN("writeTransposedHaplotypes",argv[0]) ; pbwtWriteTransposedHaplotypes (p, fp) ; argc -= 2 ; argv += 2 ; }
+      { FOPEN("writeTransposedHaplotypes","w") ; pbwtWriteTransposedHaplotypes (p, fp) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-referenceFasta") && argc > 1)
       { referenceFasta = strdup(argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeVcf") && argc > 1)
