@@ -202,7 +202,7 @@ sub test_pbwt_reference_impute
 {
     my ($opts,%args) = @_;
     # create reference panel pbwt
-    cmd("$$opts{bin}/pbwt -readVcfGT $$opts{path}/$args{ref}.vcf -writeAll $$opts{tmp}/$args{ref} 2>/dev/null");
+    cmd("$$opts{bin}/pbwt -readVcfGT $$opts{path}/$args{ref}.vcf.gz -writeAll $$opts{tmp}/$args{ref} 2>/dev/null");
     test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -readVcfGT $$opts{path}/$args{in}.vcf -referenceImpute $$opts{tmp}/$args{ref} -writeVcf - 2>/dev/null | grep -v ^##pbwt > $$opts{tmp}/$args{out}");
 }
 
