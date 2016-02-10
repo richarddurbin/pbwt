@@ -28,13 +28,13 @@ static void readVcfSamples (PBWT *p, bcf_hdr_t *hr)
 
   p->samples = arrayCreate (p->M, int) ;
   for (i = 0 ; i < p->M/2 ; ++i)
-    { int k = sampleAdd (hr->samples[i],0,0,0) ;
+    { int k = sampleAdd (hr->samples[i],0,0,0,0,0) ;
       array(p->samples, 2*i, int) = k ; /* assume diploid - could be cleverer */
       array(p->samples, 2*i+1, int) = k ;
     }
 }
 
-static int variation (PBWT *p, const char *ref, const char *alt)
+static int variation (const char *ref, const char *alt)
 {
   static char *buf = 0 ;
   static int buflen = 0 ;
@@ -51,14 +51,53 @@ static int variation (PBWT *p, const char *ref, const char *alt)
 
 PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
 {
-  int i, j ;
+  int i, j, nHaplotypes, nSamplesKeep ;
+  PBWT *p ;
 
   bcf_srs_t *sr = bcf_sr_init() ;
   if (!bcf_sr_add_reader (sr, filename)) die ("failed to open good vcf file\n") ;
 
   bcf_hdr_t *hr = sr->readers[0].header ;
-  PBWT *p = pbwtCreate (bcf_hdr_nsamples(hr)*2, 0) ; /* assume diploid! */
-  readVcfSamples (p, hr) ;
+  int nSamples = bcf_hdr_nsamples(hr) ;
+
+  Array samples = arrayCreate (nSamples, int) ;
+  Array ploidy = arrayCreate (nSamples, int) ;
+  
+  // read in samples from the header
+  // use the isX/isY flags plus sample
+  // sex information loaded previously
+  // to determine number of haplotypes
+  // and assign a per-sample ploidy
+  for (i = 0, nHaplotypes = 0, nSamplesKeep = 0 ; i < nSamples ; ++i)
+    {
+      array(samples,i,int) = sampleAdd (hr->samples[i],0,0,0,0,0) ;
+      Sample *s = arrp(samples,i,Sample) ;
+      array(ploidy, i, int) = 0 ;
+      if (isY && s->isFemale) continue ;
+      array(ploidy, i, int)++ ;
+      nSamplesKeep++ ;
+      nHaplotypes++ ;
+      if (isX && s->isMale) continue;
+      nHaplotypes++ ;
+      array(ploidy, i, int)++ ;
+    }
+  // create the PBWT
+  p = pbwtCreate(nHaplotypes, 0) ;
+  p->samples = arrayReCreate(p->samples, p->M, int) ;
+  if (isX) p->isX = TRUE ;
+  if (isY) p->isY = TRUE ;
+
+  // fill in the p->samples array
+  for (i = 0, j = 0 ; i < nSamples ; ++i)
+    {
+      int iploidy = arr(ploidy, i, int) ;
+      if (!iploidy) continue ; // sample ploidy 0, do not store in PBWT
+      array(p->samples, j++, int) = arr(samples, i, int) ;
+      if (iploidy==1) continue ;
+      array(p->samples, j++, int) = arr(samples, i, int) ;
+    }
+  arrayDestroy (samples) ;
+
   p->sites = arrayCreate (10000, Site) ;
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
   uchar *x = myalloc (p->M, uchar) ;
@@ -82,40 +121,96 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
       // get a copy of GTs
       int ngt = bcf_get_genotypes(hr, line, &gt_arr, &mgt_arr) ;
       if (ngt <= 0) continue ;  // it seems that -1 is used if GT is not in the FORMAT
-      if (ngt != p->M && p->M != 2*ngt) die ("%d != %d GT values at %s:%d - not haploid or diploid?", 
-          ngt, p->M, chrom, pos) ;
-
+      if (ngt != nSamples && ngt != 2*nSamples) die ("%d != %d GT values at %s:%d - not haploid or diploid?",  ngt, nSamples, chrom, pos) ;
+      
       memset (xMissing, 0, p->M) ;
       long wasMissing = nMissing ;
+
       /* copy the genotypes into array x[] */
-      if (p->M == 2*ngt) // all GTs haploid: treat haploid genotypes as diploid homozygous A/A
+      if (ngt == nSamples) 
         {
-          for (i = 0 ; i < ngt ; i++)
-            { if (gt_arr[i] == bcf_gt_missing)
-                { x[2*i] = 0 ;
-                  x[2*i+1] = 0; /* use ref for now */
-                  xMissing[2*i] = 1 ;
-                  xMissing[2*i+1] = 1;
-                  nMissing+=2 ;
+          /*
+            All GTs are stored as haploid:
+            - sample ploidy 0, do not store in PBWT
+            - sample ploidy 2, treat haploid genotype as diploid homozygous A/A
+            - sample ploidy 1, treat haploid genotype as is
+          */
+          for (i = 0, j = 0 ; i < nSamples ; i++)
+            {
+              int iploidy = arr(ploidy, i, int) ;
+              if (!iploidy) continue ; // sample ploidy 0, do not store in PBWT
+              if (iploidy==2) // sample ploidy 2, treat haploid genotype as diploid homozygous A/A
+                {
+                  if (gt_arr[i] == bcf_gt_missing)
+                    { x[j] = 0 ;
+                      x[j+1] = 0; /* use ref for now */
+                      xMissing[j] = 1 ;
+                      xMissing[j+1] = 1;
+                      nMissing+=2 ;
+                    }
+                  else {
+                    x[j] = bcf_gt_allele(gt_arr[i]) ;  // convert from BCF binary to 0 or 1
+                    x[j+1] = x[j] ;  // convert from BCF binary to 0 or 1
+                  }
                 }
-              else {
-                x[2*i] = bcf_gt_allele(gt_arr[i]) ;  // convert from BCF binary to 0 or 1
-                x[2*i+1] = x[2*i] ;  // convert from BCF binary to 0 or 1
-              }
+              else // sample ploidy 1, treat haploid genotype as is
+                {
+                  if (gt_arr[i] == bcf_gt_missing)
+                    { x[j] = 0 ; /* use ref for now */
+                      xMissing[j] = 1 ;
+                      ++nMissing ;
+                    }
+                  else 
+                    x[j] = bcf_gt_allele(gt_arr[i]) ;  // convert from BCF binary to 0 or 1
+                }
+              j += iploidy ;
             }
         }
-      else
+      else // some GTs diploid
         {
-          for (i = 0 ; i < p->M ; i++)
-            { if (gt_arr[i] == bcf_int32_vector_end) 
-                x[i] = bcf_gt_allele(gt_arr[i-1]); // treat haploid genotypes as diploid homozygous A/A
-              if (gt_arr[i] == bcf_gt_missing)
-                { x[i] = 0 ; /* use ref for now */
-                  xMissing[i] = 1 ;
-                  ++nMissing ;
+          /*
+            GTs are stored as diploid or mixture of diploid/haploid:
+            - sample ploidy 0, do not store in PBWT
+            - sample ploidy 2 and GT diploid, treat as is
+            - sample ploidy 2 and GT haploid, convert to diploid homozygous A/A
+            - sample ploidy 1 and GT haploid, treat as is
+            - sample ploidy 1 and GT diploid homozygous, set to haploid A
+            - sample ploidy 1 and GT diploid heterozygous, ??
+          */
+          for (i = 0, j = 0 ; i < ngt ; i+=2)
+            {
+              int iploidy = arr(ploidy, i/2, int) ;
+              if (!iploidy) continue ; // sample ploidy 0, do not store in PBWT
+              if (iploidy==2)
+                { if (gt_arr[i+1] == bcf_int32_vector_end) 
+                    {
+                      x[2*j]   = bcf_gt_allele(gt_arr[i]); // sample ploidy 2 and GT haploid, convert to diploid homozygous A/A
+                      x[2*j+1] = bcf_gt_allele(gt_arr[i]);
+                    }
+                  else if (gt_arr[i] == bcf_gt_missing)
+                    { x[2*j] = 0 ; /* use ref for now */
+                      x[2*j+1] = 0 ;
+                      xMissing[2*j] = 1 ;
+                      xMissing[2*j+1] = 1 ;
+                      ++nMissing ;
+                    }
+                  else
+                  {
+                    x[2*j] = bcf_gt_allele(gt_arr[i]) ;  // convert from BCF binary to 0 or 1
+                    x[2*j+1] = bcf_gt_allele(gt_arr[i+1]) ;  // convert from BCF binary to 0 or 1
+                  }
                 }
-              else 
-                x[i] = bcf_gt_allele(gt_arr[i]) ;  // convert from BCF binary to 0 or 1
+              else // if sample ploidy marked as haploid, treat haploid genotypes as is
+                {
+                  if (gt_arr[i] == bcf_gt_missing)
+                    { x[2*j] = 0 ; /* use ref for now */
+                      xMissing[2*j] = 1 ;
+                      ++nMissing ;
+                    }
+                  else 
+                    x[2*j] = bcf_gt_allele(gt_arr[i]) ;  // convert from BCF binary to 0 or 1
+                }
+              j++ ;
             }
         }
 
@@ -145,26 +240,32 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
               pack3arrayAdd (xMissing, p->M, p->zMissing) ; /* NB original order, not pbwt sort */
               nMissingSites++ ;
             }
-          else if (nMissing)
+          else if (nMissing) 
             array(p->missingOffset, p->N, long) = 0 ;
 
           // add the site
           Site *s = arrayp(p->sites, p->N++, Site) ;
           s->x = pos ;
-          s->varD = variation (p, REF, ALT) ;          
+          s->varD = variation (REF, ALT) ;          
         }
 
       if (nCheckPoint && !(p->N % nCheckPoint))  pbwtCheckPoint (u, p) ;
     }
+
+
+  fflush(stdout);
+
   pbwtCursorToAFend (u, p) ;
 
+  arrayDestroy (ploidy) ;
   if (gt_arr) free (gt_arr) ;
   bcf_sr_destroy (sr) ;
-  free (x) ; pbwtCursorDestroy (u) ;  
+  free (x) ;
+  pbwtCursorDestroy (u) ;  
   free (xMissing) ;
 
-  fprintf (logFile, "read genotypes from %s with %ld sample names and %ld sites on chromosome %s: M, N are %d, %d\n", 
-         filename, arrayMax(p->samples)/2, arrayMax(p->sites), p->chrom, p->M, p->N) ;
+  fprintf (logFile, "read genotypes from %s with %d sample names and %ld sites on chromosome %s: M, N are %d, %d\n", 
+         filename, nSamplesKeep, arrayMax(p->sites), p->chrom, p->M, p->N) ;
   if (p->missingOffset) fprintf (logFile, "%ld missing values at %d sites\n", 
          nMissing, nMissingSites) ;
 
@@ -176,12 +277,14 @@ PBWT *pbwtReadVcfPL (char *filename)  /* read PLs from vcf/bcf using htslib */
   PBWT *p ;
   int i, j, k = 0 ;
 
+  printf("in pbwtReadVcfPL\n");
+  
   bcf_srs_t *sr = bcf_sr_init() ;
   if (!bcf_sr_add_reader (sr, filename)) die ("failed to open good vcf file\n") ;
 
   bcf_hdr_t *hr = sr->readers[0].header ;
   p = pbwtCreate (bcf_hdr_nsamples(hr)*2, 0) ; /* assume diploid! */
-  readVcfSamples (p, hr) ;
+  // readVcfSamples (p, hr) ;
 
   int mpl_arr = 0, *pl_arr = NULL;
   while (bcf_sr_next_line (sr)) 
@@ -239,11 +342,11 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
   htsFile *fp = NULL ;
   bcf_hdr_t *bcfHeader = NULL ;
 
-  fp = hts_open(filename,mode) ;
-  if (!fp) die ("could not open file for writing: %s", filename) ;
   if (!p) die ("pbwtWriteVcf called without a valid pbwt") ;
   if (!p->sites) die ("pbwtWriteVcf called without sites") ;
   if (!p->samples) fprintf (logFile, "Warning: pbwtWriteVcf called without samples... using fake sample names PBWT0, PBWT1 etc...\n") ;
+  fp = hts_open(filename,mode) ;
+  if (!fp) die ("could not open file for writing: %s", filename) ;
   BOOL isDosage = p->dosageOffset ? TRUE : FALSE ;
 
   // write header
@@ -279,31 +382,33 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
       bcf_hdr_append(bcfHeader, "##FORMAT=<ID=GP,Number=G,Type=Float,Description=\"Genotype posterior probabilities\">") ;
     }
   
-  int i, j ;
-  for (i = 0 ; i < p->M/2 ; ++i)
+  int i, j, k ;
+  for (i = 0, j = 0 ; i < p->M ; i += samplePloidy (p, i))
     {
       if (p->samples)
-        bcf_hdr_add_sample(bcfHeader, sampleName(sample (p, 2*i))) ;
+          bcf_hdr_add_sample(bcfHeader, sampleName(sample (p, i))) ;
       else
         {
           kstring_t sname = {0,0,0} ;
-          ksprintf(&sname, "PBWT%d", i) ;
+          ksprintf(&sname, "PBWT%d", j++) ;
           bcf_hdr_add_sample(bcfHeader, sname.s) ;
           free(sname.s) ;
         }
     }
   bcf_hdr_add_sample(bcfHeader, 0) ; /* required to update internal structures */
   bcf_hdr_write(fp, bcfHeader) ;
+  int nSamples = bcf_hdr_nsamples(bcfHeader) ;
+  int nG = nSamples == p->M ? 2*nSamples : 3*nSamples ; // length of a Number=G FORMAT vector
 
   bcf1_t *bcfRecord = bcf_init1() ;
   uchar *hap = myalloc (p->M, uchar) ;
   int32_t *gts = myalloc (p->M, int32_t) ;
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
   double *d = 0 ;
-  double *gps = isDosage ? myalloc (3*p->M/2, double) : NULL;
-  double *ds = isDosage ? myalloc (p->M/2, double) : NULL;
+  double *gps = isDosage ? myalloc (nG, double) : NULL;
+  double *ds = isDosage ? myalloc (nSamples, double) : NULL;
   double *ad = isDosage ? myalloc (p->M, double) : NULL;
-  float *fls = myalloc (3*p->M/2, float);
+  float *fls = myalloc (3*nSamples, float);
 
   for (i = 0 ; i < p->N ; ++i)
     {
@@ -324,30 +429,64 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
           hap[u->a[j]] = u->y[j] ;
           if (isDosage) ad[u->a[j]] = d[j] ;
         }
+
+      /*
+        The dosages d are actually posterior probabilities per haplotype
+        Diploid genotype dosage:
+          gd[n] = d[2*n] + d[2*n+1]
+        Haploid genotype dosage:
+          gd[n] = d[n]
+        Diploid genotype posterior probabilities:
+          gp[n][0] = (1-d[2*n]) * (1-d[2*n+1])
+          gp[n][1] = d[2*n] + d[2*n+1] - 2*d[2*n]*d[2*n+1]
+          gp[n][2] = d[2*n] * d[2*n+1]
+        Haploid genotype posterior probabilities:
+          gp[n][0] = 1-d[n]
+          gp[n][1] = d[n]
+      */
+
       int ac[2] = {0,0};
       float raf = s->refFreq;
       float info = s->imputeInfo;
-      for (j = 0 ; j < p->M ; j+=2)
+      // TODO: handle missing data
+      if (nSamples == p->M) // all haploid, nSamples == nHaplotypes
         {
-          // todo: handle missing data
-          /* these are actually posterior probabilities per haplotype
-           to get dosages for a genotype, add the two values, e.g. dg[n] = d[2*n] + d[2*n+1]
-           to get genotype likelihoods 
-           gl[n][0] = (1-d[2*n]) * (1-d[2*n+1])
-           gl[n][1] = d[2*n] + d[2*n+1] - 2*d[2*n]*d[2*n+1]
-           gl[n][2] = d[2*n] * d[2*n+1]
-          */
-          if (isDosage)
+          for (j = 0 ; j < p->M ; j++)
             {
-               ds[j/2] = ad[j] + ad[j+1] ;
-               gps[3*j/2] = (1-ad[j]) * (1-ad[j+1]) ;
-               gps[3*j/2+1] = ad[j] + ad[j+1] - 2*ad[j]*ad[j+1] ;
-               gps[3*j/2+2] = ad[j] * ad[j+1] ;
+              if (isDosage)
+                {
+                   ds[j] = ad[j] ;
+                   gps[2*j] = 1-ad[j] ;
+                   gps[2*j+1] = ad[j] ;
+                }
+              gts[j] = bcf_gt_unphased(hap[j]) ;
+              ac[hap[j]]++ ;
             }
-          gts[j] = bcf_gt_unphased(hap[j]) ;
-          gts[j+1] = p->isUnphased ? bcf_gt_unphased(hap[j+1]) : bcf_gt_phased(hap[j+1]) ;
-          ac[hap[j]]++ ;
-          ac[hap[j+1]]++ ;
+        }
+      else
+        {
+          for (j = 0, k = 0 ; j < p->M ; k+=2)
+            {
+              int ploidy = samplePloidy (p, j) ;
+              if (isDosage)
+                {
+                  ds[k/2] = ploidy==1 ? ad[j] : ad[j] + ad[j+1] ;
+                  gps[3*k/2] = ploidy==1 ? 1-ad[j] : (1-ad[j]) * (1-ad[j+1]) ;
+                  gps[3*k/2+1] = ploidy==1 ? ad[j] : ad[j] + ad[j+1] - 2*ad[j]*ad[j+1] ;
+                  gps[3*k/2+2] = ploidy==1 ? -1 : ad[j] * ad[j+1] ; // encode vector end as -1 for conversion to bcf_float_vector_end later
+                }
+              gts[k] = bcf_gt_unphased(hap[j]) ;
+              ac[hap[j]]++ ;
+              if (ploidy==2)
+                {
+                  gts[k+1] = p->isUnphased ? bcf_gt_unphased(hap[j+1]) : bcf_gt_phased(hap[j+1]) ;
+                  ac[hap[j+1]]++ ;
+                }
+              else
+                  gts[k+1] = bcf_int32_vector_end ;
+
+              j += ploidy ;
+            }
         }
       int an = ac[0] + ac[1] ;
 
@@ -364,15 +503,14 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
           for (k = 0 ; k < p->M ; ++k)
             fls[k] = (float)(ad[k]) ;
           if ( bcf_update_format_float(bcfHeader, bcfRecord, "ADS", fls, p->M) ) die("Could not update FORMAT/ADS field\n") ;
-          for (k = 0 ; k < p->M/2 ; ++k)
+          for (k = 0 ; k < nSamples ; ++k)
             fls[k] = (float)(ds[k]) ;
-          if ( bcf_update_format_float(bcfHeader, bcfRecord, "DS", fls, p->M/2) ) die("Could not update FORMAT/DS field\n") ;
-          for (k = 0 ; k < 3*p->M/2 ; ++k)
-            fls[k] = (float)(gps[k]) ;
-          if ( bcf_update_format_float(bcfHeader, bcfRecord, "GP", fls, 3*p->M/2) ) die("Could not update FORMAT/GP field\n") ;
+          if ( bcf_update_format_float(bcfHeader, bcfRecord, "DS", fls, nSamples) ) die("Could not update FORMAT/DS field\n") ;
+          for (k = 0 ; k < nG ; ++k)
+            fls[k] = gps[k]<0 ? bcf_float_vector_end : (float)(gps[k]) ;
+          if ( bcf_update_format_float(bcfHeader, bcfRecord, "GP", fls, nG) ) die("Could not update FORMAT/GP field\n") ;
         }
 
-      // example of adding INFO fields
       bcf_update_info_int32(bcfHeader, bcfRecord, "AC", &ac[1], 1) ;
       bcf_update_info_int32(bcfHeader, bcfRecord, "AN", &an, 1) ;
 

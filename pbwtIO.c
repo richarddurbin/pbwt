@@ -80,18 +80,23 @@ void pbwtWriteSamples (PBWT *p, FILE *fp)
 {
   if (!p || !p->samples) die ("pbwtWriteSamples called without samples") ;
 
-  int i ;
-  for (i = 0 ; i < p->M ; i += 2) /* assume diploid for now */
-    { Sample *s = sample (p, i) ;
+  int i, count = 0 ;
+  for (i = 0 ; i < p->M ; i++)
+    { if (i > 0 && (arr(p->samples, i, int) == arr(p->samples, i-1, int))) continue ; // skip duplicate ids
+      Sample *s = sample (p, i) ;
       fprintf (fp, "%s", sampleName(s)) ;
-      if (s->popD) fprintf (fp, "\tPOP:%s", popName(s)) ;
-      if (s->mother) fprintf (fp, "\tMOTHER:%s", sampleName(sample (p, s->mother))) ;
-      if (s->father) fprintf (fp, "\tFATHER:%s", sampleName(sample (p, s->father))) ;
+      if (s->isMale) fprintf (fp, "\tsex:Z:M") ;
+      if (s->isFemale) fprintf (fp, "\tsex:Z:F") ;
+      if (s->popD) fprintf (fp, "\tpopulation:Z:%s", popName(s)) ;
+      if (s->mother) fprintf (fp, "\tmother:Z:%s", sampleName(sample (p, s->mother))) ;
+      if (s->father) fprintf (fp, "\tfather:Z:%s", sampleName(sample (p, s->father))) ;
+      if (s->family) fprintf (fp, "\tfamily:Z:%s", familyName(s)) ;
       fputc ('\n', fp) ;
+      count++ ;
     }     
   if (ferror (fp)) die ("error writing samples file") ;
 
-  fprintf (logFile, "written %d samples\n", p->M/2) ;
+  fprintf (logFile, "written %d samples\n", count) ;
 }
 
 void writeDataOffset (FILE *fp, char *name, Array offset, Array data, int N)
@@ -129,7 +134,6 @@ void pbwtWriteReverse (PBWT *p, FILE *fp)
   
   p->yz = tz ; p->aFstart = tstart ; p->aFend = tend ;
 }
-
 
 void pbwtWriteAll (PBWT *p, char *root)
 {
@@ -330,7 +334,7 @@ Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
 	  while ((c = getc(fp)) && c != '\n' && !feof(fp)) ; /* and next line of zeroes?? */
 	  continue ;
 	}
-      array(samples,arrayMax(samples),int) = sampleAdd (arrp(nameArray,0,char), 0, 0, 0) ;
+      array(samples,arrayMax(samples),int) = sampleAdd (arrp(nameArray,0,char), 0, 0, 0, 0, 0) ;
       /* now remove the rest of the line, for now */
       while (c != '\n' && !feof(fp)) c = getc(fp) ;
     }
@@ -341,18 +345,124 @@ Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
   return samples ;
 }
 
+  /*
+     FMF format - tab delimited flat metadata format where first column is the 
+     sample name followed by metadata in the format key:type:value with type 
+     being Z for a string, f for a real number and i for an integer:
+      sample1   sex:Z:M    height:f:1.73     region:Z:WestEurasia     foo:i:10
+      sample2   sex:Z:F    height:f:1.64     region:Z:WestEurasia     bar:i:20
+  */
+
+  /*
+     FAM format - first 6 columns of the PED format (used for binary PED format). space delimited with no header:
+     1. Family ID
+     2. Individual ID
+     3. Paternal ID
+     4. Maternal ID
+     5. Sex (1=male; 2=female; other=unknown)
+     6. Phenotype (-1=missing; 0=missing; 1=unaffected; 2=affected)
+  */
+
+  /*
+     HAPS/SAMPLE and GEN/SAMPLE format - space delimited with at least 3 columns with 2 header lines:
+     1. individual ID 1 (ID_1)
+     2. individual ID 2 (ID_2)
+     3. missing data proportion (missing)
+     4-. ignored, covariates named in the first header line and type defined in the second header line
+         (0=for first 3 columns; D=discrete covariate (unsigned int); C=continuous covariate (float); P=continuous phenotype (float); B=binary phenotype (0 or 1))
+  */
+
+  /*
+     HAPS/LEGEND/SAMPLE format - space delimited with at least 4 columns with 1 header line :
+     1. individual ID (sample)
+     2. group ID 1 (population)
+     3. group ID 2 (group)
+     4. sex (1=male; 2=female; other=unknown)
+     5-. ignored
+  */
+
+void pbwtReadSamplesFile2 (FILE *fp) {
+  // populate sample fields from FMF sample file
+  char *line = calloc(1024, sizeof(char)); line[0] = '\0';
+  char *key = calloc(128, sizeof(char)); key[0] = '\0';
+  char *value = calloc(128, sizeof(char)); value[0] = '\0';
+  char *name = calloc(128, sizeof(char)); name[0] = '\0';
+  char *mother = calloc(128, sizeof(char)); mother[0] = '\0';
+  char *father = calloc(128, sizeof(char)); father[0] = '\0';
+  char *family = calloc(128, sizeof(char)); family[0] = '\0';
+  char *pop = calloc(128, sizeof(char)); pop[0] = '\0';
+  char *sex = calloc(128, sizeof(char)); sex[0] = '\0';
+  char *str;
+  char type;
+  int count = 0;
+
+  while (1) {
+    line = fgets(line, 1024, fp);
+    if(feof(fp)) break;
+    else if(sscanf(line, "ID_1%s", name)) { // IMPUTE2 file
+      die("IMPUTE2 style sample files not yet supported - coming soon");
+    }
+    else { // FMF file (single column valid)
+      str = strtok(line, "\t"); // test it works with single column
+      strcpy(name, str);
+      father[0] = '\0'; mother[0] = '\0'; family[0] = '\0', pop[0] = '\0'; sex[0] = '\0';
+      while(str = strtok(0, "\t\n")) {
+        if(sscanf(str, "%127[^:]:%1[^:]:%127[^:]", key, &type, value) == 3) {
+          switch(type) {
+            case 'i' :
+              break;
+            case 'f' :
+              break;
+            case 'Z' :
+              if(!strcmp(key, "mother")) strcpy(mother, value);
+              if(!strcmp(key, "father")) strcpy(father, value);
+              if(!strcmp(key, "family")||!strcmp(key, "familyID")) strcpy(family, value);
+              if(!strcmp(key, "pop")||!strcmp(key, "population")) strcpy(pop, value);
+              if(!strcmp(key, "gender")||!strcmp(key, "sex")) strcpy(sex, value);
+              break;
+            default :
+              die("Unknown type specifier (%c) in FMF field () - support only i,Z,f", type);
+          }
+        }
+        else die("Error parsing FMF field");
+      }
+    }
+    sampleAdd(name, father[0] == '\0' ? NULL : father, mother[0] == '\0' ? NULL : mother, family[0] == '\0' ? NULL : family, pop[0] == '\0' ? NULL : pop, sex[0] == '\0' ? NULL : sex);
+    count++;
+  }
+
+  free(line); free(key); free(value); free(name);
+  free(mother); free(father); free(pop); free(sex);
+
+  fprintf (logFile, "read %d sample names\n", count) ;
+}
+
 void pbwtReadSamples (PBWT *p, FILE *fp)
 {
   if (!p) die ("pbwtReadSamples called without a valid pbwt") ;
+
   Array samples = pbwtReadSamplesFile (fp) ;
-  if (arrayMax(samples) != p->M/2) 
-    die ("wrong number of diploid samples: %d needed", p->M/2) ;
+  int i, count ; 
   p->samples = arrayReCreate(p->samples, p->M, int) ;
-  int i ; 
-  for (i = 0 ; i < arrayMax(samples) ; ++i)
-    { array(p->samples, 2*i, int) = arr(samples, i, int) ;
-      array(p->samples, 2*i+1, int) = arr(samples, i, int) ;
+  if (isX) p->isX = TRUE ;
+  if (isY) p->isY = TRUE ;
+  if (arrayMax(samples) != p->M/2)
+    {
+      if (arrayMax(samples) == p->M) // all haploid samples
+        if (!isY) die ("number of haplotypes (%d) equal to number of samples read (%d). use -Y to treat all samples as haploid", p->M, arrayMax(samples)) ;
+        else p->isY = TRUE ;
+      else // haploid and diploid
+        if (!isX) die ("number of haplotypes (%d) less than twice the number of samples (2x%d), use -X to treat samples as mixture of haploid/diploid based on sex", p->M, arrayMax(samples)) ;
+        else p->isX = TRUE ;
     }
+  for (i = 0, count = 0 ; i < arrayMax(samples) ; ++i)
+    {
+      if (p->isY && sampleIsFemale(i)) continue ;
+      array(p->samples, count++, int) = arr(samples, i, int) ;
+      if (p->isX && sampleIsMale(i)) continue ;
+      array(p->samples, count++, int) = arr(samples, i, int) ;
+    }
+  if (count != p->M) die ("number of haplotypes (%d) not consistent with samples/ploidy read (%d)", p->M, count) ;
   arrayDestroy (samples) ;
 }
 
@@ -448,7 +558,7 @@ static BOOL parseMacsSite (FILE *fp, Site *s, int M, double L, uchar *yp) /* par
 
   number = atoi(fgetword(fp)) ;	/* this is the site number */
   s->x = (int) (L * atof(fgetword(fp))) ;
-  atof(fgetword(fp)) ;		/* ignore the time */
+  double dummy = atof(fgetword(fp)) ;		/* ignore the time - dummy stops compile warning */
   while (M--)
     *yp++ = conv[getc(fp)] ;
   if (feof (fp)) return FALSE ;
@@ -708,7 +818,6 @@ static BOOL parseHapLine (PBWT **pp, FILE *fp, Array x) /* same as parseGenLine 
   ++p->N ;
   return TRUE ;
 }
-
 
 static BOOL parseHapLegendLine (PBWT **pp, FILE *fp, FILE *lp, Array x) /* same as parseGenLine - slightly simpler */
 {

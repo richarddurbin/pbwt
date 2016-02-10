@@ -36,25 +36,52 @@ void sampleDestroy (void)
   if (samples) arrayDestroy(samples);
 }
 
-int sampleAdd (char *name, char *father, char *mother, char *pop)
-{
-  int k ;
-  if (dictAdd (sampleDict, name, &k))
-    arrayp(samples, k, Sample)->nameD = k ;
+int sampleAdd (char *name, char *father, char *mother, char *family, char *pop, char *sex)
+{ // populate global array
+  int k=0, l=0;
+  if(dictAdd(sampleDict, name, &k)) arrayp(samples, k, Sample)->nameD = k ;
+  if(father) { dictAdd(sampleDict, father, &l); arrayp(samples, k, Sample)->father = l; }
+  if(mother) { dictAdd(sampleDict, mother, &l); arrayp(samples, k, Sample)->mother = l; }
+  if(family) { dictAdd(populationDict, family, &l); arrayp(samples, k, Sample)->family = l; }
+  if(pop) { dictAdd(populationDict, pop, &l); arrayp(samples, k, Sample)->popD = l; }
+  if(sex) {
+    if(!strcasecmp(sex, "M")||!strcasecmp(sex, "male")) arrayp(samples, k, Sample)->isMale = TRUE;
+    if(!strcasecmp(sex, "F")||!strcasecmp(sex, "female")) arrayp(samples, k, Sample)->isFemale = TRUE;
+  }
+
   return k ;
 }
 
 Sample *sample (PBWT *p, int i) 
 {
-  i = arr(p->samples, i, int) ;
+  i = arr(p->samples, i, int) ; 
   if (i >= arrayMax(samples))
     die ("sample index %d out of range %ld", i, arrayMax(samples)) ;
   return arrp(samples,i,Sample) ;
 }
 
+BOOL isMale(Sample *s) { return s->isMale; }
+
+BOOL sampleIsMale(int i) { return isMale(arrp(samples,i,Sample)); }
+
+BOOL isFemale(Sample *s) { return s->isFemale; }
+
+BOOL sampleIsFemale(int i) { return isFemale(arrp(samples,i,Sample)); }
+
+int samplePloidy(PBWT *p, int i)
+{
+    if (!p->samples) return 2 ;
+    Sample *s = sample(p, i) ;
+    if (p->isX) return s->isMale ? 1 : 2 ;
+    else if (p->isY) return s->isMale ? 1 : 0 ;
+    else return 2 ;
+}
+
 char* sampleName (Sample *s) { return dictName (sampleDict, s->nameD) ; }
 
 char* popName (Sample *s) { return dictName (populationDict, s->popD) ; }
+
+char* familyName (Sample *s) { return dictName (populationDict, s->family) ; }
 
 PBWT *pbwtSubSample (PBWT *pOld, Array select)
 /* select[i] is the position in old of the i'th position in new */

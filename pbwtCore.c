@@ -25,6 +25,8 @@
 
 BOOL isCheck = FALSE ;
 BOOL isStats = FALSE ;
+BOOL isX = FALSE;
+BOOL isY = FALSE;
 DICT *variationDict ;	/* "xxx|yyy" where variation is from xxx to yyy in VCF */
 
 static void pack3init (void) ;	/* forward declaration */

@@ -34,7 +34,7 @@ typedef unsigned char uchar ;
 
 typedef struct PBWTstruct {
   int N ;			/* number of sites */
-  int M ;			/* number of samples */
+  int M ;			/* number of haplotypes */
   char* chrom ;			/* chromosome name */
   Array sites ;			/* array of Site */
   Array samples ;		/* array of int index into global samples */
@@ -50,6 +50,8 @@ typedef struct PBWTstruct {
   Array dosageOffset ;		/* of long, site index into zDosage, 0 if no dosage data */
   BOOL  isRefFreq ;		/* some flags for the whole VCF */
   BOOL  isUnphased ;
+  BOOL isX;			/* set when reading in samples */
+  BOOL isY;			/* set when reading in samples */
 } PBWT ;
 
 /* philosophy is to be lazy about PBWT - only fill items for which we have info */
@@ -64,11 +66,12 @@ typedef struct SiteStruct {
 
 typedef struct SampleStruct {
   int nameD ;			/* index in sampleDict */
-  int father ;			/* index into samples */
-  int mother ;			/* index into samples */
+  int father ;			/* index in sampleDict */
+  int mother ;			/* index in sampleDict */
+  int family ;			/* index in populationDict */
   int popD ;			/* index in populationDict */
-  BOOL isMale ;			/* treat X chromosome as haploid */
-  BOOL isFemale ;		/* treat X chromosome as diploid and ignore Y */
+  BOOL isMale ;			/* treat X chromosome as haploid, Y chromosome as haploid */
+  BOOL isFemale ;		/* treat X chromosome as diploid and ignore for Y */
 } Sample ;
 
 typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
@@ -89,10 +92,12 @@ typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
 /* pbwtMain.c */
 
 extern char *commandLine ;	/* a copy of the command line */
-extern FILE *logFile ;  /* log file pointer */
+extern FILE *logFile ;		/* log file pointer */
 
 /* pbwtCore.c */
 
+extern BOOL isX;		/* when true assume X chromosome */
+extern BOOL isY;		/* when true assume Y chromosome */
 extern BOOL isCheck ;		/* when TRUE carry out various checks */
 extern BOOL isStats ;		/* when TRUE report stats in various places */
 extern DICT *variationDict ;	/* "xxx|yyy" where variation is from xxx to yyy in VCF */
@@ -153,12 +158,17 @@ int extendPackedBackwards (uchar *yzp, int M, int *f, int c, uchar *zp) ; /* mov
 void sampleInit (void) ;
 void sampleDestroy (void) ;
 Sample *sample (PBWT *p, int i) ; /* give back Sample structure for sample i from p */
-int  sampleAdd (char* name, char *father, char *mother, char *pop) ;
+Sample *getSample (int i) ; /* give back Sample structure for sample i */
+int sampleAdd (char *name, char *father, char *mother, char *family, char *pop, char *sex) ;
 char* sampleName (Sample *s) ;
 char* popName (Sample *s) ;	/* give back population name for sample i */
+char* familyName (Sample *s) ;	/* give back family name for sample i */
 PBWT *pbwtSubSample (PBWT *pOld, Array select) ;
 PBWT *pbwtSubSampleInterval (PBWT *pOld, int start, int Mnew) ;
 PBWT *pbwtSelectSamples (PBWT *pOld, FILE *fp) ;
+BOOL sampleIsMale(int i); /* is sample i male? */
+BOOL sampleIsFemale(int i); /* is sample i female? */
+int samplePloidy(PBWT *p, int i) ;
 
 /* pbwtIO.c */
 
@@ -177,8 +187,8 @@ PBWT *pbwtRead (FILE *fp) ;
 Array pbwtReadSitesFile (FILE *fp, char **chrom) ;
 void pbwtReadSites (PBWT *p, FILE *fp) ;
 void pbwtReadRefFreq (PBWT *p, FILE *fp) ;
-Array pbwtReadSamplesFile (FILE *fp) ;
-void pbwtReadSamples (PBWT *p, FILE *fp) ;
+Array pbwtReadSamplesFile (FILE *fp) ; /* read samples and sample metadata from a file */
+void pbwtReadSamples (PBWT *p, FILE *fp) ; /* read samples and sample metadata after pbwt read from file */
 void pbwtReadMissing (PBWT *p, FILE *fp) ;
 void pbwtReadDosage (PBWT *p, FILE *fp) ;
 void pbwtReadReverse (PBWT *p, FILE *fp) ;

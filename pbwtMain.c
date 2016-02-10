@@ -210,8 +210,9 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -readDosage <file>        read dosage file; '-' for stdin\n") ;
       fprintf (stderr, "  -readReverse <file>       read reverse file; '-' for stdin\n") ;
       fprintf (stderr, "  -readAll <rootname>       read .pbwt and if present .sites, .samples, .missing - note not by default dosage\n") ;
-      fprintf (stderr, "  -readVcfGT <file>         read GTs from vcf or bcf file; '-' for stdin vcf only ; biallelic sites only - require diploid!\n") ;
-      fprintf (stderr, "  -readVcfPL <file>         read PLs from vcf or bcf file; '-' for stdin vcf only ; biallelic sites only - require diploid!\n") ;
+      fprintf (stderr, "  -loadSamples <file>       load sample metadata from a FMF, IMPUTE2 or FAM samples file; '-' for stdin\n") ;
+      fprintf (stderr, "  -readVcfGT <file>         read GTs from vcf or bcf file; '-' for stdin vcf only\n") ;
+      fprintf (stderr, "  -readVcfPL <file>         read PLs from vcf or bcf file; '-' for stdin vcf only\n") ;
       fprintf (stderr, "  -readMacs <file>          read MaCS output file; '-' for stdin\n") ;
       fprintf (stderr, "  -readVcfq <file>          read VCFQ file; '-' for stdin\n") ;
       fprintf (stderr, "  -readGen <file> <chrom>   read impute2 gen file - must set chrom\n") ;
@@ -237,6 +238,8 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -writeVcf|-writeVcfGz|-writeBcf|-writeBcfGz <file>\n") ;
       fprintf (stderr, "                            write VCF or BCF; uncompressed or bgzip (Gz) compressed file; '-' for stdout\n") ;
       fprintf (stderr, "  -referenceFasta <file>    reference fasta filename for VCF/BCF writing (optional)\n") ;
+      fprintf (stderr, "  -X                        treat males as haploid, females diploid as on non-PAR chrX\n") ;
+      fprintf (stderr, "  -Y                        treat males as haploid, skip females as on chrY\n") ;
       fprintf (stderr, "  -subsites <fmin> <frac>   subsample <frac> sites with AF > <fmin>\n") ;
       fprintf (stderr, "  -subsample <start> <n>    subsample <n> samples from index <start>\n") ;
       fprintf (stderr, "  -subrange <start> <end>   cut down to sites in [start,end)\n") ;
@@ -279,6 +282,10 @@ int main (int argc, char *argv[])
       { isCheck = TRUE ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-stats"))
       { isStats = TRUE ; argc -= 1 ; argv += 1 ; }
+    else if (!strcmp (argv[0], "-X"))
+      { isX = TRUE ; argc -= 1 ; argv += 1 ; }
+    else if (!strcmp (argv[0], "-Y"))
+      { isY = TRUE ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-merge") && argc > 1)
     { 
         int i, nfiles = 0;
@@ -302,6 +309,8 @@ int main (int argc, char *argv[])
       { FOPEN("readSites","r") ; pbwtReadSites (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readSamples") && argc > 1)
       { FOPEN("readSamples","r") ; pbwtReadSamples (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-loadSamples") && argc > 1)
+      { FOPEN("loadSamples","r") ; pbwtReadSamplesFile2 (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readMissing") && argc > 1)
       { FOPEN("readMissing","r") ; pbwtReadMissing (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readDosage") && argc > 1)
