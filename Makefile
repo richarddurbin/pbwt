@@ -3,7 +3,8 @@ CFLAGS= -g -O3
 CPPFLAGS=-I$(HTSDIR)
 HTSDIR=../htslib
 HTSLIB=$(HTSDIR)/libhts.a
-LDLIBS=-lpthread -lz -lm $(HTSLIB)
+LDLIBS=-lpthread -lz -lm $(HTSLIB) -ldl
+LDFLAGS=-rdynamic
 
 all: pbwt
 
