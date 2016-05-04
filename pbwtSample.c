@@ -60,6 +60,12 @@ Sample *sample (PBWT *p, int i)
   return arrp(samples,i,Sample) ;
 }
 
+Sample *getSample (int i) {
+  if (i >= arrayMax(samples))
+    die ("sample index %d out of range %ld", i, arrayMax(samples)) ;
+  return arrp(samples,i,Sample) ;
+}
+
 BOOL isMale(Sample *s) { return s->isMale; }
 
 BOOL sampleIsMale(int i) { return isMale(arrp(samples,i,Sample)); }
@@ -104,7 +110,7 @@ PBWT *pbwtSubSample (PBWT *pOld, Array select)
     }
   pbwtCursorToAFend (uNew, pNew) ;
 
-  /* need to do this also for missing */
+  // TODO: update missing and dosage
 
   if (pOld->samples)
     { pNew->samples = arrayCreate (pNew->M, int) ;
@@ -113,6 +119,7 @@ PBWT *pbwtSubSample (PBWT *pOld, Array select)
     }
   pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
   pNew->sites = pOld->sites ; pOld->sites = 0 ;
+  pNew->isX = pOld->isX ; pNew->isY = pOld->isY ;
   pbwtDestroy (pOld) ; /* destroy will free old samples */
 
   free(x) ; free(ainv) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;

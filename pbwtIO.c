@@ -381,7 +381,7 @@ Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
      5-. ignored
   */
 
-void pbwtReadSamplesFile2 (FILE *fp) {
+Array pbwtReadSamplesFile2 (FILE *fp) {
   // populate sample fields from FMF sample file
   char *line = calloc(1024, sizeof(char)); line[0] = '\0';
   char *key = calloc(128, sizeof(char)); key[0] = '\0';
@@ -394,7 +394,8 @@ void pbwtReadSamplesFile2 (FILE *fp) {
   char *sex = calloc(128, sizeof(char)); sex[0] = '\0';
   char *str;
   char type;
-  int count = 0;
+
+  Array samples = arrayCreate (1024, int) ;
 
   while (1) {
     line = fgets(line, 1024, fp);
@@ -427,21 +428,22 @@ void pbwtReadSamplesFile2 (FILE *fp) {
         else die("Error parsing FMF field");
       }
     }
-    sampleAdd(name, father[0] == '\0' ? NULL : father, mother[0] == '\0' ? NULL : mother, family[0] == '\0' ? NULL : family, pop[0] == '\0' ? NULL : pop, sex[0] == '\0' ? NULL : sex);
-    count++;
+    array(samples,arrayMax(samples),int) = sampleAdd(name, father[0] == '\0' ? NULL : father, mother[0] == '\0' ? NULL : mother, family[0] == '\0' ? NULL : family, pop[0] == '\0' ? NULL : pop, sex[0] == '\0' ? NULL : sex);
   }
 
   free(line); free(key); free(value); free(name);
   free(mother); free(father); free(pop); free(sex);
 
-  fprintf (logFile, "read %d sample names\n", count) ;
+  fprintf (logFile, "read %ld sample names\n", arrayMax(samples)) ;
+
+  return samples ;
 }
 
 void pbwtReadSamples (PBWT *p, FILE *fp)
 {
   if (!p) die ("pbwtReadSamples called without a valid pbwt") ;
 
-  Array samples = pbwtReadSamplesFile (fp) ;
+  Array samples = pbwtReadSamplesFile2 (fp) ;
   int i, count ; 
   p->samples = arrayReCreate(p->samples, p->M, int) ;
   if (isX) p->isX = TRUE ;
@@ -455,11 +457,11 @@ void pbwtReadSamples (PBWT *p, FILE *fp)
         if (!isX) die ("number of haplotypes (%d) less than twice the number of samples (2x%d), use -X to treat samples as mixture of haploid/diploid based on sex", p->M, arrayMax(samples)) ;
         else p->isX = TRUE ;
     }
-  for (i = 0, count = 0 ; i < arrayMax(samples) ; ++i)
+  for (i = 0, count = 0 ; i < arrayMax(samples) ; i++)
     {
-      if (p->isY && sampleIsFemale(i)) continue ;
+      if (p->isY && sampleIsFemale(arr(samples, i, int))) continue ;
       array(p->samples, count++, int) = arr(samples, i, int) ;
-      if (p->isX && sampleIsMale(i)) continue ;
+      if (p->isX && sampleIsMale(arr(samples, i, int))) continue ;
       array(p->samples, count++, int) = arr(samples, i, int) ;
     }
   if (count != p->M) die ("number of haplotypes (%d) not consistent with samples/ploidy read (%d)", p->M, count) ;

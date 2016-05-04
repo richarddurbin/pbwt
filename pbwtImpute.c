@@ -1272,6 +1272,7 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 
   /* identify the intersecting sites */
   PBWT *pFrame = pbwtSelectSites (pRef, pOld->sites, TRUE) ; /* keep the full ref to impute to */
+  pFrame->isX = pRef->isX ; pFrame->isY = pRef->isY ;
   if (pFrame->N == pRef->N)
     { fprintf (logFile, "No additional sites to impute in referenceImpute\n") ;
       pbwtDestroy (pFrame) ; pbwtDestroy (pRef) ;
@@ -1281,6 +1282,70 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   pOld = pbwtSelectSites (pOld, pRef->sites, FALSE) ;
   if (!pOld->N) die ("no overlapping sites in referenceImpute") ;
   if (!pOld->aFend) die ("pOld has no aFend in referenceImpute - your pbwt was made by a previous version of the code; buildReverse and resave the forwards pbwt") ;
+
+  if (pOld->missingOffset)
+    {
+      fprintf (logFile, "Imputing missing data\n") ; timeUpdate(logFile) ;
+      PBWT *pMerge = pbwtCreate(pOld->M + pFrame->M, pFrame->N) ;
+      int i, j, nOld = 0 ;
+      uchar *x = myalloc (pMerge->M, uchar) ;
+      int *ainvOld = myalloc (pOld->M, int) ;
+      int *ainvFrame = myalloc (pFrame->M, int) ;
+      PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
+      PbwtCursor *uFrame = pbwtCursorCreate (pFrame, TRUE, TRUE) ;
+      PbwtCursor *uMerge = pbwtCursorCreate (pMerge, TRUE, TRUE) ;
+
+      uchar *xMissing = myalloc (pMerge->M+1, uchar) ;
+      xMissing[pMerge->M] = Y_SENTINEL ;  /* needed for efficient packing */
+      int nMissingSites = 0 ; 
+      pMerge->zMissing = arrayCreate (10000, uchar) ;
+      array(pMerge->zMissing, 0, uchar) = 0 ; /* needed so missing[] has offset > 0 */
+      pMerge->missingOffset = arrayCreate (1024, long) ;
+
+      for (i = 0 ; i < pOld->N ; ++i)
+        {
+          for (j = 0 ; j < pOld->M ; ++j) ainvOld[uOld->a[j]] = j ;
+          for (j = 0 ; j < pFrame->M ; ++j) ainvFrame[uFrame->a[j]] = j ;
+          for (j = 0 ; j < pOld->M ; ++j) x[j] = uOld->y[ainvOld[j]] ;
+          for (j = 0 ; j < pFrame->M ; ++j) x[pOld->M+j] = uFrame->y[ainvFrame[j]] ;
+          for (j = 0 ; j < pMerge->M ; ++j) uMerge->y[j] = x[uMerge->a[j]] ;
+          pbwtCursorWriteForwards (uMerge) ;
+          pbwtCursorForwardsRead (uOld) ;
+          pbwtCursorForwardsRead (uFrame) ;
+
+          if (!arr(pOld->missingOffset, i, long)) bzero (xMissing, pOld->M) ;
+          else unpack3 (arrp(pOld->zMissing, arr(pOld->missingOffset,i,long), uchar), pOld->M, xMissing, 0) ;
+
+          if (!pFrame->missingOffset || !arr(pFrame->missingOffset, i, long)) bzero (xMissing+pOld->M, pFrame->M) ;
+          else unpack3 (arrp(pFrame->zMissing, arr(pFrame->missingOffset,i,long), uchar), pFrame->M, xMissing+pOld->M, 0) ;
+
+          if (arr(pOld->missingOffset, i, long) || (pFrame->missingOffset && arr(pFrame->missingOffset, i, long)))
+            { 
+              array(pMerge->missingOffset, i, long) = arrayMax(pMerge->zMissing) ;
+              pack3arrayAdd (xMissing, pMerge->M, pMerge->zMissing) ; /* NB original order, not pbwt sort */
+              nMissingSites++ ;
+            }
+          else
+            array(pMerge->missingOffset, i, long) = 0 ;
+        }
+      pbwtCursorToAFend (uMerge, pMerge) ;
+      pMerge->samples = arrayCreate (pMerge->M, int) ;
+      pMerge->samples = pOld->samples ; pOld->samples = 0 ; /*  NB last pFrame->M samples unset in pMerge */
+      pMerge->sites = pOld->sites ; pOld->sites = 0 ;
+      pMerge->chrom = pOld->chrom ; pOld->chrom = 0 ;
+      pMerge->isX = pOld->isX ; pMerge->isY = pOld->isY ;
+      free(x) ; free(ainvOld) ; free(ainvFrame) ; free(xMissing) ;
+      pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uFrame) ; pbwtCursorDestroy (uMerge) ;
+
+      fprintf (logFile, "Imputing missing data at %d missing sites out of %d\n", nMissingSites, pMerge->N) ; timeUpdate(logFile) ;
+      PBWT *pMergeNoMissing = imputeMissing(pMerge) ;
+      Array select = arrayCreate (pOld->M, int) ;
+      for (i = 0 ; i < pOld->M ; ++i) array(select, i, int) = i ;
+
+      pOld = pbwtSubSample(pMergeNoMissing, select) ;
+      arrayDestroy(select) ;
+      fprintf (logFile, "Missing data imputed\n") ; timeUpdate(logFile) ;
+    }
 
   fprintf (logFile, "Imputation preliminaries: ") ; timeUpdate(logFile) ;
 
@@ -1293,22 +1358,23 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   pNew->sites = pRef->sites ; pRef->sites = 0 ; 
   pNew->chrom = pRef->chrom ; pRef->chrom = 0 ;
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
+  pNew->isX = pOld->isX ; pNew->isY = pOld->isY ;
 
   if (isStats)
     { int k, j, ff ; long his[20][10] ;
       bzero (his, 20*10*sizeof(long)) ;
       for (k = 0 ; k < pRef->N ; ++k)
-	{ double f = arrp(pNew->sites,k,Site)->refFreq ;
-	  for (ff = 0 ; f*100 > fBound[ff] ; ++ff) ;
-	  for (j = 0 ; j < pNew->M ; ++j) ++his[ff][(int)(pImp[k][j]*10)] ;
-	}
+        { double f = arrp(pNew->sites,k,Site)->refFreq ;
+          for (ff = 0 ; f*100 > fBound[ff] ; ++ff) ;
+          for (j = 0 ; j < pNew->M ; ++j) ++his[ff][(int)(pImp[k][j]*10)] ;
+        }
       for (ff = 0 ; ff < 17 ; ++ff)
-	{ fprintf (logFile, "%5.1f", fBound[ff]) ;
-	  double tot = 0.0 ; for (j = 10 ; j-- ;)  tot += his[ff][j] ;
-	  for (j = 0 ; j < 10 ; ++j) 
-	    fprintf (logFile, " %8.5f", his[ff][j]/tot) ;
-	  fprintf (logFile, "\n") ;
-	}
+        { fprintf (logFile, "%5.1f", fBound[ff]) ;
+          double tot = 0.0 ; for (j = 10 ; j-- ;)  tot += his[ff][j] ;
+          for (j = 0 ; j < 10 ; ++j) 
+            fprintf (logFile, " %8.5f", his[ff][j]/tot) ;
+          fprintf (logFile, "\n") ;
+        }
     }
 
   pbwtDestroy (pOld) ; pbwtDestroy (pFrame) ; pbwtDestroy (pRef) ;
@@ -1331,30 +1397,31 @@ PBWT *imputeMissing (PBWT *pOld)
     { int *nMiss = mycalloc (10,int), n0, i ;
       uchar *miss = myalloc (pOld->M, uchar) ;
       for (k = 0 ; k < pOld->N ; ++k)
-	if (arr(pOld->missingOffset,k,long)) 
-	  { unpack3 (arrp(pOld->zMissing,arr(pOld->missingOffset,k,int), uchar), 
-		     pOld->M, miss, &n0) ;
-	    n0 = pOld->M - n0 ;
-	    if (isCheck)
-	      { printf ("missing at %d: offset %ld, n0 %d", 
-			k, arr(pOld->missingOffset,k,long), n0) ;
-		putchar ('\n') ;
-	      }
-	    for (i = 0 ; n0 > 0 ; ++i) { ++nMiss[i] ; n0 /= 10 ; }
-	  }
+        if (arr(pOld->missingOffset,k,long)) 
+          { unpack3 (arrp(pOld->zMissing,arr(pOld->missingOffset,k,int), uchar), 
+                     pOld->M, miss, &n0) ;
+            n0 = pOld->M - n0 ;
+            if (isCheck)
+              { printf ("missing at %d: offset %ld, n0 %d", 
+                        k, arr(pOld->missingOffset,k,long), n0) ;
+                putchar ('\n') ;
+              }
+            for (i = 0 ; n0 > 0 ; ++i) { ++nMiss[i] ; n0 /= 10 ; }
+          }
       n0 = 1 ; 
       for (i = 0 ; nMiss[i] ; ++i)
-	{ printf ("sites with missing >= %d: %d\n", n0, nMiss[i]) ;
-	  n0 *= 10 ;
-	}
+        { printf ("sites with missing >= %d: %d\n", n0, nMiss[i]) ;
+          n0 *= 10 ;
+        }
       free (miss) ; free (nMiss) ;
     }
 
   /* first build frame */
   Array completeSites = arrayCreate (pOld->M, Site) ;
   for (k = 0 ; k < pOld->N ; ++k) 
-    if (!arr(pOld->missingOffset,k,long)) 
+    if (!arr(pOld->missingOffset,k,long))  {
       array(completeSites,arrayMax(completeSites),Site) = arr(pOld->sites,k,Site) ;
+    }
   PBWT *pFrame = pbwtSelectSites (pOld, completeSites, TRUE) ;
   arrayDestroy (completeSites) ;
 
@@ -1363,6 +1430,7 @@ PBWT *imputeMissing (PBWT *pOld)
   pNew->sites = pOld->sites ; pOld->sites = 0 ;
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
   pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
+  pNew->isX = pOld->isX ; pNew->isY = pOld->isY ;
   pbwtDestroy (pOld) ; pbwtDestroy (pFrame) ;
   return pNew ;
 }

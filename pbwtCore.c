@@ -106,6 +106,7 @@ PBWT *pbwtSubSites (PBWT *pOld, double fmin, double frac)
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
   pNew->missingOffset = pOld->missingOffset ; pOld->missingOffset = 0 ;
   pNew->zMissing = pOld->zMissing ; pOld->zMissing = 0 ;
+  pNew->isX = pOld->isX ; pNew->isY = pOld->isY ;
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ;
   return pNew ;
@@ -143,6 +144,7 @@ PBWT *pbwtSubRange (PBWT *pOld, int start, int end)
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
   pNew->missingOffset = pOld->missingOffset ; pOld->missingOffset = 0 ;
   pNew->zMissing = pOld->zMissing ; pOld->zMissing = 0 ;
+  pNew->isX = pOld->isX ; pNew->isY = pOld->isY ;
   pbwtDestroy (pOld) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   free(x) ;
   return pNew ;
@@ -661,6 +663,8 @@ PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
     }
   pbwtCursorToAFend (uNew, pNew) ;
 
+  // TODO: subset missing and dosage
+
   fprintf (logFile, "%d sites selected from %d, pbwt size for %d haplotypes is %ld\n", 
 	   pNew->N, pOld->N, pNew->M, arrayMax(pNew->yz)) ;
 
@@ -676,8 +680,11 @@ PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
     else
       { pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
 	pNew->samples = pOld->samples ; pOld->samples = 0 ;
+        pNew->missingOffset = pOld->missingOffset ; pOld->missingOffset = 0 ;
+        pNew->zMissing = pOld->zMissing ; pOld->zMissing = 0 ;
 	pbwtDestroy (pOld) ;
       }
+  pNew->isX = pOld->isX ; pNew->isY = pOld->isY ;
 
   free(x) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   return pNew ;
@@ -738,6 +745,7 @@ PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld)
 	pNew->samples = pOld->samples ; pOld->samples = 0 ;
 	pbwtDestroy (pOld) ;
       }
+  pNew->isX = pOld->isX ; pNew->isY = pOld->isY ;
 
   free(x) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   return pNew ;
