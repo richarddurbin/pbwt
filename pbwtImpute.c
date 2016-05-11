@@ -1182,6 +1182,7 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
     { if (arrp(pRef->sites,kRef,Site)->x == arrp(pFrame->sites,kOld,Site)->x
 	  && arrp(pRef->sites,kRef,Site)->varD == arrp(pFrame->sites,kOld,Site)->varD)
 	{ pbwtCursorForwardsRead (uOld) ; ++kOld ;
+          arrp(pRef->sites,kRef,Site)->typed = TRUE ;
 	  for (j = 0 ; j < pOld->M ; ++j)
 	    while (kOld >= (arrp(maxMatch[j],firstSeg[j],MatchSegment)->end & SPARSE_MASK)) ++firstSeg[j] ;
 	}
