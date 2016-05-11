@@ -249,6 +249,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -selectSites <file>       select sites as in sites file\n") ;
       fprintf (stderr, "  -removeSites <file>       remove sites as in sites file\n") ;
       fprintf (stderr, "  -selectSamples <file>     select samples as in samples file\n") ;
+      fprintf (stderr, "  -removeSamples <file>     remove samples as in samples file\n") ;
       fprintf (stderr, "  -longWithin <L>           find matches within set longer than L\n") ;
       fprintf (stderr, "  -maxWithin                find maximal matches within set\n") ;
       fprintf (stderr, "  -matchNaive <file>        maximal match seqs in pbwt file to reference\n") ;
