@@ -101,14 +101,46 @@ PBWT *pbwtSubSample (PBWT *pOld, Array select)
   PbwtCursor *uOld = pbwtCursorCreate (pOld, TRUE, TRUE) ;
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
 
+  int nMissingSites = 0 ; 
+  uchar *missing = mycalloc (pOld->M, uchar) ;
+  uchar *xMissing = myalloc (pNew->M+1, uchar) ;
+  xMissing[pNew->M] = Y_SENTINEL ;  /* needed for efficient packing */
+
   for (i = 0 ; i < pOld->N ; ++i)
     { for (j = 0 ; j < pOld->M ; ++j) ainv[uOld->a[j]] = j ;
       for (j = 0 ; j < pNew->M ; ++j) x[j] = uOld->y[ainv[arr(select,j,int)]] ;
       for (j = 0 ; j < pNew->M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
       pbwtCursorWriteForwards (uNew) ;
       pbwtCursorForwardsRead (uOld) ;
+
+      if (pOld->missingOffset)
+        { if (!pNew->missingOffset)
+            { pNew->zMissing = arrayCreate (10000, uchar) ;
+              array(pNew->zMissing, 0, uchar) = 0 ; /* needed so missing[] has offset > 0 */
+              pNew->missingOffset = arrayCreate (1024, long) ;
+            }
+          if (arr(pOld->missingOffset,i,long))
+            { 
+              unpack3 (arrp(pOld->zMissing, arr(pOld->missingOffset,i,long), uchar), pNew->M, missing, 0) ;
+              int nMissing = 0 ;
+              for (j = 0 ; j < pNew->M ; ++j) { nMissing += xMissing[j] = missing[arr(select,j,int)] ; }
+              if (nMissing) {
+                  array(pNew->missingOffset,i,long) = arrayMax(pNew->zMissing) ;
+                  pack3arrayAdd (xMissing,pNew->M,pNew->zMissing) ; /* NB original order, not pbwt sort */
+                  nMissingSites++ ;
+                }
+              else
+                  array(pNew->missingOffset,pNew->N,long) = 0 ;
+            }
+          else
+              array(pNew->missingOffset,pNew->N,long) = 0 ;
+        }
     }
   pbwtCursorToAFend (uNew, pNew) ;
+  free(missing) ; free(xMissing) ;
+
+  fprintf (logFile, "%d haplotypes selected from %d, %d missing sites, pbwt size for %d sites is %ld\n", 
+           pNew->M, pOld->M, nMissingSites, pNew->N, arrayMax(pNew->yz)) ;
 
   // TODO: update missing and dosage
 
@@ -141,6 +173,31 @@ PBWT *pbwtSubSampleInterval (PBWT *pOld, int start, int Mnew)
   return pNew ;
 }
 
+PBWT *pbwtRemoveSamples (PBWT *pOld, FILE *fp)
+{
+  if (!pOld || !pOld->samples) die ("pbwtRemoveSamples called without pre-existing sample names") ;
+  int i, j, k ;
+
+  Array rmSamples = pbwtReadSamplesFile (fp) ;
+
+  if (!arrayMax(rmSamples)) return pOld ;
+
+  Array select = arrayCreate (pOld->M, int) ;
+  HASH rmHash = hashCreate (arrayMax(rmSamples)) ;
+  for (i = 0 ; i < arrayMax(rmSamples) ; ++i)
+    hashAdd(rmHash,HASH_INT(arr(rmSamples,i,int))) ;
+
+  for (i = 0 ; i < pOld->M ; ++i)
+    if (!hashFind(rmHash,HASH_INT(arr(pOld->samples,i,int))))
+      array(select,arrayMax(select),int) = i ;
+
+  hashDestroy(rmHash) ;
+
+  PBWT *pNew = pbwtSubSample (pOld, select) ;
+  arrayDestroy (select) ;
+  return pNew ;
+}
+
 PBWT *pbwtSelectSamples (PBWT *pOld, FILE *fp)
 {
   if (!pOld || !pOld->samples) die ("pbwtSelectSamples called without pre-existing sample names") ;
@@ -154,7 +211,7 @@ PBWT *pbwtSelectSamples (PBWT *pOld, FILE *fp)
   Array oldCount = arrayCreate (arrayMax(samples), int) ; /* how many of each sample in old */
   for (i = 0 ; i < pOld->M ; ++i)
     { if (!array(oldCount, arr(pOld->samples,i,int), int))
-	array(oldStart, arr(pOld->samples,i,int), int) = i ;
+        array(oldStart, arr(pOld->samples,i,int), int) = i ;
       ++arr(oldCount, arr(pOld->samples,i,int), int) ;
     }
 

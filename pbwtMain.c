@@ -375,6 +375,8 @@ int main (int argc, char *argv[])
       { p = pbwtSubSampleInterval (p, atoi(argv[1]), atoi(argv[2])) ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-selectSamples") && argc > 2)
       { FOPEN("selectSamples","r") ; p = pbwtSelectSamples (p, fp) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-removeSamples") && argc > 2)
+      { FOPEN("removeSamples","r") ; p = pbwtRemoveSamples (p, fp) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-subsites") && argc > 2)
       { p = pbwtSubSites (p, atof(argv[1]), atof(argv[2])) ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-selectSites") && argc > 1)

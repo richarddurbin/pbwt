@@ -167,6 +167,7 @@ char* familyName (Sample *s) ;	/* give back family name for sample i */
 PBWT *pbwtSubSample (PBWT *pOld, Array select) ;
 PBWT *pbwtSubSampleInterval (PBWT *pOld, int start, int Mnew) ;
 PBWT *pbwtSelectSamples (PBWT *pOld, FILE *fp) ;
+PBWT *pbwtRemoveSamples (PBWT *pOld, FILE *fp) ;
 BOOL sampleIsMale(int i); /* is sample i male? */
 BOOL sampleIsFemale(int i); /* is sample i female? */
 int samplePloidy(PBWT *p, int i) ;
