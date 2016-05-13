@@ -17,6 +17,7 @@
 
 static DICT *sampleDict ;
 static DICT *populationDict ;
+static DICT *familyDict ;
 static Array samples ;
 
 /* functions */
@@ -25,6 +26,7 @@ void sampleInit (void)
 {
   sampleDict = dictCreate (4096) ;
   populationDict = dictCreate (64) ;
+  familyDict = dictCreate (4096) ;
   samples = arrayCreate (4096, Sample) ;
   array(samples,0,Sample).nameD = 0 ; /* so that all read samples are non-zero */
 }
@@ -33,6 +35,7 @@ void sampleDestroy (void)
 {
   if (sampleDict) dictDestroy(sampleDict);
   if (populationDict) dictDestroy(populationDict);
+  if (familyDict) dictDestroy(familyDict);
   if (samples) arrayDestroy(samples);
 }
 
@@ -42,7 +45,7 @@ int sampleAdd (char *name, char *father, char *mother, char *family, char *pop, 
   if(dictAdd(sampleDict, name, &k)) arrayp(samples, k, Sample)->nameD = k ;
   if(father) { dictAdd(sampleDict, father, &l); arrayp(samples, k, Sample)->father = l; }
   if(mother) { dictAdd(sampleDict, mother, &l); arrayp(samples, k, Sample)->mother = l; }
-  if(family) { dictAdd(populationDict, family, &l); arrayp(samples, k, Sample)->family = l; }
+  if(family) { dictAdd(familyDict, family, &l); arrayp(samples, k, Sample)->family = l; }
   if(pop) { dictAdd(populationDict, pop, &l); arrayp(samples, k, Sample)->popD = l; }
   if(sex) {
     if(!strcasecmp(sex, "M")||!strcasecmp(sex, "male")) arrayp(samples, k, Sample)->isMale = TRUE;
@@ -87,7 +90,7 @@ char* sampleName (Sample *s) { return dictName (sampleDict, s->nameD) ; }
 
 char* popName (Sample *s) { return dictName (populationDict, s->popD) ; }
 
-char* familyName (Sample *s) { return dictName (populationDict, s->family) ; }
+char* familyName (Sample *s) { return dictName (familyDict, s->family) ; }
 
 PBWT *pbwtSubSample (PBWT *pOld, Array select)
 /* select[i] is the position in old of the i'th position in new */
@@ -142,7 +145,7 @@ PBWT *pbwtSubSample (PBWT *pOld, Array select)
   fprintf (logFile, "%d haplotypes selected from %d, %d missing sites, pbwt size for %d sites is %ld\n", 
            pNew->M, pOld->M, nMissingSites, pNew->N, arrayMax(pNew->yz)) ;
 
-  // TODO: update missing and dosage
+  // TODO: update dosage
 
   if (pOld->samples)
     { pNew->samples = arrayCreate (pNew->M, int) ;
@@ -211,7 +214,7 @@ PBWT *pbwtSelectSamples (PBWT *pOld, FILE *fp)
   Array oldCount = arrayCreate (arrayMax(samples), int) ; /* how many of each sample in old */
   for (i = 0 ; i < pOld->M ; ++i)
     { if (!array(oldCount, arr(pOld->samples,i,int), int))
-        array(oldStart, arr(pOld->samples,i,int), int) = i ;
+	array(oldStart, arr(pOld->samples,i,int), int) = i ;
       ++arr(oldCount, arr(pOld->samples,i,int), int) ;
     }
 

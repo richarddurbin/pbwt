@@ -1302,17 +1302,17 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
     { int k, j, ff ; long his[20][10] ;
       bzero (his, 20*10*sizeof(long)) ;
       for (k = 0 ; k < pRef->N ; ++k)
-        { double f = arrp(pNew->sites,k,Site)->refFreq ;
-          for (ff = 0 ; f*100 > fBound[ff] ; ++ff) ;
-          for (j = 0 ; j < pNew->M ; ++j) ++his[ff][(int)(pImp[k][j]*10)] ;
-        }
+	{ double f = arrp(pNew->sites,k,Site)->refFreq ;
+	  for (ff = 0 ; f*100 > fBound[ff] ; ++ff) ;
+	  for (j = 0 ; j < pNew->M ; ++j) ++his[ff][(int)(pImp[k][j]*10)] ;
+	}
       for (ff = 0 ; ff < 17 ; ++ff)
-        { fprintf (logFile, "%5.1f", fBound[ff]) ;
-          double tot = 0.0 ; for (j = 10 ; j-- ;)  tot += his[ff][j] ;
-          for (j = 0 ; j < 10 ; ++j) 
-            fprintf (logFile, " %8.5f", his[ff][j]/tot) ;
-          fprintf (logFile, "\n") ;
-        }
+	{ fprintf (logFile, "%5.1f", fBound[ff]) ;
+	  double tot = 0.0 ; for (j = 10 ; j-- ;)  tot += his[ff][j] ;
+	  for (j = 0 ; j < 10 ; ++j) 
+	    fprintf (logFile, " %8.5f", his[ff][j]/tot) ;
+	  fprintf (logFile, "\n") ;
+	}
     }
 
   pbwtDestroy (pOld) ; pbwtDestroy (pFrame) ; pbwtDestroy (pRef) ;
@@ -1335,31 +1335,30 @@ PBWT *imputeMissing (PBWT *pOld)
     { int *nMiss = mycalloc (10,int), n0, i ;
       uchar *miss = myalloc (pOld->M, uchar) ;
       for (k = 0 ; k < pOld->N ; ++k)
-        if (arr(pOld->missingOffset,k,long)) 
-          { unpack3 (arrp(pOld->zMissing,arr(pOld->missingOffset,k,int), uchar), 
-                     pOld->M, miss, &n0) ;
-            n0 = pOld->M - n0 ;
-            if (isCheck)
-              { printf ("missing at %d: offset %ld, n0 %d", 
-                        k, arr(pOld->missingOffset,k,long), n0) ;
-                putchar ('\n') ;
-              }
-            for (i = 0 ; n0 > 0 ; ++i) { ++nMiss[i] ; n0 /= 10 ; }
-          }
+	if (arr(pOld->missingOffset,k,long)) 
+	  { unpack3 (arrp(pOld->zMissing,arr(pOld->missingOffset,k,int), uchar), 
+		     pOld->M, miss, &n0) ;
+	    n0 = pOld->M - n0 ;
+	    if (isCheck)
+	      { printf ("missing at %d: offset %ld, n0 %d", 
+			k, arr(pOld->missingOffset,k,long), n0) ;
+		putchar ('\n') ;
+	      }
+	    for (i = 0 ; n0 > 0 ; ++i) { ++nMiss[i] ; n0 /= 10 ; }
+	  }
       n0 = 1 ; 
       for (i = 0 ; nMiss[i] ; ++i)
-        { printf ("sites with missing >= %d: %d\n", n0, nMiss[i]) ;
-          n0 *= 10 ;
-        }
+	{ printf ("sites with missing >= %d: %d\n", n0, nMiss[i]) ;
+	  n0 *= 10 ;
+	}
       free (miss) ; free (nMiss) ;
     }
 
   /* first build frame */
   Array completeSites = arrayCreate (pOld->M, Site) ;
   for (k = 0 ; k < pOld->N ; ++k) 
-    if (!arr(pOld->missingOffset,k,long))  {
+    if (!arr(pOld->missingOffset,k,long)) 
       array(completeSites,arrayMax(completeSites),Site) = arr(pOld->sites,k,Site) ;
-    }
   PBWT *pFrame = pbwtSelectSites (pOld, completeSites, TRUE) ;
   arrayDestroy (completeSites) ;
 

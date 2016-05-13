@@ -69,7 +69,7 @@ typedef struct SampleStruct {
   int nameD ;			/* index in sampleDict */
   int father ;			/* index in sampleDict */
   int mother ;			/* index in sampleDict */
-  int family ;			/* index in populationDict */
+  int family ;			/* index in familyDict */
   int popD ;			/* index in populationDict */
   BOOL isMale ;			/* treat X chromosome as haploid, Y chromosome as haploid */
   BOOL isFemale ;		/* treat X chromosome as diploid and ignore for Y */

@@ -7,7 +7,7 @@
 ##INFO=<ID=RefPanelAF,Number=A,Type=Float,Description="Allele frequency in imputation reference panel">
 ##INFO=<ID=DR2,Number=A,Type=Float,Description="Estimated haploid dosage r^2 from imputation">
 ##INFO=<ID=TYPED,Number=0,Type=Flag,Description="Site was genotyped prior to imputation">
-##FORMAT=<ID=ADS,Number=.,Type=Float,Description="Allele dosage">
+##FORMAT=<ID=ADS,Number=.,Type=Float,Description="Allele dosage per haplotype">
 ##FORMAT=<ID=DS,Number=1,Type=Float,Description="Genotype dosage">
 ##FORMAT=<ID=GP,Number=G,Type=Float,Description="Genotype posterior probabilities">
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	HG00411	HG00600	HG00624	HG00633	HG00676	HG00730	HG01090	HG01123	HG01324

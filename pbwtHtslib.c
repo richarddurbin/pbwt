@@ -290,14 +290,12 @@ PBWT *pbwtReadVcfPL (char *filename)  /* read PLs from vcf/bcf using htslib */
   PBWT *p ;
   int i, j, k = 0 ;
 
-  printf("in pbwtReadVcfPL\n");
-  
   bcf_srs_t *sr = bcf_sr_init() ;
   if (!bcf_sr_add_reader (sr, filename)) die ("failed to open good vcf file\n") ;
 
   bcf_hdr_t *hr = sr->readers[0].header ;
   p = pbwtCreate (bcf_hdr_nsamples(hr)*2, 0) ; /* assume diploid! */
-  // readVcfSamples (p, hr) ;
+  readVcfSamples (p, hr) ;
 
   int mpl_arr = 0, *pl_arr = NULL;
   while (bcf_sr_next_line (sr)) 
@@ -391,7 +389,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
       bcf_hdr_append(bcfHeader, "##INFO=<ID=RefPanelAF,Number=A,Type=Float,Description=\"Allele frequency in imputation reference panel\">") ;
       bcf_hdr_append(bcfHeader, "##INFO=<ID=DR2,Number=A,Type=Float,Description=\"Estimated haploid dosage r^2 from imputation\">") ;
       bcf_hdr_append(bcfHeader, "##INFO=<ID=TYPED,Number=0,Type=Flag,Description=\"Site was genotyped prior to imputation\">") ;
-      bcf_hdr_append(bcfHeader, "##FORMAT=<ID=ADS,Number=.,Type=Float,Description=\"Allele dosage\">") ;
+      bcf_hdr_append(bcfHeader, "##FORMAT=<ID=ADS,Number=.,Type=Float,Description=\"Allele dosage per haplotype\">") ;
       bcf_hdr_append(bcfHeader, "##FORMAT=<ID=DS,Number=1,Type=Float,Description=\"Genotype dosage\">") ;
       bcf_hdr_append(bcfHeader, "##FORMAT=<ID=GP,Number=G,Type=Float,Description=\"Genotype posterior probabilities\">") ;
     }
@@ -400,9 +398,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
   for (i = 0, j = 0 ; i < p->M ; i += samplePloidy (p, i))
     {
       if (p->samples)
-      {
-          bcf_hdr_add_sample(bcfHeader, sampleName(sample (p, i))) ;
-      }
+        bcf_hdr_add_sample(bcfHeader, sampleName(sample (p, i))) ;
       else
         {
           kstring_t sname = {0,0,0} ;

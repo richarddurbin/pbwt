@@ -135,6 +135,7 @@ void pbwtWriteReverse (PBWT *p, FILE *fp)
   p->yz = tz ; p->aFstart = tstart ; p->aFend = tend ;
 }
 
+
 void pbwtWriteAll (PBWT *p, char *root)
 {
   FILE *fp ;
@@ -820,6 +821,7 @@ static BOOL parseHapLine (PBWT **pp, FILE *fp, Array x) /* same as parseGenLine 
   ++p->N ;
   return TRUE ;
 }
+
 
 static BOOL parseHapLegendLine (PBWT **pp, FILE *fp, FILE *lp, Array x) /* same as parseGenLine - slightly simpler */
 {

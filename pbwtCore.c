@@ -686,7 +686,7 @@ PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
   pbwtCursorToAFend (uNew, pNew) ;
   free(xMissing) ;
 
-  // TODO: subset missing and dosage
+  // TODO: subset dosage
 
   fprintf (logFile, "%d sites selected from %d, %d missing sites, pbwt size for %d haplotypes is %ld\n", 
 	   pNew->N, pOld->N, nMissingSites, pNew->M, arrayMax(pNew->yz)) ;
@@ -698,14 +698,14 @@ PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
   else				/* destroy one or the other */
     if (pNew->N == pOld->N)	/* no change - keep pOld as pNew */
       { pbwtDestroy (pNew) ;
-        pNew = pOld ;
+	pNew = pOld ;
       }
     else
       { pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
-        pNew->samples = pOld->samples ; pOld->samples = 0 ;
+	pNew->samples = pOld->samples ; pOld->samples = 0 ;
         pOld->missingOffset = 0 ;
         pOld->zMissing = 0 ;
-        pbwtDestroy (pOld) ;
+	pbwtDestroy (pOld) ;
       }
   pNew->isX = pOld->isX ; pNew->isY = pOld->isY ;
 
@@ -730,8 +730,7 @@ PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld)
 
   pNew->sites = arrayCreate (arrayMax(sites), Site) ;
   while (ip < pOld->N)
-    { 
-      if (ia>=arrayMax(sites)) 
+    { if (ia>=arrayMax(sites)) 
         { array(pNew->sites,pNew->N,Site) = *sp ;
           for (j = 0 ; j < pOld->M ; ++j) x[uOld->a[j]] = uOld->y[j] ;
           pbwtCursorForwardsRead (uOld) ;
@@ -758,11 +757,11 @@ PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld)
           ++ip ; ++sp ; pNew->N++ ;
         }
       else if (sp->x < sa->x) 
-        { array(pNew->sites,pNew->N,Site) = *sp ;
-          for (j = 0 ; j < pOld->M ; ++j) x[uOld->a[j]] = uOld->y[j] ;
-          pbwtCursorForwardsRead (uOld) ;
-          for (j = 0 ; j < pNew->M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
-          pbwtCursorWriteForwards (uNew) ;
+	{ array(pNew->sites,pNew->N,Site) = *sp ;
+	  for (j = 0 ; j < pOld->M ; ++j) x[uOld->a[j]] = uOld->y[j] ;
+	  pbwtCursorForwardsRead (uOld) ;
+	  for (j = 0 ; j < pNew->M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
+	  pbwtCursorWriteForwards (uNew) ;
 
           if (pOld->missingOffset)
             { if (!pNew->missingOffset)
@@ -812,14 +811,14 @@ PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld)
         }
       else if (sp->varD > sa->varD) { ++ia ; ++sa ; }
       else
-        { ++ip ; ++sp ; ++ia ; ++sa ;
-          pbwtCursorForwardsRead (uOld) ;
-        }
+	{ ++ip ; ++sp ; ++ia ; ++sa ;
+	  pbwtCursorForwardsRead (uOld) ;
+	}
     }
   pbwtCursorToAFend (uNew, pNew) ;
 
   fprintf (logFile, "%d sites selected from %d, %d missing sites, pbwt size for %d haplotypes is %ld\n", 
-           pNew->N, pOld->N, nMissingSites, pNew->M, arrayMax(pNew->yz)) ;
+	   pNew->N, pOld->N, nMissingSites, pNew->M, arrayMax(pNew->yz)) ;
 
   if (isKeepOld)
     { if (pOld->samples) pNew->samples = arrayCopy (pOld->samples) ;
@@ -828,12 +827,12 @@ PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld)
   else				/* destroy one or the other */
     if (pNew->N == pOld->N)	/* no change - keep pOld as pNew */
       { pbwtDestroy (pNew) ;
-        pNew = pOld ;
+	pNew = pOld ;
       }
     else
       { pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
-        pNew->samples = pOld->samples ; pOld->samples = 0 ;
-        pbwtDestroy (pOld) ;
+	pNew->samples = pOld->samples ; pOld->samples = 0 ;
+	pbwtDestroy (pOld) ;
       }
   pNew->isX = pOld->isX ; pNew->isY = pOld->isY ;
 
