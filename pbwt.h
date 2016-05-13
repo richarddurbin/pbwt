@@ -62,7 +62,7 @@ typedef struct SiteStruct {
   double freq ;			/* frequency */
   double refFreq ;		/* frequency from reference used for last phasing or imputation */
   double imputeInfo ;		/* estimated r^2 from imputation */
-  BOOL typed ;   /* TRUE if site was typed before imputation */
+  BOOL isImputed ;   /* TRUE if site was imputed */
 } Site ;
 
 typedef struct SampleStruct {

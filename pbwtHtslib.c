@@ -571,7 +571,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
 
       bcf_update_info_int32(bcfHeader, bcfRecord, "AC", &ac[1], 1) ;
       bcf_update_info_int32(bcfHeader, bcfRecord, "AN", &an, 1) ;
-      if (s->typed) bcf_update_info_flag(bcfHeader, bcfRecord, "TYPED", NULL, 1) ;
+      if (!s->isImputed) bcf_update_info_flag(bcfHeader, bcfRecord, "TYPED", NULL, 1) ;
 
       //write and progress
       bcf_write(fp, bcfHeader, bcfRecord) ;
