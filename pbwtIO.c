@@ -83,13 +83,13 @@ void pbwtWriteSamples (PBWT *p, FILE *fp)
   int i, count = 0 ;
   for (i = 0 ; i < p->M ; i++)
     { if (i > 0 && (arr(p->samples, i, int) == arr(p->samples, i-1, int))) continue ; // skip duplicate ids
-      Sample *s = sample (p, i) ;
+      Sample *s = sample (arr(p->samples, i, int)) ;
       fprintf (fp, "%s", sampleName(s)) ;
       if (s->isMale) fprintf (fp, "\tsex:Z:M") ;
       if (s->isFemale) fprintf (fp, "\tsex:Z:F") ;
       if (s->popD) fprintf (fp, "\tpopulation:Z:%s", popName(s)) ;
-      if (s->mother) fprintf (fp, "\tmother:Z:%s", sampleName(sample (p, s->mother))) ;
-      if (s->father) fprintf (fp, "\tfather:Z:%s", sampleName(sample (p, s->father))) ;
+      if (s->mother) fprintf (fp, "\tmother:Z:%s", sampleName(sample (s->mother))) ;
+      if (s->father) fprintf (fp, "\tfather:Z:%s", sampleName(sample (s->father))) ;
       if (s->family) fprintf (fp, "\tfamily:Z:%s", familyName(s)) ;
       fputc ('\n', fp) ;
       count++ ;
@@ -314,37 +314,37 @@ void pbwtReadRefFreq (PBWT *p, FILE *fp)
     }
 }
 
-Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
-/* should add code to this to read father and mother and population
-   propose to use IMPUTE2 format for this */
-{
-  char *name, c ;
-  int line = 0 ;
-  Array nameArray = arrayCreate (1024, char) ;
-  Array samples = arrayCreate (1024, int) ;
+// Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
+// /* should add code to this to read father and mother and population
+//    propose to use IMPUTE2 format for this */
+// {
+//   char *name, c ;
+//   int line = 0 ;
+//   Array nameArray = arrayCreate (1024, char) ;
+//   Array samples = arrayCreate (1024, int) ;
 
-  while (!feof(fp))
-    { int n = 0 ;
-      while ((c = getc(fp)) && !isspace(c) && !feof (fp)) array(nameArray, n++, char) = c ;
-      if (feof(fp)) break ;
-      if (!n) die ("no name line %ld in samples file", arrayMax(samples)+1) ;
-      array(nameArray, n++, char) = 0 ;
-      /* next bit of code deals with header lines for IMPUTE2 samples file, so can read that */
-      if (!strcmp (arrp(nameArray,0,char), "ID_1") && !arrayMax(samples))
-	{ while ((c = getc(fp)) && c != '\n' && !feof(fp)) ; /* remove header line */
-	  while ((c = getc(fp)) && c != '\n' && !feof(fp)) ; /* and next line of zeroes?? */
-	  continue ;
-	}
-      array(samples,arrayMax(samples),int) = sampleAdd (arrp(nameArray,0,char), 0, 0, 0, 0, 0) ;
-      /* now remove the rest of the line, for now */
-      while (c != '\n' && !feof(fp)) c = getc(fp) ;
-    }
-  arrayDestroy (nameArray) ;
+//   while (!feof(fp))
+//     { int n = 0 ;
+//       while ((c = getc(fp)) && !isspace(c) && !feof (fp)) array(nameArray, n++, char) = c ;
+//       if (feof(fp)) break ;
+//       if (!n) die ("no name line %ld in samples file", arrayMax(samples)+1) ;
+//       array(nameArray, n++, char) = 0 ;
+//      /* next bit of code deals with header lines for IMPUTE2 samples file, so can read that */
+//       if (!strcmp (arrp(nameArray,0,char), "ID_1") && !arrayMax(samples))
+// 	{ while ((c = getc(fp)) && c != '\n' && !feof(fp)) ; /* remove header line */
+// 	  while ((c = getc(fp)) && c != '\n' && !feof(fp)) ; /* and next line of zeroes?? */
+// 	  continue ;
+// 	}
+//       array(samples,arrayMax(samples),int) = sampleAdd(arrp(nameArray,0,char), 0, 0, 0, 0, 0)->nameD ;
+//       /* now remove the rest of the line, for now */
+//       while (c != '\n' && !feof(fp)) c = getc(fp) ;
+//     }
+//   arrayDestroy (nameArray) ;
 
-  fprintf (logFile, "read %ld sample names\n", arrayMax(samples)) ;
+//   fprintf (logFile, "read %ld sample names\n", arrayMax(samples)) ;
 
-  return samples ;
-}
+//   return samples ;
+// }
 
   /*
      FMF format - tab delimited flat metadata format where first column is the 
@@ -382,7 +382,7 @@ Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
      5-. ignored
   */
 
-Array pbwtReadSamplesFile2 (FILE *fp) {
+Array pbwtReadSamplesFile (FILE *fp) {
   // populate sample fields from FMF sample file
   char *line = calloc(1024, sizeof(char)); line[0] = '\0';
   char *key = calloc(128, sizeof(char)); key[0] = '\0';
@@ -405,7 +405,7 @@ Array pbwtReadSamplesFile2 (FILE *fp) {
       die("IMPUTE2 style sample files not yet supported - coming soon");
     }
     else { // FMF file (single column valid)
-      str = strtok(line, "\t"); // test it works with single column
+      str = strtok(line, "\t\n"); // test it works with single column
       strcpy(name, str);
       father[0] = '\0'; mother[0] = '\0'; family[0] = '\0', pop[0] = '\0'; sex[0] = '\0';
       while(str = strtok(0, "\t\n")) {
@@ -429,7 +429,7 @@ Array pbwtReadSamplesFile2 (FILE *fp) {
         else die("Error parsing FMF field");
       }
     }
-    array(samples,arrayMax(samples),int) = sampleAdd(name, father[0] == '\0' ? NULL : father, mother[0] == '\0' ? NULL : mother, family[0] == '\0' ? NULL : family, pop[0] == '\0' ? NULL : pop, sex[0] == '\0' ? NULL : sex);
+    array(samples,arrayMax(samples),int) = sampleAdd(name, father[0] == '\0' ? NULL : father, mother[0] == '\0' ? NULL : mother, family[0] == '\0' ? NULL : family, pop[0] == '\0' ? NULL : pop, sex[0] == '\0' ? NULL : sex) ;
   }
 
   free(line); free(key); free(value); free(name);
@@ -444,7 +444,7 @@ void pbwtReadSamples (PBWT *p, FILE *fp)
 {
   if (!p) die ("pbwtReadSamples called without a valid pbwt") ;
 
-  Array samples = pbwtReadSamplesFile2 (fp) ;
+  Array samples = pbwtReadSamplesFile (fp) ;
   int i, count ; 
   p->samples = arrayReCreate(p->samples, p->M, int) ;
   if (isX) p->isX = TRUE ;
@@ -460,9 +460,10 @@ void pbwtReadSamples (PBWT *p, FILE *fp)
     }
   for (i = 0, count = 0 ; i < arrayMax(samples) ; i++)
     {
-      if (p->isY && sampleIsFemale(arr(samples, i, int))) continue ;
+      Sample *s = sample (i) ;
+      if (p->isY && s->isFemale) continue ;
       array(p->samples, count++, int) = arr(samples, i, int) ;
-      if (p->isX && sampleIsMale(arr(samples, i, int))) continue ;
+      if (p->isX && s->isMale) continue ;
       array(p->samples, count++, int) = arr(samples, i, int) ;
     }
   if (count != p->M) die ("number of haplotypes (%d) not consistent with samples/ploidy read (%d)", p->M, count) ;

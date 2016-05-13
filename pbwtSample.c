@@ -55,41 +55,26 @@ int sampleAdd (char *name, char *father, char *mother, char *family, char *pop, 
   return k ;
 }
 
-Sample *sample (PBWT *p, int i) 
+Sample *sample (int i) 
 {
-  i = arr(p->samples, i, int) ; 
   if (i >= arrayMax(samples))
     die ("sample index %d out of range %ld", i, arrayMax(samples)) ;
   return arrp(samples,i,Sample) ;
 }
 
-Sample *getSample (int i) {
-  if (i >= arrayMax(samples))
-    die ("sample index %d out of range %ld", i, arrayMax(samples)) ;
-  return arrp(samples,i,Sample) ;
-}
-
-BOOL isMale(Sample *s) { return s->isMale; }
-
-BOOL sampleIsMale(int i) { return isMale(arrp(samples,i,Sample)); }
-
-BOOL isFemale(Sample *s) { return s->isFemale; }
-
-BOOL sampleIsFemale(int i) { return isFemale(arrp(samples,i,Sample)); }
-
-int samplePloidy(PBWT *p, int i)
+int pbwtSamplePloidy(PBWT *p, int i)
 {
     if (!p->samples) return 2 ;
-    Sample *s = sample(p, i) ;
+    Sample *s = sample (arr(p->samples, i, int)) ;
     if (p->isX) return s->isMale ? 1 : 2 ;
     else if (p->isY) return s->isMale ? 1 : 0 ;
     else return 2 ;
 }
 
 char* sampleName (Sample *s) { return dictName (sampleDict, s->nameD) ; }
-
+Sample *mother (Sample *s) { return arrp(samples,s->mother,Sample) ; }
+Sample *father (Sample *s) { return arrp(samples,s->father,Sample) ; }
 char* popName (Sample *s) { return dictName (populationDict, s->popD) ; }
-
 char* familyName (Sample *s) { return dictName (familyDict, s->family) ; }
 
 PBWT *pbwtSubSample (PBWT *pOld, Array select)
@@ -187,12 +172,14 @@ PBWT *pbwtRemoveSamples (PBWT *pOld, FILE *fp)
 
   Array select = arrayCreate (pOld->M, int) ;
   HASH rmHash = hashCreate (arrayMax(rmSamples)) ;
-  for (i = 0 ; i < arrayMax(rmSamples) ; ++i)
+  for (i = 0 ; i < arrayMax(rmSamples) ; ++i) {
     hashAdd(rmHash,HASH_INT(arr(rmSamples,i,int))) ;
+  }
 
-  for (i = 0 ; i < pOld->M ; ++i)
+  for (i = 0 ; i < pOld->M ; ++i) {
     if (!hashFind(rmHash,HASH_INT(arr(pOld->samples,i,int))))
       array(select,arrayMax(select),int) = i ;
+  }
 
   hashDestroy(rmHash) ;
 

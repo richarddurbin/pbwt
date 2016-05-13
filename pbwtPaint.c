@@ -160,7 +160,7 @@ void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion)
       fputc ('\n', fc3) ;
       if (isCheck && (i%2) && p->samples) 
 	fprintf (logFile, "%s %8.4g %8.4g\n", 
-		 sampleName (sample(p,i-1)), totCounts[i-1], totCounts[i]) ;
+		 sampleName (pbwtSample(p,i-1)), totCounts[i-1], totCounts[i]) ;
     }
   fclose (fc) ; fclose (fl) ; fclose (fc2) ;fclose (fc3) ;
   timeUpdate(logFile);

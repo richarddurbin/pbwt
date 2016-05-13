@@ -28,7 +28,7 @@ static void readVcfSamples (PBWT *p, bcf_hdr_t *hr)
 
   p->samples = arrayCreate (p->M, int) ;
   for (i = 0 ; i < p->M/2 ; ++i)
-    { int k = sampleAdd (hr->samples[i],0,0,0,0,0) ;
+    { k = sampleAdd (hr->samples[i],0,0,0,0,0) ;
       array(p->samples, 2*i, int) = k ; /* assume diploid - could be cleverer */
       array(p->samples, 2*i+1, int) = k ;
     }
@@ -71,7 +71,7 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
   for (i = 0, nHaplotypes = 0, nSamplesKeep = 0 ; i < nSamples ; ++i)
     {
       int k = array(samples,i,int) = sampleAdd (hr->samples[i],0,0,0,0,0) ;
-      Sample *s = getSample(k) ;
+      Sample *s = sample (k) ; 
       array(ploidy, i, int) = 0 ;
       if (isY && s->isFemale) continue ;
       array(ploidy, i, int)++ ;
@@ -92,9 +92,9 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
     {
       int iploidy = arr(ploidy, i, int) ;
       if (!iploidy) continue ; // sample ploidy 0, do not store in PBWT
-      array(p->samples, j++, int) = arr(samples, i, int) ;
+      array(p->samples, j++, int) = arr(samples,i,int) ;
       if (iploidy==1) continue ;
-      array(p->samples, j++, int) = arr(samples, i, int) ;
+      array(p->samples, j++, int) = arr(samples,i,int) ;
     }
   arrayDestroy (samples) ;
 
@@ -395,10 +395,10 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
     }
   
   int i, j, k ;
-  for (i = 0, j = 0 ; i < p->M ; i += samplePloidy (p, i))
+  for (i = 0, j = 0 ; i < p->M ; i += pbwtSamplePloidy (p, i))
     {
       if (p->samples)
-        bcf_hdr_add_sample(bcfHeader, sampleName(sample (p, i))) ;
+        bcf_hdr_add_sample(bcfHeader, sampleName(pbwtSample (p, i))) ;
       else
         {
           kstring_t sname = {0,0,0} ;
@@ -491,7 +491,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
         {
           for (j = 0, k = 0 ; j < p->M ; k+=2)
             {
-              int ploidy = samplePloidy (p, j) ;
+              int ploidy = pbwtSamplePloidy (p, j) ;
               if (isDosage)
                 {
                   ds[k/2] = ploidy==1 ? ad[j] : ad[j] + ad[j+1] ;
@@ -544,7 +544,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
           {
             for (j = 0, k = 0 ; j < p->M ; k+=2)
               {
-                int ploidy = samplePloidy (p, j) ;
+                int ploidy = pbwtSamplePloidy (p, j) ;
                 fls[k] = (float)(ad[j++]) ;
                 if (ploidy==1)
                   bcf_float_set_vector_end(fls[k+1]) ;

@@ -50,8 +50,8 @@ typedef struct PBWTstruct {
   Array dosageOffset ;		/* of long, site index into zDosage, 0 if no dosage data */
   BOOL  isRefFreq ;		/* some flags for the whole VCF */
   BOOL  isUnphased ;
-  BOOL isX;			/* set when reading in samples */
-  BOOL isY;			/* set when reading in samples */
+  BOOL isX;			/* chromosome is nonPAR region of chrX, treat male samples as haploid, female samples as diploid */
+  BOOL isY;			/* chromosome is chrY, treat male samples as haploid and ignore female samples */
 } PBWT ;
 
 /* philosophy is to be lazy about PBWT - only fill items for which we have info */
@@ -62,7 +62,7 @@ typedef struct SiteStruct {
   double freq ;			/* frequency */
   double refFreq ;		/* frequency from reference used for last phasing or imputation */
   double imputeInfo ;		/* estimated r^2 from imputation */
-  BOOL isImputed ;   /* TRUE if site was imputed */
+  BOOL isImputed ;		/* TRUE if site was imputed */
 } Site ;
 
 typedef struct SampleStruct {
@@ -158,9 +158,10 @@ int extendPackedBackwards (uchar *yzp, int M, int *f, int c, uchar *zp) ; /* mov
 
 void sampleInit (void) ;
 void sampleDestroy (void) ;
-Sample *sample (PBWT *p, int i) ; /* give back Sample structure for sample i from p */
-Sample *getSample (int i) ; /* give back Sample structure for sample i */
 int sampleAdd (char *name, char *father, char *mother, char *family, char *pop, char *sex) ;
+Sample *sample (int i) ; /* give back Sample structure for sample i, where i is an index into sampleDict */
+#define pbwtSample(p,i) sample(arr(p->samples,i,int))  /* give back Sample structure for sample i, where i the index into p->samples array */
+int pbwtSamplePloidy(PBWT *p, int i) ;
 char* sampleName (Sample *s) ;
 char* popName (Sample *s) ;	/* give back population name for sample i */
 char* familyName (Sample *s) ;	/* give back family name for sample i */
@@ -168,9 +169,6 @@ PBWT *pbwtSubSample (PBWT *pOld, Array select) ;
 PBWT *pbwtSubSampleInterval (PBWT *pOld, int start, int Mnew) ;
 PBWT *pbwtSelectSamples (PBWT *pOld, FILE *fp) ;
 PBWT *pbwtRemoveSamples (PBWT *pOld, FILE *fp) ;
-BOOL sampleIsMale(int i); /* is sample i male? */
-BOOL sampleIsFemale(int i); /* is sample i female? */
-int samplePloidy(PBWT *p, int i) ;
 
 /* pbwtIO.c */
 

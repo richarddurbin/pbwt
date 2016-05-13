@@ -311,7 +311,7 @@ int main (int argc, char *argv[])
     else if (!strcmp (argv[0], "-readSamples") && argc > 1)
       { FOPEN("readSamples","r") ; pbwtReadSamples (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-loadSamples") && argc > 1)
-      { FOPEN("loadSamples","r") ; pbwtReadSamplesFile2 (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+      { FOPEN("loadSamples","r") ; pbwtReadSamplesFile (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readMissing") && argc > 1)
       { FOPEN("readMissing","r") ; pbwtReadMissing (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readDosage") && argc > 1)

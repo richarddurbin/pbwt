@@ -224,7 +224,7 @@ static void phaseCompare (PBWT *p, PBWT *q)
     { for (i = 0 ; i < M/2 ; ++i)
 	{ printf ("SAMPLE-SWITCH\t%d\t%d", i, nSwitchSample[i]) ;
 	  if (p->samples)
-	    printf ("\t%s", sampleName(sample (p, 2*i))) ;
+	    printf ("\t%s", sampleName(pbwtSample (p, 2*i))) ;
 	  putchar ('\n') ;
 	}
       for (k = 0 ; k < N ; ++k)	
