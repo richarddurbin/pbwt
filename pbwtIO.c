@@ -447,17 +447,20 @@ void pbwtReadSamples (PBWT *p, FILE *fp)
   Array samples = pbwtReadSamplesFile (fp) ;
   int i, count ; 
   p->samples = arrayReCreate(p->samples, p->M, int) ;
-  if (isX) p->isX = TRUE ;
-  if (isY) p->isY = TRUE ;
-  if (arrayMax(samples) != p->M/2)
+  
+  if (arrayMax(samples) == p->M) // all haploid samples
     {
-      if (arrayMax(samples) == p->M) // all haploid samples
-        if (!isY) die ("number of haplotypes (%d) equal to number of samples read (%d). use -Y to treat all samples as haploid", p->M, arrayMax(samples)) ;
-        else p->isY = TRUE ;
-      else // haploid and diploid
-        if (!isX) die ("number of haplotypes (%d) less than twice the number of samples (2x%d), use -X to treat samples as mixture of haploid/diploid based on sex", p->M, arrayMax(samples)) ;
-        else p->isX = TRUE ;
+      fprintf (logFile, "number of samples (%ld) equal to number of haplotypes (%d): treating all samples as male haploid (chrY)\n", arrayMax(samples), p->M) ;
+      p->isY = TRUE ;
     }
+  else if (arrayMax(samples) > p->M/2 && arrayMax(samples) < p->M) // haploid and diploid
+    {
+      fprintf (logFile, "number of samples (%ld) less than number of haplotypes (%d), but more than half the number of haplotypes: treating as a mixture of male haploid and female diploid (chrX)\n", arrayMax(samples), p->M) ;
+      p->isX = TRUE ;
+    }
+  else if (arrayMax(samples) != p->M/2)
+      die ("number of samples (%ld) and number of haplotypes (%d) not consistent with samples being haploid and/or diploid", arrayMax(samples), p->M) ;
+  
   for (i = 0, count = 0 ; i < arrayMax(samples) ; i++)
     {
       Sample *s = sample (i) ;

@@ -185,6 +185,7 @@ int main (int argc, char *argv[])
   PBWT *p = 0 ;
   Array test ;
   char *referenceFasta = NULL;
+  int isXY = 0 ;
 
   logFile = stderr ;
 
@@ -284,9 +285,9 @@ int main (int argc, char *argv[])
     else if (!strcmp (argv[0], "-stats"))
       { isStats = TRUE ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-X"))
-      { isX = TRUE ; argc -= 1 ; argv += 1 ; }
+      { isXY = 2 ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-Y"))
-      { isY = TRUE ; argc -= 1 ; argv += 1 ; }
+      { isXY = 1 ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-merge") && argc > 1)
     { 
         int i, nfiles = 0;
@@ -321,7 +322,7 @@ int main (int argc, char *argv[])
     else if (!strcmp (argv[0], "-readAll") && argc > 1)
       { p = pbwtReadAll (argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readVcfGT") && argc > 1)
-      { if (p) pbwtDestroy (p) ; p = pbwtReadVcfGT (argv[1]) ; argc -= 2 ; argv += 2 ; }
+      { if (p) pbwtDestroy (p) ; p = pbwtReadVcfGT (argv[1], isXY) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readVcfPL") && argc > 1)
       { if (p) pbwtDestroy (p) ; p = pbwtReadVcfPL (argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readMacs") && argc > 1)

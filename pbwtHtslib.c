@@ -49,7 +49,8 @@ static int variation (const char *ref, const char *alt)
   return var ;
 }
 
-PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
+
+PBWT *pbwtReadVcfGT (char *filename, int isXY)  /* read GTs from vcf/bcf using htslib */
 {
   int i, j, nHaplotypes, nSamplesKeep ;
   PBWT *p ;
@@ -73,19 +74,19 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
       int k = array(samples,i,int) = sampleAdd (hr->samples[i],0,0,0,0,0) ;
       Sample *s = sample (k) ; 
       array(ploidy, i, int) = 0 ;
-      if (isY && s->isFemale) continue ;
+      if (isXY==1 && s->isFemale) continue ;
       array(ploidy, i, int)++ ;
       nSamplesKeep++ ;
       nHaplotypes++ ;
-      if (isY || (isX && s->isMale)) continue ;
+      if (isXY==1 || (isXY==2 && s->isMale)) continue ;
       nHaplotypes++ ;
       array(ploidy, i, int)++ ;
     }
   // create the PBWT
   p = pbwtCreate(nHaplotypes, 0) ;
   p->samples = arrayReCreate(p->samples, p->M, int) ;
-  if (isX) {p->isX = TRUE ; fprintf(stderr, "isX\n"); }
-  if (isY) {p->isY = TRUE ; fprintf(stderr, "isY\n"); }
+  if (isXY==2) p->isX = TRUE ;
+  if (isXY==1) p->isY = TRUE ;
 
   // fill in the p->samples array
   for (i = 0, j = 0 ; i < nSamples ; ++i)
