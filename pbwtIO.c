@@ -80,17 +80,30 @@ void pbwtWriteSamples (PBWT *p, FILE *fp)
 {
   if (!p || !p->samples) die ("pbwtWriteSamples called without samples") ;
 
-  int i, count = 0 ;
+  static const char *typeStr = "\0ifZ" ;
+  int i, j, count = 0 ;
   for (i = 0 ; i < p->M ; i++)
     { if (i > 0 && (arr(p->samples, i, int) == arr(p->samples, i-1, int))) continue ; // skip duplicate ids
       Sample *s = sample (arr(p->samples, i, int)) ;
-      fprintf (fp, "%s", sampleName(s)) ;
-      if (s->isMale) fprintf (fp, "\tsex:Z:M") ;
-      if (s->isFemale) fprintf (fp, "\tsex:Z:F") ;
-      if (s->popD) fprintf (fp, "\tpopulation:Z:%s", popName(s)) ;
-      if (s->mother) fprintf (fp, "\tmother:Z:%s", sampleName(sample (s->mother))) ;
-      if (s->father) fprintf (fp, "\tfather:Z:%s", sampleName(sample (s->father))) ;
-      if (s->family) fprintf (fp, "\tfamily:Z:%s", familyName(s)) ;
+      fputs (sampleName(s), fp) ;
+      if (s->metaData) 
+        {
+          for (j = 0 ; j < arrayMax(s->metaData) ; j++)
+            {
+              MetaData *m = sampleMetaData (arr(s->metaData, j, int)) ;
+              fputc ('\t', fp) ;
+              fputs (metaDataKey (m), fp) ;
+              if (m->type != FMF_FLAG)
+                {
+                  fputc (':', fp) ;
+                  fputc (typeStr[m->type], fp) ;
+                  fputc (':', fp) ;
+                  if (m->type == FMF_INT) fprintf (fp, "%lld", (long long)m->value.i) ;
+                  else if (m->type == FMF_REAL) fprintf (fp, "%g", m->value.r) ;
+                  else fputs (metaDataValue (m), fp);
+                }
+            }
+        }
       fputc ('\n', fp) ;
       count++ ;
     }     
@@ -382,17 +395,47 @@ void pbwtReadRefFreq (PBWT *p, FILE *fp)
      5-. ignored
   */
 
+// Array pbwtReadSamplesFile (FILE *fp) {
+//   // populate sample fields from FMF sample file
+//   char *line = calloc(1024, sizeof(char)); line[0] = '\0';
+//   char *key = calloc(128, sizeof(char)); key[0] = '\0';
+//   char *value = calloc(128, sizeof(char)); value[0] = '\0';
+//   char *name = calloc(128, sizeof(char)); name[0] = '\0';
+//   char *str;
+//   char type;
+
+//   Array samples = arrayCreate (1024, int) ;
+
+//   while (1) {
+//     line = fgets(line, 1024, fp);
+//     if(feof(fp)) break;
+//     else if(sscanf(line, "ID_1%s", name)) { // IMPUTE2 file
+//       die("IMPUTE2 style sample files not yet supported - coming soon");
+//     }
+//     else { // FMF file (single column valid)
+//       str = strtok(line, "\t\n"); // test it works with single column
+//       strcpy(name, str);
+//       int k = array(samples,arrayMax(samples),int) = sampleAdd(name) ;
+//       while(str = strtok(0, "\t\n"))
+//       {
+//         if(sscanf(str, "%127[^:]:%1[^:]:%127[^:]", key, &type, value) == 3)
+//         {
+//             addMetaData(k, key, value, type) ;
+//         }
+//       }
+//     }
+//   }
+//   free(line); free(key); free(value); free(name);
+//   fprintf (logFile, "read %ld sample names\n", arrayMax(samples)) ;
+//   return samples ;
+// }
+     
 Array pbwtReadSamplesFile (FILE *fp) {
   // populate sample fields from FMF sample file
   char *line = calloc(1024, sizeof(char)); line[0] = '\0';
   char *key = calloc(128, sizeof(char)); key[0] = '\0';
   char *value = calloc(128, sizeof(char)); value[0] = '\0';
   char *name = calloc(128, sizeof(char)); name[0] = '\0';
-  char *mother = calloc(128, sizeof(char)); mother[0] = '\0';
-  char *father = calloc(128, sizeof(char)); father[0] = '\0';
-  char *family = calloc(128, sizeof(char)); family[0] = '\0';
-  char *pop = calloc(128, sizeof(char)); pop[0] = '\0';
-  char *sex = calloc(128, sizeof(char)); sex[0] = '\0';
   char *str;
   char type;
 
@@ -407,36 +450,18 @@ Array pbwtReadSamplesFile (FILE *fp) {
     else { // FMF file (single column valid)
       str = strtok(line, "\t\n"); // test it works with single column
       strcpy(name, str);
-      father[0] = '\0'; mother[0] = '\0'; family[0] = '\0', pop[0] = '\0'; sex[0] = '\0';
-      while(str = strtok(0, "\t\n")) {
-        if(sscanf(str, "%127[^:]:%1[^:]:%127[^:]", key, &type, value) == 3) {
-          switch(type) {
-            case 'i' :
-              break;
-            case 'f' :
-              break;
-            case 'Z' :
-              if(!strcmp(key, "mother")) strcpy(mother, value);
-              if(!strcmp(key, "father")) strcpy(father, value);
-              if(!strcmp(key, "family")||!strcmp(key, "familyID")) strcpy(family, value);
-              if(!strcmp(key, "pop")||!strcmp(key, "population")) strcpy(pop, value);
-              if(!strcmp(key, "gender")||!strcmp(key, "sex")) strcpy(sex, value);
-              break;
-            default :
-              die("Unknown type specifier (%c) in FMF field () - support only i,Z,f", type);
-          }
+      int k = array(samples,arrayMax(samples),int) = sampleAdd(name) ;
+      while(str = strtok(0, "\t\n"))
+      {
+        if(sscanf(str, "%127[^:]:%1[^:]:%127[^:]", key, &type, value) == 3)
+        {
+            addMetaData(k, key, value, type) ;
         }
-        else die("Error parsing FMF field");
       }
     }
-    array(samples,arrayMax(samples),int) = sampleAdd(name, father[0] == '\0' ? NULL : father, mother[0] == '\0' ? NULL : mother, family[0] == '\0' ? NULL : family, pop[0] == '\0' ? NULL : pop, sex[0] == '\0' ? NULL : sex) ;
   }
-
   free(line); free(key); free(value); free(name);
-  free(mother); free(father); free(pop); free(sex);
-
   fprintf (logFile, "read %ld sample names\n", arrayMax(samples)) ;
-
   return samples ;
 }
 

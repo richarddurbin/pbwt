@@ -21,6 +21,7 @@
  *-------------------------------------------------------------------
  */
 
+#include <stdint.h>
 #include "utils.h"
 
 const static int pbwtMajorVersion = 3, pbwtMinorVersion = 0 ;
@@ -65,6 +66,20 @@ typedef struct SiteStruct {
   BOOL isImputed ;		/* TRUE if site was imputed */
 } Site ;
 
+#define FMF_FLAG  0
+#define FMF_INT   1
+#define FMF_REAL  2
+#define FMF_STR   3
+
+typedef struct {
+  uint32_t key:28, type:4;
+  union {
+    int32_t i; // FMF_INT int value
+    float r; // FMF_REAL float value 
+    uint32_t s; // FMF_STR index into valueDict
+  } value;
+} MetaData ;
+
 typedef struct SampleStruct {
   int nameD ;			/* index in sampleDict */
   int father ;			/* index in sampleDict */
@@ -73,6 +88,7 @@ typedef struct SampleStruct {
   int popD ;			/* index in populationDict */
   BOOL isMale ;			/* treat X chromosome as haploid, Y chromosome as haploid */
   BOOL isFemale ;		/* treat X chromosome as diploid and ignore for Y */
+  Array metaData ;			// sample metadata
 } Sample ;
 
 typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
@@ -156,7 +172,7 @@ int extendPackedBackwards (uchar *yzp, int M, int *f, int c, uchar *zp) ; /* mov
 
 void sampleInit (void) ;
 void sampleDestroy (void) ;
-int sampleAdd (char *name, char *father, char *mother, char *family, char *pop, char *sex) ;
+int sampleAdd (char *name) ;
 Sample *sample (int i) ; /* give back Sample structure for sample i, where i is an index into sampleDict */
 #define pbwtSample(p,i) sample(arr(p->samples,i,int))  /* give back Sample structure for sample i, where i the index into p->samples array */
 int pbwtSamplePloidy(PBWT *p, int i) ;
@@ -167,6 +183,11 @@ PBWT *pbwtSubSample (PBWT *pOld, Array select) ;
 PBWT *pbwtSubSampleInterval (PBWT *pOld, int start, int Mnew) ;
 PBWT *pbwtSelectSamples (PBWT *pOld, FILE *fp) ;
 PBWT *pbwtRemoveSamples (PBWT *pOld, FILE *fp) ;
+
+int addMetaData (int sampleID, char *key, char *value, char type) ;
+MetaData *sampleMetaData (int i) ;
+char *metaDataKey (MetaData *m) ;
+char *metaDataValue (MetaData *m) ;
 
 /* pbwtIO.c */
 
@@ -205,7 +226,7 @@ void pbwtCheckPoint (PbwtCursor *u, PBWT *p) ; /* need cursor to write end index
 
 /* pbwtHtslib.c */
 /* all these functions also read and write samples and sites */
-PBWT *pbwtReadVcfGT (char *filename, int isXY) ;	/* read GTs from vcf/bcf using htslib */
+PBWT *pbwtReadVcfGT (char *filename, int isXY) ;	/* read GTs from vcf/bcf using htslib; isX: isXY == 2; isY: isXY == 1 */
 PBWT *pbwtReadVcfPL (char *filename) ;	/* read PLs from vcf/bcf using htslib */
 // mode: wb=compressed BCF; wbu=uncompressed BCF; wz=compressed VCF; w=uncompressed VCF
 void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode) ;  /* write vcf/bcf using htslib */

@@ -16,9 +16,12 @@
 /* globals */
 
 static DICT *sampleDict ;
-static DICT *populationDict ;
 static DICT *familyDict ;
+static DICT *populationDict ;
+static DICT *keyDict ;
+static DICT *valueDict ;
 static Array samples ;
+static Array metaData ;
 
 /* functions */
 
@@ -27,8 +30,12 @@ void sampleInit (void)
   sampleDict = dictCreate (4096) ;
   populationDict = dictCreate (64) ;
   familyDict = dictCreate (4096) ;
+  keyDict = dictCreate (4096) ;
+  valueDict = dictCreate (4096) ;
   samples = arrayCreate (4096, Sample) ;
   array(samples,0,Sample).nameD = 0 ; /* so that all read samples are non-zero */
+  metaData = arrayCreate (4096, MetaData) ;
+  array(metaData,0,MetaData).key = 0 ; /* so that all read metadata are non-zero */
 }
 
 void sampleDestroy (void)
@@ -36,22 +43,16 @@ void sampleDestroy (void)
   if (sampleDict) dictDestroy(sampleDict);
   if (populationDict) dictDestroy(populationDict);
   if (familyDict) dictDestroy(familyDict);
+  if (keyDict) dictDestroy(keyDict);
+  if (valueDict) dictDestroy(valueDict);
   if (samples) arrayDestroy(samples);
+  if (metaData) arrayDestroy(metaData);
 }
 
-int sampleAdd (char *name, char *father, char *mother, char *family, char *pop, char *sex)
+int sampleAdd (char *name)
 { // populate global array
-  int k=0, l=0;
+  int k = 0 ;
   if(dictAdd(sampleDict, name, &k)) arrayp(samples, k, Sample)->nameD = k ;
-  if(father) { dictAdd(sampleDict, father, &l); arrayp(samples, k, Sample)->father = l; }
-  if(mother) { dictAdd(sampleDict, mother, &l); arrayp(samples, k, Sample)->mother = l; }
-  if(family) { dictAdd(familyDict, family, &l); arrayp(samples, k, Sample)->family = l; }
-  if(pop) { dictAdd(populationDict, pop, &l); arrayp(samples, k, Sample)->popD = l; }
-  if(sex) {
-    if(!strcasecmp(sex, "M")||!strcasecmp(sex, "male")) arrayp(samples, k, Sample)->isMale = TRUE;
-    if(!strcasecmp(sex, "F")||!strcasecmp(sex, "female")) arrayp(samples, k, Sample)->isFemale = TRUE;
-  }
-
   return k ;
 }
 
@@ -76,6 +77,49 @@ Sample *mother (Sample *s) { return arrp(samples,s->mother,Sample) ; }
 Sample *father (Sample *s) { return arrp(samples,s->father,Sample) ; }
 char* popName (Sample *s) { return dictName (populationDict, s->popD) ; }
 char* familyName (Sample *s) { return dictName (familyDict, s->family) ; }
+
+int addMetaData (int sampleID, char *key, char *value, char type)
+{
+  int k, v ;
+  Sample *s = sample (sampleID) ;
+
+  dictAdd(keyDict, key, &k) ;
+  int m = arrayMax(metaData) ;
+  arrayp(metaData, m, MetaData)->key = k ;
+  MetaData *meta = arrp(metaData, m, MetaData) ;
+
+  if (type == 'i') { meta->type = FMF_INT, meta->value.i = strtol(value, NULL, 0); }
+  else if (type == 'f') { meta->type = FMF_REAL, meta->value.r = strtod(value, NULL) ; }
+  else if (type == 'Z')
+  {
+    dictAdd(valueDict, value, &v) ;
+    meta->type = FMF_STR ; meta->value.s = v ;
+    if(!strcasecmp(key, "father")) { dictAdd(sampleDict, value, &v); s->father = v ; }
+    if(!strcasecmp(key, "mother")) { dictAdd(sampleDict, value, &v); s->mother = v ; }
+    if(!strcasecmp(key, "family")||!strcasecmp(key, "familyID")) { dictAdd(familyDict, value, &v) ; s->family = v ; }
+    if(!strcasecmp(key, "pop")||!strcasecmp(key, "population")) { dictAdd(populationDict, value, &v) ; s->popD = v ; }
+    if(!strcasecmp(key, "gender")||!strcasecmp(key, "sex"))
+    {
+      if(!strcasecmp(value, "M")||!strcasecmp(value, "male")) s->isMale = TRUE ;
+      if(!strcasecmp(value, "F")||!strcasecmp(value, "female")) s->isFemale = TRUE ;
+    }
+  }
+  else meta->type = FMF_FLAG ;
+
+  if (!s->metaData) s->metaData = arrayCreate (4096, int) ;
+  array(s->metaData, arrayMax(s->metaData), int) = m ;
+
+  return m ;
+}
+
+MetaData *sampleMetaData (int i) 
+{
+  if (i >= arrayMax(metaData))
+    die ("metaData index %d out of range %ld", i, arrayMax(metaData)) ;
+  return arrp(metaData,i,MetaData) ;
+}
+char *metaDataKey (MetaData *m) { return dictName (keyDict, m->key) ; }
+char *metaDataValue (MetaData *m) { return dictName (valueDict, m->value.s) ; }
 
 PBWT *pbwtSubSample (PBWT *pOld, Array select)
 /* select[i] is the position in old of the i'th position in new */

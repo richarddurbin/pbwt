@@ -28,7 +28,7 @@ static void readVcfSamples (PBWT *p, bcf_hdr_t *hr)
 
   p->samples = arrayCreate (p->M, int) ;
   for (i = 0 ; i < p->M/2 ; ++i)
-    { k = sampleAdd (hr->samples[i],0,0,0,0,0) ;
+    { k = sampleAdd (hr->samples[i]) ;
       array(p->samples, 2*i, int) = k ; /* assume diploid - could be cleverer */
       array(p->samples, 2*i+1, int) = k ;
     }
@@ -71,7 +71,7 @@ PBWT *pbwtReadVcfGT (char *filename, int isXY)  /* read GTs from vcf/bcf using h
   // and assign a per-sample ploidy
   for (i = 0, nHaplotypes = 0, nSamplesKeep = 0 ; i < nSamples ; ++i)
     {
-      int k = array(samples,i,int) = sampleAdd (hr->samples[i],0,0,0,0,0) ;
+      int k = array(samples,i,int) = sampleAdd (hr->samples[i]) ;
       Sample *s = sample (k) ; 
       array(ploidy, i, int) = 0 ;
       if (isXY==1 && s->isFemale) continue ;
