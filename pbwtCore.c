@@ -728,7 +728,7 @@ PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld)
 
   pNew->sites = arrayCreate (arrayMax(sites), Site) ;
   while (ip < pOld->N)
-    { if (ia>=arrayMax(sites)) 
+    { if (ia>=arrayMax(sites) || sp->x < sa->x || (sp->varD < sa->varD && sp->x <= sa->x)) 
         { array(pNew->sites,pNew->N,Site) = *sp ;
           for (j = 0 ; j < pOld->M ; ++j) x[uOld->a[j]] = uOld->y[j] ;
           pbwtCursorForwardsRead (uOld) ;
@@ -754,60 +754,7 @@ PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld)
             }
           ++ip ; ++sp ; pNew->N++ ;
         }
-      else if (sp->x < sa->x) 
-	{ array(pNew->sites,pNew->N,Site) = *sp ;
-	  for (j = 0 ; j < pOld->M ; ++j) x[uOld->a[j]] = uOld->y[j] ;
-	  pbwtCursorForwardsRead (uOld) ;
-	  for (j = 0 ; j < pNew->M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
-	  pbwtCursorWriteForwards (uNew) ;
-
-          if (pOld->missingOffset)
-            { if (!pNew->missingOffset)
-                { pNew->zMissing = arrayCreate (10000, uchar) ;
-                  array(pNew->zMissing, 0, uchar) = 0 ; /* needed so missing[] has offset > 0 */
-                  pNew->missingOffset = arrayCreate (1024, long) ;
-                }
-              if (!arr(pOld->missingOffset,ip,long)) bzero (xMissing, pNew->M) ;
-              else unpack3 (arrp(pOld->zMissing, arr(pOld->missingOffset,ip,long), uchar), pNew->M, xMissing, 0) ;
-              if (arr(pOld->missingOffset,ip,long))
-                { 
-                  array(pNew->missingOffset,pNew->N,long) = arrayMax(pNew->zMissing) ;
-                  pack3arrayAdd (xMissing,pNew->M,pNew->zMissing) ; /* NB original order, not pbwt sort */
-                  nMissingSites++ ;
-                }
-              else
-                array(pNew->missingOffset,pNew->N,long) = 0 ;
-            }
-          ++ip ; ++sp ; pNew->N++ ;
-        }
-      else if (sp->x > sa->x) { ++ia ; ++sa ; }
-      else if (sp->varD < sa->varD)
-        { array(pNew->sites,pNew->N,Site) = *sp ;
-          for (j = 0 ; j < pOld->M ; ++j) x[uOld->a[j]] = uOld->y[j] ;
-          pbwtCursorForwardsRead (uOld) ;
-          for (j = 0 ; j < pNew->M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
-          pbwtCursorWriteForwards (uNew) ;
-
-          if (pOld->missingOffset)
-            { if (!pNew->missingOffset)
-                { pNew->zMissing = arrayCreate (10000, uchar) ;
-                  array(pNew->zMissing, 0, uchar) = 0 ; /* needed so missing[] has offset > 0 */
-                  pNew->missingOffset = arrayCreate (1024, long) ;
-                }
-              if (!arr(pOld->missingOffset,ip,long)) bzero (xMissing, pNew->M) ;
-              else unpack3 (arrp(pOld->zMissing, arr(pOld->missingOffset,ip,long), uchar), pNew->M, xMissing, 0) ;
-              if (arr(pOld->missingOffset,ip,long))
-                { 
-                  array(pNew->missingOffset,pNew->N,long) = arrayMax(pNew->zMissing) ;
-                  pack3arrayAdd (xMissing,pNew->M,pNew->zMissing) ; /* NB original order, not pbwt sort */
-                  nMissingSites++ ;
-                }
-              else
-                array(pNew->missingOffset,pNew->N,long) = 0 ;
-            }
-          ++ip ; ++sp ; pNew->N++ ;
-        }
-      else if (sp->varD > sa->varD) { ++ia ; ++sa ; }
+      else if (sp->x > sa->x || sp->varD > sa->varD) { ++ia ; ++sa ; }
       else
 	{ ++ip ; ++sp ; ++ia ; ++sa ;
 	  pbwtCursorForwardsRead (uOld) ;
