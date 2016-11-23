@@ -5,7 +5,7 @@
  * Description: all the pbwt stuff that uses htslib, e.g. reading/writing vcf or bcf files
  * Exported functions:
  * HISTORY:
- * Last edited: Aug  7 16:25 2015 (rd)
+ * Last edited: Nov 23 16:24 2016 (rd)
  * * Sep 22 23:03 2014 (rd): change for 64bit arrays
  * Created: Thu Oct 17 12:20:04 2013 (rd)
  *-------------------------------------------------------------------
@@ -108,7 +108,7 @@ PBWT *pbwtReadVcfGT (char *filename)  /* read GTs from vcf/bcf using htslib */
         {
           for (i = 0 ; i < p->M ; i++)
             { if (gt_arr[i] == bcf_int32_vector_end) 
-                x[i] = bcf_gt_allele(gt_arr[i-1]); // treat haploid genotypes as diploid homozygous A/A
+                die ("unexpected end of genotype vector in VCF") ;
               if (gt_arr[i] == bcf_gt_missing)
                 { x[i] = 0 ; /* use ref for now */
                   xMissing[i] = 1 ;
