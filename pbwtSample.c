@@ -18,10 +18,7 @@
 static DICT *sampleDict ;
 static DICT *familyDict ;
 static DICT *populationDict ;
-static DICT *keyDict ;
-static DICT *valueDict ;
 static Array samples ;
-static Array metaData ;
 
 /* functions */
 
@@ -30,12 +27,8 @@ void sampleInit (void)
   sampleDict = dictCreate (4096) ;
   populationDict = dictCreate (64) ;
   familyDict = dictCreate (4096) ;
-  keyDict = dictCreate (4096) ;
-  valueDict = dictCreate (4096) ;
   samples = arrayCreate (4096, Sample) ;
   array(samples,0,Sample).nameD = 0 ; /* so that all read samples are non-zero */
-  metaData = arrayCreate (4096, MetaData) ;
-  array(metaData,0,MetaData).key = 0 ; /* so that all read metadata are non-zero */
 }
 
 void sampleDestroy (void)
@@ -43,10 +36,7 @@ void sampleDestroy (void)
   if (sampleDict) dictDestroy(sampleDict);
   if (populationDict) dictDestroy(populationDict);
   if (familyDict) dictDestroy(familyDict);
-  if (keyDict) dictDestroy(keyDict);
-  if (valueDict) dictDestroy(valueDict);
   if (samples) arrayDestroy(samples);
-  if (metaData) arrayDestroy(metaData);
 }
 
 int sampleAdd (char *name)
@@ -73,53 +63,42 @@ int pbwtSamplePloidy(PBWT *p, int i)
 }
 
 char* sampleName (Sample *s) { return dictName (sampleDict, s->nameD) ; }
-Sample *mother (Sample *s) { return arrp(samples,s->mother,Sample) ; }
-Sample *father (Sample *s) { return arrp(samples,s->father,Sample) ; }
-char* popName (Sample *s) { return dictName (populationDict, s->popD) ; }
-char* familyName (Sample *s) { return dictName (familyDict, s->family) ; }
-
-int addMetaData (int sampleID, char *key, char *value, char type)
+char* popName (Sample *s, char *name)
 {
-  int k, v ;
-  Sample *s = sample (sampleID) ;
-
-  dictAdd(keyDict, key, &k) ;
-  int m = arrayMax(metaData) ;
-  arrayp(metaData, m, MetaData)->key = k ;
-  MetaData *meta = arrp(metaData, m, MetaData) ;
-
-  if (type == 'i') { meta->type = FMF_INT, meta->value.i = strtol(value, NULL, 0); }
-  else if (type == 'f') { meta->type = FMF_REAL, meta->value.r = strtod(value, NULL) ; }
-  else if (type == 'Z')
-  {
-    dictAdd(valueDict, value, &v) ;
-    meta->type = FMF_STR ; meta->value.s = v ;
-    if(!strcasecmp(key, "father")) { dictAdd(sampleDict, value, &v); s->father = v ; }
-    if(!strcasecmp(key, "mother")) { dictAdd(sampleDict, value, &v); s->mother = v ; }
-    if(!strcasecmp(key, "family")||!strcasecmp(key, "familyID")) { dictAdd(familyDict, value, &v) ; s->family = v ; }
-    if(!strcasecmp(key, "pop")||!strcasecmp(key, "population")) { dictAdd(populationDict, value, &v) ; s->popD = v ; }
-    if(!strcasecmp(key, "gender")||!strcasecmp(key, "sex"))
-    {
-      if(!strcasecmp(value, "M")||!strcasecmp(value, "male")) s->isMale = TRUE ;
-      if(!strcasecmp(value, "F")||!strcasecmp(value, "female")) s->isFemale = TRUE ;
-    }
+  if (name) {
+    int v ;
+    dictAdd(populationDict, name, &v) ;
+    s->popD = v ;
   }
-  else meta->type = FMF_FLAG ;
-
-  if (!s->metaData) s->metaData = arrayCreate (4096, int) ;
-  array(s->metaData, arrayMax(s->metaData), int) = m ;
-
-  return m ;
+  return dictName (populationDict, s->popD) ;
 }
-
-MetaData *sampleMetaData (int i) 
+char* familyName (Sample *s, char *name)
 {
-  if (i >= arrayMax(metaData))
-    die ("metaData index %d out of range %ld", i, arrayMax(metaData)) ;
-  return arrp(metaData,i,MetaData) ;
+  if (name) {
+    int v ;
+    dictAdd(familyDict, name, &v) ;
+    s->family = v ;
+  }
+  return dictName (familyDict, s->family) ;
 }
-char *metaDataKey (MetaData *m) { return dictName (keyDict, m->key) ; }
-char *metaDataValue (MetaData *m) { return dictName (valueDict, m->value.s) ; }
+Sample* mother (Sample *s, char *name)
+{
+  if (name) {
+    int v = sampleAdd(name) ;
+    s->mother = v ;
+    s->isFemale = TRUE ;
+  }
+  return arrp(samples,s->mother,Sample) ;
+}
+Sample* father (Sample *s, char *name)
+{
+  if (name) {
+    int v = sampleAdd(name) ;
+    s->father = v ;
+    s->isMale = TRUE ;
+  }
+  return arrp(samples,s->father,Sample) ;
+}
 
 PBWT *pbwtSubSample (PBWT *pOld, Array select)
 /* select[i] is the position in old of the i'th position in new */

@@ -36,6 +36,7 @@ void pbwtInit (void)
   variationDict = dictCreate (32) ;
   pack3init () ; 
   sampleInit () ;
+  metaDataInit () ;
 }
 
 PBWT *pbwtCreate (int M, int N)

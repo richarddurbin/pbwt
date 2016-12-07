@@ -82,30 +82,9 @@ void pbwtWriteSamples (PBWT *p, FILE *fp)
 
   static const char *typeStr = "\0ifZ" ;
   int i, j, count = 0 ;
-  for (i = 0 ; i < p->M ; i++)
-    { if (i > 0 && (arr(p->samples, i, int) == arr(p->samples, i-1, int))) continue ; // skip duplicate ids
-      Sample *s = sample (arr(p->samples, i, int)) ;
-      fputs (sampleName(s), fp) ;
-      if (s->metaData) 
-        {
-          for (j = 0 ; j < arrayMax(s->metaData) ; j++)
-            {
-              MetaData *m = sampleMetaData (arr(s->metaData, j, int)) ;
-              fputc ('\t', fp) ;
-              fputs (metaDataKey (m), fp) ;
-              if (m->type != FMF_FLAG)
-                {
-                  fputc (':', fp) ;
-                  fputc (typeStr[m->type], fp) ;
-                  fputc (':', fp) ;
-                  if (m->type == FMF_INT) fprintf (fp, "%lld", (long long)m->value.i) ;
-                  else if (m->type == FMF_REAL) fprintf (fp, "%g", m->value.r) ;
-                  else fputs (metaDataValue (m), fp);
-                }
-            }
-        }
-      fputc ('\n', fp) ;
-      count++ ;
+  for (i = 0 ; i < p->M ; i += pbwtSamplePloidy (p, i), count++)
+    { Sample *s = sample (arr(p->samples, i, int)) ;
+      writeMetaData(sampleName(s), s->metaData, fp) ;
     }     
   if (ferror (fp)) die ("error writing samples file") ;
 
@@ -394,41 +373,6 @@ void pbwtReadRefFreq (PBWT *p, FILE *fp)
      4. sex (1=male; 2=female; other=unknown)
      5-. ignored
   */
-
-// Array pbwtReadSamplesFile (FILE *fp) {
-//   // populate sample fields from FMF sample file
-//   char *line = calloc(1024, sizeof(char)); line[0] = '\0';
-//   char *key = calloc(128, sizeof(char)); key[0] = '\0';
-//   char *value = calloc(128, sizeof(char)); value[0] = '\0';
-//   char *name = calloc(128, sizeof(char)); name[0] = '\0';
-//   char *str;
-//   char type;
-
-//   Array samples = arrayCreate (1024, int) ;
-
-//   while (1) {
-//     line = fgets(line, 1024, fp);
-//     if(feof(fp)) break;
-//     else if(sscanf(line, "ID_1%s", name)) { // IMPUTE2 file
-//       die("IMPUTE2 style sample files not yet supported - coming soon");
-//     }
-//     else { // FMF file (single column valid)
-//       str = strtok(line, "\t\n"); // test it works with single column
-//       strcpy(name, str);
-//       int k = array(samples,arrayMax(samples),int) = sampleAdd(name) ;
-//       while(str = strtok(0, "\t\n"))
-//       {
-//         if(sscanf(str, "%127[^:]:%1[^:]:%127[^:]", key, &type, value) == 3)
-//         {
-//             addMetaData(k, key, value, type) ;
-//         }
-//       }
-//     }
-//   }
-//   free(line); free(key); free(value); free(name);
-//   fprintf (logFile, "read %ld sample names\n", arrayMax(samples)) ;
-//   return samples ;
-// }
      
 Array pbwtReadSamplesFile (FILE *fp) {
   // populate sample fields from FMF sample file
@@ -450,15 +394,25 @@ Array pbwtReadSamplesFile (FILE *fp) {
     else { // FMF file (single column valid)
       str = strtok(line, "\t\n"); // test it works with single column
       strcpy(name, str);
-      int k = array(samples,arrayMax(samples),int) = sampleAdd(name) ;
+      int v, k = array(samples,arrayMax(samples),int) = sampleAdd(name) ;
+      Sample *s = sample (k) ;
       while(str = strtok(0, "\t\n"))
       {
         if(sscanf(str, "%127[^:]:%1[^:]:%127[^:]", key, &type, value) == 3)
         {
-            addMetaData(k, key, value, type) ;
+            addMetaData(s->metaData, key, value, type) ;
+        }
+        if(!strcasecmp(key, "mother")) { mother (s, value) ; }
+        if(!strcasecmp(key, "father")) { father (s, value) ; }
+        if(!strcasecmp(key, "family")||!strcasecmp(key, "familyID")) { familyName (s, value) ; }
+        if(!strcasecmp(key, "pop")||!strcasecmp(key, "population")) { popName (s, value) ; }
+        if(!strcasecmp(key, "gender")||!strcasecmp(key, "sex"))
+        {
+          if(!strcasecmp(value, "M")||!strcasecmp(value, "male")) s->isMale = TRUE ;
+          if(!strcasecmp(value, "F")||!strcasecmp(value, "female")) s->isFemale = TRUE ;
         }
       }
-    }
+    }    
   }
   free(line); free(key); free(value); free(name);
   fprintf (logFile, "read %ld sample names\n", arrayMax(samples)) ;

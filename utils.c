@@ -197,4 +197,73 @@ void timeUpdate (FILE *f)
   rOld = rNew ;
 }
 
+/***************** fmf metadata ******************/
+
+static DICT *keyDict ;
+static DICT *valueDict ;
+
+void metaDataInit (void)
+{
+  keyDict = dictCreate (4096) ;
+  valueDict = dictCreate (4096) ;
+}
+
+void metaDataDestroy (void)
+{
+  if (keyDict) dictDestroy(keyDict);
+  if (valueDict) dictDestroy(valueDict);
+}
+
+int addMetaData (Array metaData, char *key, char *value, char type)
+{
+  if (!metaData) {
+    metaData = arrayCreate(4096, MetaData) ;
+  }
+  MetaData *m = arrayp(metaData, arrayMax(metaData), MetaData) ;
+
+  int k, v ;
+  dictAdd(keyDict, key, &k) ;
+
+  if (type == 'i') { m->type = FMF_INT, m->value.i = strtol(value, NULL, 0); }
+  else if (type == 'f') { m->type = FMF_REAL, m->value.r = strtod(value, NULL) ; }
+  else if (type == 'Z')
+  {
+    dictAdd(valueDict, value, &v) ;
+    m->type = FMF_STR ; m->value.s = v ;
+  }
+  else m->type = FMF_FLAG ;
+
+  return k ;
+}
+
+void writeMetaData (char *rowname, Array metaData, FILE *fp)
+{
+  static const char *typeStr = "\0ifZ" ;
+  fputs (rowname, fp) ;
+  if (metaData) 
+    {
+      int i ;
+      for (i = 0 ; i < arrayMax(metaData) ; i++)
+        {
+          MetaData *m = arrp(metaData, i, MetaData) ;
+          fputc ('\t', fp) ;
+          fputs (metaDataKey (m), fp) ;
+          if (m->type != FMF_FLAG)
+            {
+              fputc (':', fp) ;
+              fputc (typeStr[m->type], fp) ;
+              fputc (':', fp) ;
+              if (m->type == FMF_INT) fprintf (fp, "%lld", (long long)m->value.i) ;
+              else if (m->type == FMF_REAL) fprintf (fp, "%g", m->value.r) ;
+              else fputs (metaDataStrValue (m), fp);
+            }
+        }
+    }
+  fputc ('\n', fp) ;
+  if (ferror (fp)) die ("error writing metaData file") ;
+}
+
+char *metaDataKey (MetaData *m) { return dictName (keyDict, m->key) ; }
+char *metaDataStrValue (MetaData *m) { return dictName (valueDict, m->value.s) ; }
+
 /********************* end of file ***********************/

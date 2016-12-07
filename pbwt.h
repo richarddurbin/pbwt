@@ -21,7 +21,6 @@
  *-------------------------------------------------------------------
  */
 
-#include <stdint.h>
 #include "utils.h"
 
 const static int pbwtMajorVersion = 3, pbwtMinorVersion = 0 ;
@@ -65,20 +64,6 @@ typedef struct SiteStruct {
   double imputeInfo ;		/* estimated r^2 from imputation */
   BOOL isImputed ;		/* TRUE if site was imputed */
 } Site ;
-
-#define FMF_FLAG  0
-#define FMF_INT   1
-#define FMF_REAL  2
-#define FMF_STR   3
-
-typedef struct {
-  uint32_t key:28, type:4;
-  union {
-    int32_t i; // FMF_INT int value
-    float r; // FMF_REAL float value 
-    uint32_t s; // FMF_STR index into valueDict
-  } value;
-} MetaData ;
 
 typedef struct SampleStruct {
   int nameD ;			/* index in sampleDict */
@@ -177,17 +162,12 @@ Sample *sample (int i) ; /* give back Sample structure for sample i, where i is 
 #define pbwtSample(p,i) sample(arr(p->samples,i,int))  /* give back Sample structure for sample i, where i the index into p->samples array */
 int pbwtSamplePloidy(PBWT *p, int i) ;
 char* sampleName (Sample *s) ;
-char* popName (Sample *s) ;	/* give back population name for sample i */
-char* familyName (Sample *s) ;	/* give back family name for sample i */
+char* popName (Sample *s, char *name) ;	/* give back population name for Sample s */
+char* familyName (Sample *s, char *name) ;	/* give back family name for Sample s */
 PBWT *pbwtSubSample (PBWT *pOld, Array select) ;
 PBWT *pbwtSubSampleInterval (PBWT *pOld, int start, int Mnew) ;
 PBWT *pbwtSelectSamples (PBWT *pOld, FILE *fp) ;
 PBWT *pbwtRemoveSamples (PBWT *pOld, FILE *fp) ;
-
-int addMetaData (int sampleID, char *key, char *value, char type) ;
-MetaData *sampleMetaData (int i) ;
-char *metaDataKey (MetaData *m) ;
-char *metaDataValue (MetaData *m) ;
 
 /* pbwtIO.c */
 

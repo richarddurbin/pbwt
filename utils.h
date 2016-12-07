@@ -28,6 +28,7 @@
 
 #include <stdio.h>		/* FILE etc. */
 #include <stdlib.h>		/* malloc(), free(), ... notation */
+#include <stdint.h>
 #include <string.h>		/* memset() */
 #include <limits.h>		/* INT_MAX etc. */
 #include <errno.h>
@@ -54,5 +55,28 @@ FILE *fopenTag (char* root, char* tag, char* mode) ;
 gzFile gzopenTag (char* root, char* tag, char* mode) ;
 char *fgetword (FILE *f) ;	/* not threadsafe */
 void timeUpdate (FILE *f) ;	/* report to stderr resources used since last called */
+
+#define FMF_FLAG  0
+#define FMF_INT   1
+#define FMF_REAL  2
+#define FMF_STR   3
+
+typedef struct {
+  uint32_t key:28, type:4;
+  union {
+    int32_t i; // FMF_INT int value
+    float r; // FMF_REAL float value 
+    uint32_t s; // FMF_STR index into valueDict
+  } value;
+} MetaData ;
+
+void metaDataInit (void) ;
+void metaDataDestroy (void) ;
+
+int addMetaData (Array metaData, char *key, char *value, char type) ;
+void writeMetaData (char *rowname, Array metaData, FILE *fp) ;
+char *metaDataKey (MetaData *m) ; /* from keyDict  */
+char *metaDataStrValue (MetaData *m) ; /* get the value */
+
 
 /************************/
