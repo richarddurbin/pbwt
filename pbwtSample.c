@@ -53,6 +53,11 @@ Sample *sample (int i)
   return arrp(samples,i,Sample) ;
 }
 
+int sampleCount (void)
+{
+    return arrayMax(samples);
+}
+
 int pbwtSamplePloidy(PBWT *p, int i)
 {
     if (!p->samples) return 2 ;
