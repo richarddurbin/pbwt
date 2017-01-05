@@ -1263,6 +1263,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 
   PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot, int nSparse, double fSparse)
 {
+  if ( !pOld->N ) return pOld;  /* empty file, don't segfault */
+
   /* Preliminaries */
   fprintf (logFile, "impute against reference %s\n", fileNameRoot) ;
   if (!pOld || !pOld->yz || !pOld->sites) 
