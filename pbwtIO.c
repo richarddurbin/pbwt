@@ -423,32 +423,45 @@ void pbwtReadSamples (PBWT *p, FILE *fp)
 {
   if (!p) die ("pbwtReadSamples called without a valid pbwt") ;
 
+  // NB: pbwtReadSamplesFile() calls sampleAdd() which uses static sample
+  // dictionary and therefore the sample indexes will be offset when pbwtReadSamples()
+  // is called multiple times.
+  int ioff = sampleCount();
+
   Array samples = pbwtReadSamplesFile (fp) ;
-  int i, count ; 
+  int i,j, count_x2 = 0, count_x1 = 0, count_y1 = 0, count_y0 = 0, count2 = 0; 
   p->samples = arrayReCreate(p->samples, p->M, int) ;
-  
-  if (arrayMax(samples) == p->M) // all haploid samples
-    {
-      fprintf (logFile, "number of samples (%ld) equal to number of haplotypes (%d): treating all samples as male haploid (chrY)\n", arrayMax(samples), p->M) ;
-      p->isY = TRUE ;
-    }
-  else if (arrayMax(samples) > p->M/2 && arrayMax(samples) < p->M) // haploid and diploid
-    {
-      fprintf (logFile, "number of samples (%ld) less than number of haplotypes (%d), but more than half the number of haplotypes: treating as a mixture of male haploid and female diploid (chrX)\n", arrayMax(samples), p->M) ;
-      p->isX = TRUE ;
-    }
-  else if (arrayMax(samples) != p->M/2)
-      die ("number of samples (%ld) and number of haplotypes (%d) not consistent with samples being haploid and/or diploid", arrayMax(samples), p->M) ;
-  
-  for (i = 0, count = 0 ; i < arrayMax(samples) ; i++)
-    {
-      Sample *s = sample (i) ;
+
+  for (i=0; i<arrayMax(samples); i++)
+  {
+      Sample *s = sample (i+ioff) ;
+      if ( s->isFemale ) { count_x2++; count_y0++; count2++; }
+      else { count_x1++; count_y1++; count2++; }
+  }
+
+  if ( 2*count2 == p->M )
+      fprintf (logFile, "Note: number of haplotypes (%ld) is consistent with %d diploid samples\n", arrayMax(samples), p->M) ;
+  else if ( 2*count_x2 + count_x1 == p->M )
+  {
+      p->isX = TRUE;
+      fprintf (logFile, "Note: number of haplotypes (%d) is consistent with %d haploid and %d diploid samples\n", p->M, count_x1,count_x2) ;
+  }
+  else if ( count_y1 == p->M )
+  {
+      p->isY = TRUE;
+      fprintf (logFile, "Note: number of haplotypes (%d) consistent with %d haploid samples and %d samples with zero ploidy\n", p->M, count_y1,count_y0) ;
+  }
+  else
+      die ("number of haplotypes (%d) is not consistent with the number of samples (%ld): expected %d, %d or %d haplotypes", p->M, arrayMax(samples),count2,2*count_x2 + count_x1,count_y1) ;
+
+  for (i=0,j=0; i<arrayMax(samples); i++)
+  {
+      Sample *s = sample (i+ioff) ;
       if (p->isY && s->isFemale) continue ;
-      array(p->samples, count++, int) = arr(samples, i, int) ;
+      array(p->samples, j++, int) = arr(samples, i, int) ;
       if (p->isX && s->isMale) continue ;
-      array(p->samples, count++, int) = arr(samples, i, int) ;
-    }
-  if (count != p->M) die ("number of haplotypes (%d) not consistent with samples/ploidy read (%d)", p->M, count) ;
+      array(p->samples, j++, int) = arr(samples, i, int) ;
+  }
   arrayDestroy (samples) ;
 }
 

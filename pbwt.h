@@ -158,6 +158,7 @@ int extendPackedBackwards (uchar *yzp, int M, int *f, int c, uchar *zp) ; /* mov
 void sampleInit (void) ;
 void sampleDestroy (void) ;
 int sampleAdd (char *name) ;
+int sampleCount (void);
 Sample *sample (int i) ; /* give back Sample structure for sample i, where i is an index into sampleDict */
 #define pbwtSample(p,i) sample(arr(p->samples,i,int))  /* give back Sample structure for sample i, where i the index into p->samples array */
 int pbwtSamplePloidy(PBWT *p, int i) ;
