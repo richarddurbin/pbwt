@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 31 15:36 2015 (rd)
+ * Last edited: Dec 14 13:53 2015 (rd)
  * added paintSparse function
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
@@ -34,7 +34,7 @@ typedef unsigned char uchar ;
 
 typedef struct PBWTstruct {
   int N ;			/* number of sites */
-  int M ;			/* number of samples */
+  int M ;			/* number of haplotypes */
   char* chrom ;			/* chromosome name */
   Array sites ;			/* array of Site */
   Array samples ;		/* array of int index into global samples */
@@ -50,6 +50,8 @@ typedef struct PBWTstruct {
   Array dosageOffset ;		/* of long, site index into zDosage, 0 if no dosage data */
   BOOL  isRefFreq ;		/* some flags for the whole VCF */
   BOOL  isUnphased ;
+  BOOL isX;			/* chromosome is nonPAR region of chrX, treat male samples as haploid, female samples as diploid */
+  BOOL isY;			/* chromosome is chrY, treat male samples as haploid and ignore female samples */
 } PBWT ;
 
 /* philosophy is to be lazy about PBWT - only fill items for which we have info */
@@ -60,15 +62,18 @@ typedef struct SiteStruct {
   double freq ;			/* frequency */
   double refFreq ;		/* frequency from reference used for last phasing or imputation */
   double imputeInfo ;		/* estimated r^2 from imputation */
+  BOOL isImputed ;		/* TRUE if site was imputed */
 } Site ;
 
 typedef struct SampleStruct {
   int nameD ;			/* index in sampleDict */
-  int father ;			/* index into samples */
-  int mother ;			/* index into samples */
+  int father ;			/* index in sampleDict */
+  int mother ;			/* index in sampleDict */
+  int family ;			/* index in familyDict */
   int popD ;			/* index in populationDict */
-  BOOL isMale ;			/* treat X chromosome as haploid */
-  BOOL isFemale ;		/* treat X chromosome as diploid and ignore Y */
+  BOOL isMale ;			/* treat X chromosome as haploid, Y chromosome as haploid */
+  BOOL isFemale ;		/* treat X chromosome as diploid and ignore for Y */
+  Array metaData ;			// sample metadata
 } Sample ;
 
 typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
@@ -83,12 +88,13 @@ typedef struct {		/* data structure for moving forwards - doesn't know PBWT */
   int *u ;			/* number of 0s up to and including this position */
   int *b ;			/* for local operations - no long term meaning */
   int *e ;			/* for local operations - no long term meaning */
+  long nBlockStart ;		/* u->n at start of block encoding current u->y */
 } PbwtCursor ;
 
 /* pbwtMain.c */
 
 extern char *commandLine ;	/* a copy of the command line */
-extern FILE *logFilePtr ;  /* log file pointer */
+extern FILE *logFile ;		/* log file pointer */
 
 /* pbwtCore.c */
 
@@ -113,6 +119,7 @@ PbwtCursor *pbwtCursorCreate (PBWT *p, BOOL isForwards, BOOL isStart) ;
 PbwtCursor *pbwtNakedCursorCreate (int M, int *aInit) ;
 void pbwtCursorDestroy (PbwtCursor *u) ;
 void pbwtCursorForwardsA (PbwtCursor *u) ; /* algorithm 1 in the manuscript */
+void pbwtCursorForwardsAPacked (PbwtCursor *u) ; /* faster version, when have read y and set u->nBlockStart */
 void pbwtCursorBackwardsA (PbwtCursor *u) ; /* undo algorithm 1 */
 void pbwtCursorForwardsAD (PbwtCursor *u, int k) ; /* algorithm 2 in the manuscript */
 void pbwtCursorCalculateU (PbwtCursor *x) ;   /* calculate u required for CursorMap */
@@ -150,13 +157,18 @@ int extendPackedBackwards (uchar *yzp, int M, int *f, int c, uchar *zp) ; /* mov
 
 void sampleInit (void) ;
 void sampleDestroy (void) ;
-Sample *sample (PBWT *p, int i) ; /* give back Sample structure for sample i from p */
-int  sampleAdd (char* name, char *father, char *mother, char *pop) ;
+int sampleAdd (char *name) ;
+int sampleCount (void);
+Sample *sample (int i) ; /* give back Sample structure for sample i, where i is an index into sampleDict */
+#define pbwtSample(p,i) sample(arr(p->samples,i,int))  /* give back Sample structure for sample i, where i the index into p->samples array */
+int pbwtSamplePloidy(PBWT *p, int i) ;
 char* sampleName (Sample *s) ;
-char* popName (Sample *s) ;	/* give back population name for sample i */
+char* popName (Sample *s, char *name) ;	/* give back population name for Sample s */
+char* familyName (Sample *s, char *name) ;	/* give back family name for Sample s */
 PBWT *pbwtSubSample (PBWT *pOld, Array select) ;
 PBWT *pbwtSubSampleInterval (PBWT *pOld, int start, int Mnew) ;
 PBWT *pbwtSelectSamples (PBWT *pOld, FILE *fp) ;
+PBWT *pbwtRemoveSamples (PBWT *pOld, FILE *fp) ;
 
 /* pbwtIO.c */
 
@@ -170,12 +182,13 @@ void pbwtWriteDosage (PBWT *p, FILE *fp) ;
 void pbwtWriteReverse (PBWT *p, FILE *fp) ;
 void pbwtWriteAll (PBWT *p, char *fileNameRoot) ;
 void pbwtWriteGen (PBWT *p, FILE *fp) ; /* write gen file as for impute etc. */
+void pbwtWritePhase (PBWT *p, char *filename); /* Write phase file as output by impute and input for chromopainter */
 PBWT *pbwtRead (FILE *fp) ;
 Array pbwtReadSitesFile (FILE *fp, char **chrom) ;
 void pbwtReadSites (PBWT *p, FILE *fp) ;
 void pbwtReadRefFreq (PBWT *p, FILE *fp) ;
-Array pbwtReadSamplesFile (FILE *fp) ;
-void pbwtReadSamples (PBWT *p, FILE *fp) ;
+Array pbwtReadSamplesFile (FILE *fp) ; /* read samples and sample metadata from a file */
+void pbwtReadSamples (PBWT *p, FILE *fp) ; /* read samples and sample metadata after pbwt read from file */
 void pbwtReadMissing (PBWT *p, FILE *fp) ;
 void pbwtReadDosage (PBWT *p, FILE *fp) ;
 void pbwtReadReverse (PBWT *p, FILE *fp) ;
@@ -183,16 +196,18 @@ PBWT *pbwtReadAll (char *fileNameRoot) ; /* reads .pbwt, .sites, .samples, .miss
 PBWT *pbwtReadMacs (FILE *fp) ;
 PBWT *pbwtReadVcfq (FILE *fp) ;	/* reduced VCF style file made by vcf query */
 PBWT *pbwtReadGen (FILE *fp, char *chrom) ;	/* gen file as used by impute2 (unphased) */
-PBWT *pbwtReadHap (FILE *fp, char *chrom) ; /* hap file as used by impute2 (phased) */
+PBWT *pbwtReadHap (FILE *fp, char *chrom) ;	/* hap file as used by impute2 (unphased) */
+PBWT *pbwtReadHapLegend (FILE *fp, FILE *lp, char *chrom) ; /* hap and legend file as used by impute2 (phased) */
 PBWT *pbwtReadPhase (FILE *fp) ; /* Li and Stephens PHASE file */
 void pbwtWriteHaplotypes (FILE *fp, PBWT *p) ;
+void pbwtWriteTransposedHaplotypes (PBWT *p, FILE *fp) ;
 void pbwtWriteImputeRef (PBWT *p, char *fileNameRoot) ;
 void pbwtWriteImputeHapsG (PBWT *p, FILE *fp) ;
 void pbwtCheckPoint (PbwtCursor *u, PBWT *p) ; /* need cursor to write end index */
 
 /* pbwtHtslib.c */
 /* all these functions also read and write samples and sites */
-PBWT *pbwtReadVcfGT (char *filename) ;	/* read GTs from vcf/bcf using htslib */
+PBWT *pbwtReadVcfGT (char *filename, int isXY) ;	/* read GTs from vcf/bcf using htslib; isX: isXY == 2; isY: isXY == 1 */
 PBWT *pbwtReadVcfPL (char *filename) ;	/* read PLs from vcf/bcf using htslib */
 // mode: wb=compressed BCF; wbu=uncompressed BCF; wz=compressed VCF; w=uncompressed VCF
 void pbwtWriteVcf (PBWT *p, char *filename, char *reference_fname, char *mode) ;  /* write vcf/bcf using htslib */

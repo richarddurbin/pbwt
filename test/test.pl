@@ -13,7 +13,12 @@ my $opts = parse_params();
 test_pbwt($opts, in=>'merge.1', out=>'merge.1.out');
 test_pbwt($opts, in=>'merge.2', out=>'merge.2.out');
 test_write_vcf($opts, in=>'merge.1', out=>'merge.1.vcf');
-test_read_vcf_gt($opts, in=>'read.vcf', out=>'write.vcf');
+test_read_vcf_gt($opts, in=>'read.vcf', out=>'write.out',args=>'');
+test_read_vcf_gt($opts, in=>'read.vcf', out=>'write.X.out',X=>"$$opts{path}/samples.fmf",args=>'');
+test_read_vcf_gt($opts,in=>'read.vcf',out=>'select.samples.out',args=>"-selectSamples $$opts{path}/sub.samples");
+test_read_vcf_gt($opts,in=>'read.vcf',out=>'remove.samples.out',args=>"-removeSamples $$opts{path}/sub.samples");
+test_read_vcf_gt($opts,in=>'read.vcf',out=>'select.sites.out',args=>"-selectSites $$opts{path}/sub.sites");
+test_read_vcf_gt($opts,in=>'read.vcf',out=>'remove.sites.out',args=>"-removeSites $$opts{path}/sub.sites");
 test_pbwt_reference_impute($opts, in=>'refImpute.in', ref=>'OMNI', out=>'refImpute.out.vcf');
 test_merge($opts,in=>['merge.1','merge.2'],out=>'merge.12.out');
 test_merge_sites($opts,in=>['merge.1','merge.2'],out=>'merge.12.sites');
@@ -195,14 +200,21 @@ sub test_write_vcf
 sub test_read_vcf_gt
 {
     my ($opts,%args) = @_;
-    test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -readVcfGT $$opts{path}/read.vcf -writeVcf - 2>/dev/null | grep -v ^##pbwt >$$opts{tmp}/$args{out}");
+    my $ploidy = '';
+    if ($args{X}) {
+        $ploidy = " -loadSamples $args{X} -X";
+    }
+    elsif ($args{Y}) {
+        $ploidy = " -loadSamples $args{Y} -Y";
+    }
+    test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt$ploidy -readVcfGT $$opts{path}/read.vcf $args{args} -writeVcf - 2>/dev/null | grep -v ^##pbwt >$$opts{tmp}/$args{out}");
 }
 
 sub test_pbwt_reference_impute
 {
     my ($opts,%args) = @_;
     # create reference panel pbwt
-    cmd("$$opts{bin}/pbwt -readVcfGT $$opts{path}/$args{ref}.vcf -writeAll $$opts{tmp}/$args{ref} 2>/dev/null");
+    cmd("$$opts{bin}/pbwt -readVcfGT $$opts{path}/$args{ref}.vcf.gz -writeAll $$opts{tmp}/$args{ref} 2>/dev/null");
     test_cmd($opts,%args,cmd=>"$$opts{bin}/pbwt -readVcfGT $$opts{path}/$args{in}.vcf -referenceImpute $$opts{tmp}/$args{ref} -writeVcf - 2>/dev/null | grep -v ^##pbwt > $$opts{tmp}/$args{out}");
 }
 

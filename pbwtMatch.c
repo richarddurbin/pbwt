@@ -15,7 +15,7 @@
  * Description: match functions in pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Feb  1 18:58 2015 (rd)
+ * Last edited: Aug  7 16:21 2015 (rd)
  * Created: Thu Apr  4 11:55:48 2013 (rd)
  *-------------------------------------------------------------------
  */
@@ -172,8 +172,8 @@ void pbwtLongMatches (PBWT *p, int L) /* reporting threshold L - if 0 then maxim
 	    hTot += arr(matchLengthHist, i, int) * i ;
 	    printf ("%d\t%d\n", i, arr(matchLengthHist, i, int)) ;
 	  }
-      fprintf (logFilePtr, "Average %.1f matches per sample\n", nTot/(double)p->M) ;
-      fprintf (logFilePtr, "Average length %.1f\n", hTot/(double)nTot) ;
+      fprintf (logFile, "Average %.1f matches per sample\n", nTot/(double)p->M) ;
+      fprintf (logFile, "Average length %.1f\n", hTot/(double)nTot) ;
     }
 
   pbwtCursorDestroy (u) ;
@@ -203,7 +203,7 @@ void matchSequencesNaive (PBWT *p, FILE *fp) /* fp is a pbwt file of sequences t
 
   if (q->N != p->N) die ("query length in matchSequences %d != PBWT length %d", q->N, p->N) ;
 
-  fprintf (logFilePtr, "Made haplotypes: ") ; timeUpdate (logFilePtr) ;
+  fprintf (logFile, "Made haplotypes: ") ; timeUpdate (logFile) ;
 
   if (isCheck) { checkHapsA = query ; checkHapsB = reference ; Ncheck = p->N ; }
 
@@ -237,7 +237,7 @@ void matchSequencesNaive (PBWT *p, FILE *fp) /* fp is a pbwt file of sequences t
 	  }
     }
 
-  fprintf (logFilePtr, "Average number of best matches %.1f, Average length %.1f\n", 
+  fprintf (logFile, "Average number of best matches %.1f, Average length %.1f\n", 
 	   nTot/(double)q->M, totLen/(double)nTot) ;
 
   pbwtDestroy (q) ;
@@ -284,7 +284,7 @@ void matchSequencesIndexed (PBWT *p, FILE *fp)
   memcpy (d[k], up->d, (M+1)*sizeof(int)) ;
   pbwtCursorDestroy (up) ;
 
-  fprintf (logFilePtr, "Made haplotypes and indices: ") ; timeUpdate (logFilePtr) ;
+  fprintf (logFile, "Made haplotypes and indices: ") ; timeUpdate (logFile) ;
 
   if (isCheck) { checkHapsA = query ; checkHapsB = reference ; Ncheck = p->N ; }
 
@@ -325,7 +325,7 @@ void matchSequencesIndexed (PBWT *p, FILE *fp)
       ++nTot ; totLen += k-e ;
     }
 
-  fprintf (logFilePtr, "Average number of best matches %.1f, Average length %.1f\n", 
+  fprintf (logFile, "Average number of best matches %.1f, Average length %.1f\n", 
 	   nTot/(double)q->M, totLen/(double)nTot) ;
 
   /* cleanup */
@@ -402,7 +402,7 @@ void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int s
 		      else ++iPlus ;
 		    dPlus = (iPlus == p->M) ? k : up->d[iPlus] ;
 		    if (!iMinus && iPlus == p->M) 
-		      { fprintf (logFilePtr, "no match to query %d value %d at site %d\n", 
+		      { fprintf (logFile, "no match to query %d value %d at site %d\n", 
 				 jj, x, k) ;
 			d[jj] = k+1 ;
 			goto DONE ; 
@@ -434,7 +434,7 @@ void matchSequencesSweep (PBWT *p, PBWT *q, void (*report)(int ai, int bi, int s
       nTot += (i - f[jj]) ; totLen += (p->N - d[jj])*(i - f[jj]) ;
     }
 
-  fprintf (logFilePtr, "Average number of best matches including alternates %.1f, Average length %.1f, Av number per position %.1f\n", 
+  fprintf (logFile, "Average number of best matches including alternates %.1f, Average length %.1f, Av number per position %.1f\n", 
 	   nTot/(double)q->M, totLen/(double)nTot, totLen/(double)(q->M*q->N)) ;
 
   pbwtCursorDestroy (up) ; pbwtCursorDestroy (uq) ;
@@ -490,7 +490,7 @@ static void reportAndUpdate (int j, int k, uchar x, PbwtCursor *up, int *f, int 
 	  else ++iPlus ;
 	dPlus = (iPlus < up->M) ? up->d[iPlus] : (isSparse ? k/nSparseStore : k) ;
 	if (!iMinus && iPlus == up->M) 
-	  { fprintf (logFilePtr, "no match to query %d value %d at site %d\n", j, x, k) ;
+	  { fprintf (logFile, "no match to query %d value %d at site %d\n", j, x, k) ;
 	    d[j] = 1 + (isSparse ? k/nSparseStore : k) ;
 	    return ; 
 	  }
@@ -588,7 +588,7 @@ void matchSequencesSweepSparse (PBWT *p, PBWT *q, int nSparse,
 	  nTot += (i - ff[kk][jj]) ; totLen += (p->N - dd[kk][jj])*(i - ff[kk][jj]) ;
 	}
 
-  fprintf (logFilePtr, "Average number of best matches including alternates %.1f, Average length %.1f, Av number per position %.1f\n", 
+  fprintf (logFile, "Average number of best matches including alternates %.1f, Average length %.1f, Av number per position %.1f\n", 
 	   nTot/(double)q->M, totLen/(double)nTot, totLen/(double)(q->M*q->N)) ;
 
   pbwtCursorDestroy (up) ; pbwtCursorDestroy (uq) ;

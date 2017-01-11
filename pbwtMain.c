@@ -15,7 +15,7 @@
  * Description:
  * Exported functions:
  * HISTORY:
- * Last edited: Feb  5 17:55 2015 (rd)
+ * Last edited: Dec 14 13:44 2015 (rd)
  * paintSparse added
  * Created: Thu Apr  4 12:05:20 2013 (rd)
  *-------------------------------------------------------------------
@@ -96,7 +96,7 @@ static void exportSiteInfo (PBWT *p, FILE *fp, int f1, int f2)
       pbwtCursorForwardsReadAD (u, i) ;
     }
   pbwtCursorDestroy (u) ;
-  fprintf (logFilePtr, "%d rows exported with allele count f, %d <= f < %d\n", n, f1, f2) ;
+  fprintf (logFile, "%d rows exported with allele count f, %d <= f < %d\n", n, f1, f2) ;
 }
 
 /************ AF distribution **************/
@@ -114,7 +114,7 @@ static void siteFrequencySpectrum (PBWT *p)
 		   100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000, 900000,
 		   1000000 } ;
 
-  timeUpdate(logFilePtr) ;
+  timeUpdate(logFile) ;
 
   FILE *fp ;
   if (p->sites) { fp = fopen ("sites.freq", "w") ; if (!fp) die ("can't open sites.freq") ; }
@@ -144,7 +144,7 @@ static void siteFrequencySpectrum (PBWT *p)
 
 /*********************************************************/
 
- char *commandLine = "" ;
+char *commandLine = "" ;
 
 static void recordCommandLine (int argc, char *argv[])
  {
@@ -166,24 +166,28 @@ static void recordCommandLine (int argc, char *argv[])
 
 #define FOPEN(name,mode)  if (!strcmp (argv[1], "-")) fp = !strcmp(mode,"r") ? stdin : stdout ; else if (!(fp = fopen (argv[1],mode))) die ("failed to open %s file %s", name, argv[1])
 #define FCLOSE if (strcmp(argv[1], "-")) fclose(fp)
-#define LOGOPEN(name) if (!strcmp (argv[1], "-")) logFilePtr = stderr ; else if (!(logFilePtr = fopen (argv[1],"w"))) die ("failed to open %s file %s", name, argv[1])
-#define LOGCLOSE if (logFilePtr && !(logFilePtr==stderr)) fclose(logFilePtr)
+#define LOPEN(name,mode)  if (!strcmp (argv[2], "-")) lp = !strcmp(mode,"r") ? stdin : stdout ; else if (!(lp = fopen (argv[2],mode))) die ("failed to open %s file", name, argv[2])
+#define LCLOSE if (strcmp(argv[2], "-")) fclose(lp)
+#define LOGOPEN(name) if (!strcmp (argv[1], "-")) logFile = stderr ; else if (!(logFile = fopen (argv[1],"w"))) die ("failed to open %s file %s", name, argv[1])
+#define LOGCLOSE if (logFile && !(logFile==stderr)) fclose(logFile)
 
 const char *pbwtCommitHash(void)
 {
-    return PBWT_COMMIT_HASH ;
+  return PBWT_COMMIT_HASH ;
 }
 
-FILE *logFilePtr ; /* log file pointer */
+FILE *logFile ; /* log file pointer */
 
 int main (int argc, char *argv[])
 {
   FILE *fp ;
+  FILE *lp ;
   PBWT *p = 0 ;
   Array test ;
   char *referenceFasta = NULL;
+  int isXY = 0 ;
 
-  logFilePtr = stderr ;
+  logFile = stderr ;
 
   pbwtInit () ;
 
@@ -207,12 +211,15 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -readDosage <file>        read dosage file; '-' for stdin\n") ;
       fprintf (stderr, "  -readReverse <file>       read reverse file; '-' for stdin\n") ;
       fprintf (stderr, "  -readAll <rootname>       read .pbwt and if present .sites, .samples, .missing - note not by default dosage\n") ;
-      fprintf (stderr, "  -readVcfGT <file>         read GTs from vcf or bcf file; '-' for stdin vcf only ; biallelic sites only - require diploid!\n") ;
-      fprintf (stderr, "  -readVcfPL <file>         read PLs from vcf or bcf file; '-' for stdin vcf only ; biallelic sites only - require diploid!\n") ;
+      fprintf (stderr, "  -loadSamples <file>       load sample metadata from a FMF, IMPUTE2 or FAM samples file; '-' for stdin\n") ;
+      fprintf (stderr, "  -readVcfGT <file>         read GTs from vcf or bcf file; '-' for stdin vcf only\n") ;
+      fprintf (stderr, "  -readVcfPL <file>         read PLs from vcf or bcf file; '-' for stdin vcf only\n") ;
       fprintf (stderr, "  -readMacs <file>          read MaCS output file; '-' for stdin\n") ;
       fprintf (stderr, "  -readVcfq <file>          read VCFQ file; '-' for stdin\n") ;
       fprintf (stderr, "  -readGen <file> <chrom>   read impute2 gen file - must set chrom\n") ;
       fprintf (stderr, "  -readHap <file> <chrom>   read impute2 hap file - must set chrom\n") ;
+      fprintf (stderr, "  -readHapLegend <hap_file> <legend_file> <chrom>\n") ;
+      fprintf (stderr, "                            read impute2 hap and legend file - must set chrom\n") ;
       fprintf (stderr, "  -readPhase <file>         read Li and Stephens phase file\n") ;
       fprintf (stderr, "  -checkpoint <n>           checkpoint every n sites while reading\n") ;
       fprintf (stderr, "  -merge <file> ...         merge two or more pbwt files\n") ;
@@ -220,16 +227,20 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -writeSites <file>        write sites file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeSamples <file>      write samples file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeMissing <file>      write missing file; '-' for stdout\n") ;
-      fprintf (stderr, "  -writeDosage <file>      write missing file; '-' for stdout\n") ;
+      fprintf (stderr, "  -writeDosage <file>       write missing file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeReverse <file>      write reverse file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeAll <rootname>      write .pbwt and if present .sites, .samples, .missing, .dosage\n") ;
       fprintf (stderr, "  -writeImputeRef <rootname> write .imputeHaps and .imputeLegend\n") ;
       fprintf (stderr, "  -writeImputeHapsG <file>  write haplotype file for IMPUTE -known_haps_g\n") ;
+      fprintf (stderr, "  -writePhase <file>        write FineSTRUCTURE/ChromoPainter input format (Impute/ShapeIT output format) phase file\n") ;
+      fprintf (stderr, "  -writeTransposeHaplotypes <file>    write transposed haplotype file (one hap per row); '-' for stdout\n") ;
       fprintf (stderr, "  -haps <file>              write haplotype file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeGen <file>          write impute2 gen file; '-' for stdout\n") ;
       fprintf (stderr, "  -writeVcf|-writeVcfGz|-writeBcf|-writeBcfGz <file>\n") ;
       fprintf (stderr, "                            write VCF or BCF; uncompressed or bgzip (Gz) compressed file; '-' for stdout\n") ;
       fprintf (stderr, "  -referenceFasta <file>    reference fasta filename for VCF/BCF writing (optional)\n") ;
+      fprintf (stderr, "  -X                        treat males as haploid, females diploid as on non-PAR chrX\n") ;
+      fprintf (stderr, "  -Y                        treat males as haploid, skip females as on chrY\n") ;
       fprintf (stderr, "  -subsites <fmin> <frac>   subsample <frac> sites with AF > <fmin>\n") ;
       fprintf (stderr, "  -subsample <start> <n>    subsample <n> samples from index <start>\n") ;
       fprintf (stderr, "  -subrange <start> <end>   cut down to sites in [start,end)\n") ;
@@ -239,6 +250,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -selectSites <file>       select sites as in sites file\n") ;
       fprintf (stderr, "  -removeSites <file>       remove sites as in sites file\n") ;
       fprintf (stderr, "  -selectSamples <file>     select samples as in samples file\n") ;
+      fprintf (stderr, "  -removeSamples <file>     remove samples as in samples file\n") ;
       fprintf (stderr, "  -longWithin <L>           find matches within set longer than L\n") ;
       fprintf (stderr, "  -maxWithin                find maximal matches within set\n") ;
       fprintf (stderr, "  -matchNaive <file>        maximal match seqs in pbwt file to reference\n") ;
@@ -264,7 +276,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -4hapsStats               mu:rho 4 hap test stats\n") ;
     }
 
-  timeUpdate(logFilePtr) ;
+  timeUpdate(logFile) ;
   while (argc) {
     if (!(**argv == '-'))
       die ("not well formed command %s\nType pbwt without arguments for help", *argv) ;
@@ -272,6 +284,10 @@ int main (int argc, char *argv[])
       { isCheck = TRUE ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-stats"))
       { isStats = TRUE ; argc -= 1 ; argv += 1 ; }
+    else if (!strcmp (argv[0], "-X"))
+      { isXY = 2 ; argc -= 1 ; argv += 1 ; }
+    else if (!strcmp (argv[0], "-Y"))
+      { isXY = 1 ; argc -= 1 ; argv += 1 ; }
     else if (!strcmp (argv[0], "-merge") && argc > 1)
     { 
         int i, nfiles = 0;
@@ -295,6 +311,8 @@ int main (int argc, char *argv[])
       { FOPEN("readSites","r") ; pbwtReadSites (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readSamples") && argc > 1)
       { FOPEN("readSamples","r") ; pbwtReadSamples (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-loadSamples") && argc > 1)
+      { FOPEN("loadSamples","r") ; pbwtReadSamplesFile (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readMissing") && argc > 1)
       { FOPEN("readMissing","r") ; pbwtReadMissing (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readDosage") && argc > 1)
@@ -304,7 +322,7 @@ int main (int argc, char *argv[])
     else if (!strcmp (argv[0], "-readAll") && argc > 1)
       { p = pbwtReadAll (argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readVcfGT") && argc > 1)
-      { if (p) pbwtDestroy (p) ; p = pbwtReadVcfGT (argv[1]) ; argc -= 2 ; argv += 2 ; }
+      { if (p) pbwtDestroy (p) ; p = pbwtReadVcfGT (argv[1], isXY) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readVcfPL") && argc > 1)
       { if (p) pbwtDestroy (p) ; p = pbwtReadVcfPL (argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-readMacs") && argc > 1)
@@ -314,7 +332,9 @@ int main (int argc, char *argv[])
     else if (!strcmp (argv[0], "-readGen") && argc > 2)
       { if (p) pbwtDestroy (p) ; FOPEN("readGen","r") ; p = pbwtReadGen (fp, argv[2]) ; FCLOSE ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-readHap") && argc > 2)
-    { if (p) pbwtDestroy (p) ; FOPEN("readHap","r") ; p = pbwtReadHap (fp, argv[2]) ; FCLOSE ; argc -= 3 ; argv += 3 ; }
+      { if (p) pbwtDestroy (p) ; FOPEN("readHap","r") ; p = pbwtReadHap (fp, argv[2]) ; FCLOSE ; argc -= 3 ; argv += 3 ; }
+    else if (!strcmp (argv[0], "-readHapLegend") && argc > 3)
+    { if (p) pbwtDestroy (p) ; FOPEN("readHap","r") ; LOPEN("readHap","r") ; p = pbwtReadHapLegend (fp, lp, argv[3]) ; FCLOSE ; LCLOSE ; argc -= 4 ; argv += 4 ; }
     else if (!strcmp (argv[0], "-readPhase") && argc > 1)
       { if (p) pbwtDestroy (p) ; FOPEN("readPhase","r") ; p = pbwtReadPhase (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-write") && argc > 1)
@@ -337,6 +357,10 @@ int main (int argc, char *argv[])
       { FOPEN("writeImputeHaps","w") ; pbwtWriteImputeHapsG (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeGen") && argc > 1)
       { FOPEN("writeGen","w") ; pbwtWriteGen (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writePhase") && argc > 1)
+      { pbwtWritePhase (p,argv[1]) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-writeTransposedHaplotypes") && argc > 1)
+      { FOPEN("writeTransposedHaplotypes",argv[0]) ; pbwtWriteTransposedHaplotypes (p, fp) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-referenceFasta") && argc > 1)
       { referenceFasta = strdup(argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeVcf") && argc > 1)
@@ -353,6 +377,8 @@ int main (int argc, char *argv[])
       { p = pbwtSubSampleInterval (p, atoi(argv[1]), atoi(argv[2])) ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-selectSamples") && argc > 2)
       { FOPEN("selectSamples","r") ; p = pbwtSelectSamples (p, fp) ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-removeSamples") && argc > 2)
+      { FOPEN("removeSamples","r") ; p = pbwtRemoveSamples (p, fp) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-subsites") && argc > 2)
       { p = pbwtSubSites (p, atof(argv[1]), atof(argv[2])) ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-selectSites") && argc > 1)
@@ -446,7 +472,7 @@ int main (int argc, char *argv[])
       { p = playGround (p) ; argc -= 1 ; argv += 1 ; }
     else
       die ("unrecognised command %s\nType pbwt without arguments for help", *argv) ;
-    timeUpdate(logFilePtr) ;
+    timeUpdate(logFile) ;
   }
   if (p) pbwtDestroy(p) ;
   if (variationDict) dictDestroy(variationDict);

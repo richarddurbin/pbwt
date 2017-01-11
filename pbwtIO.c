@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jan 20 00:55 2015 (rd)
+ * Last edited: Mar 11 16:38 2016 (rd)
  * readPhase updated for chromopainter and chromopainter v2 formats
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
@@ -53,7 +53,7 @@ void pbwtWrite (PBWT *p, FILE *fp) /* just writes compressed pbwt in yz */
   if (fwrite (arrp(p->yz, 0, uchar), sizeof(uchar), arrayMax(p->yz), fp) != arrayMax(p->yz))
     die ("error writing data in pbwtWrite") ;
 
-  fprintf (logFilePtr, "written %ld chars pbwt: M, N are %d, %d\n", arrayMax(p->yz), p->M, p->N) ;
+  fprintf (logFile, "written %ld chars pbwt: M, N are %d, %d\n", arrayMax(p->yz), p->M, p->N) ;
 }
 
 void pbwtWriteSites (PBWT *p, FILE *fp)
@@ -72,7 +72,7 @@ void pbwtWriteSites (PBWT *p, FILE *fp)
     }
   if (ferror (fp)) die ("error writing sites file") ;
 
-  fprintf (logFilePtr, "written %d sites from %d to %d\n", p->N, 
+  fprintf (logFile, "written %d sites from %d to %d\n", p->N, 
 	   arrp(p->sites, 0, Site)->x, arrp(p->sites, p->N-1, Site)->x) ;
 }
 
@@ -80,21 +80,18 @@ void pbwtWriteSamples (PBWT *p, FILE *fp)
 {
   if (!p || !p->samples) die ("pbwtWriteSamples called without samples") ;
 
-  int i ;
-  for (i = 0 ; i < p->M ; i += 2) /* assume diploid for now */
-    { Sample *s = sample (p, i) ;
-      fprintf (fp, "%s", sampleName(s)) ;
-      if (s->popD) fprintf (fp, "\tPOP:%s", popName(s)) ;
-      if (s->mother) fprintf (fp, "\tMOTHER:%s", sampleName(sample (p, s->mother))) ;
-      if (s->father) fprintf (fp, "\tFATHER:%s", sampleName(sample (p, s->father))) ;
-      fputc ('\n', fp) ;
+  static const char *typeStr = "\0ifZ" ;
+  int i, j, count = 0 ;
+  for (i = 0 ; i < p->M ; i += pbwtSamplePloidy (p, i), count++)
+    { Sample *s = sample (arr(p->samples, i, int)) ;
+      writeMetaData(sampleName(s), s->metaData, fp) ;
     }     
   if (ferror (fp)) die ("error writing samples file") ;
 
-  fprintf (logFilePtr, "written %d samples\n", p->M/2) ;
+  fprintf (logFile, "written %d samples\n", count) ;
 }
 
-void writeDataOffset (FILE *fp, char *name, Array offset, Array data, int N)
+void writeDataOffset (FILE *fp, char *name, Array data, Array offset, int N)
 {
   if (!offset || !data) die ("write %s called without data", name) ;
   int dummy = -1 ;	/* ugly hack to mark that we now use longs not ints */
@@ -108,7 +105,7 @@ void writeDataOffset (FILE *fp, char *name, Array offset, Array data, int N)
   if (fwrite (arrp(offset, 0, long), sizeof(long), N, fp) != N)
     die ("error writing offsets in write %s", name) ;
 
-  fprintf (logFilePtr, "written %ld chars compressed %s data\n", n, name) ;
+  fprintf (logFile, "written %ld chars compressed %s data\n", n, name) ;
 }
 
 void pbwtWriteMissing (PBWT *p, FILE *fp)
@@ -125,7 +122,7 @@ void pbwtWriteReverse (PBWT *p, FILE *fp)
   int* tstart = p->aFstart ; p->aFstart = p->aRstart ;
   int* tend = p->aFend ; p->aFend = p->aRend ;
 
-  fprintf (logFilePtr, "reverse: ") ; pbwtWrite (p, fp) ;
+  fprintf (logFile, "reverse: ") ; pbwtWrite (p, fp) ;
   
   p->yz = tz ; p->aFstart = tstart ; p->aFend = tend ;
 }
@@ -141,6 +138,18 @@ void pbwtWriteAll (PBWT *p, char *root)
   if (p->missingOffset) { FOPEN_W("missing") ; pbwtWriteMissing (p, fp) ; fclose (fp) ; }
   if (p->dosageOffset) { FOPEN_W("dosage") ; pbwtWriteDosage (p, fp) ; fclose (fp) ; }
   if (p->zz) { FOPEN_W("reverse") ; pbwtWriteReverse (p, fp) ; fclose (fp) ; }
+}
+
+void pbwtWritePhase (PBWT *p, char *filename)
+{
+  FILE *fp ;
+  if (!(fp = fopen (filename, "w"))) die ("failed to open %s",filename);
+  fprintf(fp,"%i\n",p->M);
+  fprintf(fp,"%i\nP",p->N);
+  int i ; for (i = 0 ; i < p->N ; i++) fprintf(fp," %i",arrayp(p->sites,i,Site)->x);
+  fprintf(fp,"\n");
+
+  pbwtWriteTransposedHaplotypes(p,fp);
 }
 
 void pbwtCheckPoint (PbwtCursor *u, PBWT *p)
@@ -200,7 +209,7 @@ PBWT *pbwtRead (FILE *fp)
   if (fread (arrp(p->yz, 0, uchar), sizeof(uchar), nz, fp) != nz)
     die ("error reading data in pbwt file") ;
 
-  fprintf (logFilePtr, "read pbwt %s file with %ld bytes: M, N are %d, %d\n", tag, nz, p->M, p->N) ;
+  fprintf (logFile, "read pbwt %s file with %ld bytes: M, N are %d, %d\n", tag, nz, p->M, p->N) ;
   return p ;
 }
 
@@ -248,7 +257,7 @@ Array pbwtReadSitesFile (FILE *fp, char **chrom)
 
   if (ferror (fp)) die ("error reading sites file") ;
   
-  fprintf (logFilePtr, "read %ld sites on chromosome %s from file\n", arrayMax(sites), *chrom) ;
+  fprintf (logFile, "read %ld sites on chromosome %s from file\n", arrayMax(sites), *chrom) ;
 
   arrayDestroy (varTextArray) ;
   return sites ;
@@ -297,54 +306,166 @@ void pbwtReadRefFreq (PBWT *p, FILE *fp)
     }
 }
 
-Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
-/* should add code to this to read father and mother and population
-   propose to use IMPUTE2 format for this */
-{
-  char *name, c ;
-  int line = 0 ;
-  Array nameArray = arrayCreate (1024, char) ;
+// Array pbwtReadSamplesFile (FILE *fp) /* for now assume all samples diploid */
+// /* should add code to this to read father and mother and population
+//    propose to use IMPUTE2 format for this */
+// {
+//   char *name, c ;
+//   int line = 0 ;
+//   Array nameArray = arrayCreate (1024, char) ;
+//   Array samples = arrayCreate (1024, int) ;
+
+//   while (!feof(fp))
+//     { int n = 0 ;
+//       while ((c = getc(fp)) && !isspace(c) && !feof (fp)) array(nameArray, n++, char) = c ;
+//       if (feof(fp)) break ;
+//       if (!n) die ("no name line %ld in samples file", arrayMax(samples)+1) ;
+//       array(nameArray, n++, char) = 0 ;
+//      /* next bit of code deals with header lines for IMPUTE2 samples file, so can read that */
+//       if (!strcmp (arrp(nameArray,0,char), "ID_1") && !arrayMax(samples))
+// 	{ while ((c = getc(fp)) && c != '\n' && !feof(fp)) ; /* remove header line */
+// 	  while ((c = getc(fp)) && c != '\n' && !feof(fp)) ; /* and next line of zeroes?? */
+// 	  continue ;
+// 	}
+//       array(samples,arrayMax(samples),int) = sampleAdd(arrp(nameArray,0,char), 0, 0, 0, 0, 0)->nameD ;
+//       /* now remove the rest of the line, for now */
+//       while (c != '\n' && !feof(fp)) c = getc(fp) ;
+//     }
+//   arrayDestroy (nameArray) ;
+
+//   fprintf (logFile, "read %ld sample names\n", arrayMax(samples)) ;
+
+//   return samples ;
+// }
+
+  /*
+     FMF format - tab delimited flat metadata format where first column is the 
+     sample name followed by metadata in the format key:type:value with type 
+     being Z for a string, f for a real number and i for an integer:
+      sample1   sex:Z:M    height:f:1.73     region:Z:WestEurasia     foo:i:10
+      sample2   sex:Z:F    height:f:1.64     region:Z:WestEurasia     bar:i:20
+  */
+
+  /*
+     FAM format - first 6 columns of the PED format (used for binary PED format). space delimited with no header:
+     1. Family ID
+     2. Individual ID
+     3. Paternal ID
+     4. Maternal ID
+     5. Sex (1=male; 2=female; other=unknown)
+     6. Phenotype (-1=missing; 0=missing; 1=unaffected; 2=affected)
+  */
+
+  /*
+     HAPS/SAMPLE and GEN/SAMPLE format - space delimited with at least 3 columns with 2 header lines:
+     1. individual ID 1 (ID_1)
+     2. individual ID 2 (ID_2)
+     3. missing data proportion (missing)
+     4-. ignored, covariates named in the first header line and type defined in the second header line
+         (0=for first 3 columns; D=discrete covariate (unsigned int); C=continuous covariate (float); P=continuous phenotype (float); B=binary phenotype (0 or 1))
+  */
+
+  /*
+     HAPS/LEGEND/SAMPLE format - space delimited with at least 4 columns with 1 header line :
+     1. individual ID (sample)
+     2. group ID 1 (population)
+     3. group ID 2 (group)
+     4. sex (1=male; 2=female; other=unknown)
+     5-. ignored
+  */
+     
+Array pbwtReadSamplesFile (FILE *fp) {
+  // populate sample fields from FMF sample file
+  char *line = calloc(1024, sizeof(char)); line[0] = '\0';
+  char *key = calloc(128, sizeof(char)); key[0] = '\0';
+  char *value = calloc(128, sizeof(char)); value[0] = '\0';
+  char *name = calloc(128, sizeof(char)); name[0] = '\0';
+  char *str;
+  char type;
+
   Array samples = arrayCreate (1024, int) ;
 
-  while (!feof(fp))
-    { int n = 0 ;
-      while ((c = getc(fp)) && !isspace(c) && !feof (fp)) array(nameArray, n++, char) = c ;
-      if (feof(fp)) break ;
-      if (!n) die ("no name line %ld in samples file", arrayMax(samples)+1) ;
-      array(nameArray, n++, char) = 0 ;
-      /* next bit of code deals with header lines for IMPUTE2 samples file, so can read that */
-      if (!strcmp (arrp(nameArray,0,char), "ID_1") && !arrayMax(samples))
-	{ while ((c = getc(fp)) && c != '\n' && !feof(fp)) ; /* remove header line */
-	  while ((c = getc(fp)) && c != '\n' && !feof(fp)) ; /* and next line of zeroes?? */
-	  continue ;
-	}
-      array(samples,arrayMax(samples),int) = sampleAdd (arrp(nameArray,0,char), 0, 0, 0) ;
-      /* now remove the rest of the line, for now */
-      while (c != '\n' && !feof(fp)) c = getc(fp) ;
+  while (1) {
+    line = fgets(line, 1024, fp);
+    if(feof(fp)) break;
+    else if(sscanf(line, "ID_1%s", name)) { // IMPUTE2 file
+      die("IMPUTE2 style sample files not yet supported - coming soon");
     }
-  arrayDestroy (nameArray) ;
-
-  fprintf (logFilePtr, "read %ld sample names\n", arrayMax(samples)) ;
-
+    else { // FMF file (single column valid)
+      str = strtok(line, "\t\n"); // test it works with single column
+      strcpy(name, str);
+      int v, k = array(samples,arrayMax(samples),int) = sampleAdd(name) ;
+      Sample *s = sample (k) ;
+      while(str = strtok(0, "\t\n"))
+      {
+        if(sscanf(str, "%127[^:]:%1[^:]:%127[^:]", key, &type, value) == 3)
+        {
+            addMetaData(s->metaData, key, value, type) ;
+        }
+        if(!strcasecmp(key, "mother")) { mother (s, value) ; }
+        if(!strcasecmp(key, "father")) { father (s, value) ; }
+        if(!strcasecmp(key, "family")||!strcasecmp(key, "familyID")) { familyName (s, value) ; }
+        if(!strcasecmp(key, "pop")||!strcasecmp(key, "population")) { popName (s, value) ; }
+        if(!strcasecmp(key, "gender")||!strcasecmp(key, "sex"))
+        {
+          if(!strcasecmp(value, "M")||!strcasecmp(value, "male")) s->isMale = TRUE ;
+          if(!strcasecmp(value, "F")||!strcasecmp(value, "female")) s->isFemale = TRUE ;
+        }
+      }
+    }    
+  }
+  free(line); free(key); free(value); free(name);
+  fprintf (logFile, "read %ld sample names\n", arrayMax(samples)) ;
   return samples ;
 }
 
 void pbwtReadSamples (PBWT *p, FILE *fp)
 {
   if (!p) die ("pbwtReadSamples called without a valid pbwt") ;
+
+  // NB: pbwtReadSamplesFile() calls sampleAdd() which uses static sample
+  // dictionary and therefore the sample indexes will be offset when pbwtReadSamples()
+  // is called multiple times.
+  int ioff = sampleCount();
+
   Array samples = pbwtReadSamplesFile (fp) ;
-  if (arrayMax(samples) != p->M/2) 
-    die ("wrong number of diploid samples: %d needed", p->M/2) ;
+  int i,j, count_x2 = 0, count_x1 = 0, count_y1 = 0, count_y0 = 0, count2 = 0; 
   p->samples = arrayReCreate(p->samples, p->M, int) ;
-  int i ; 
-  for (i = 0 ; i < arrayMax(samples) ; ++i)
-    { array(p->samples, 2*i, int) = arr(samples, i, int) ;
-      array(p->samples, 2*i+1, int) = arr(samples, i, int) ;
-    }
+
+  for (i=0; i<arrayMax(samples); i++)
+  {
+      Sample *s = sample (i+ioff) ;
+      if ( s->isFemale ) { count_x2++; count_y0++; count2++; }
+      else { count_x1++; count_y1++; count2++; }
+  }
+
+  if ( 2*count2 == p->M )
+      fprintf (logFile, "Note: number of haplotypes (%ld) is consistent with %d diploid samples\n", arrayMax(samples), p->M) ;
+  else if ( 2*count_x2 + count_x1 == p->M )
+  {
+      p->isX = TRUE;
+      fprintf (logFile, "Note: number of haplotypes (%d) is consistent with %d haploid and %d diploid samples\n", p->M, count_x1,count_x2) ;
+  }
+  else if ( count_y1 == p->M )
+  {
+      p->isY = TRUE;
+      fprintf (logFile, "Note: number of haplotypes (%d) consistent with %d haploid samples and %d samples with zero ploidy\n", p->M, count_y1,count_y0) ;
+  }
+  else
+      die ("number of haplotypes (%d) is not consistent with the number of samples (%ld): expected %d, %d or %d haplotypes", p->M, arrayMax(samples),count2,2*count_x2 + count_x1,count_y1) ;
+
+  for (i=0,j=0; i<arrayMax(samples); i++)
+  {
+      Sample *s = sample (i+ioff) ;
+      if (p->isY && s->isFemale) continue ;
+      array(p->samples, j++, int) = arr(samples, i, int) ;
+      if (p->isX && s->isMale) continue ;
+      array(p->samples, j++, int) = arr(samples, i, int) ;
+  }
   arrayDestroy (samples) ;
 }
 
-static void readDataOffset (FILE *fp, char *name, Array *offset, Array *data, int N)
+static void readDataOffset (FILE *fp, char *name, Array *data, Array *offset, int N)
 {
   long n ;			/* size of data file */
   int dummy ; 
@@ -356,21 +477,21 @@ static void readDataOffset (FILE *fp, char *name, Array *offset, Array *data, in
 
   *data = arrayReCreate (*data, n, uchar) ;
   if (fread (arrp(*data, 0, uchar), sizeof(uchar), n, fp) != n)
-    die ("error reading zMissing in pbwtReadMissing") ;
+    die ("error reading z%s in pbwtRead%s", name, name) ;
   arrayMax(*data) = n ;
-  fprintf (logFilePtr, "read %ld chars compressed missing data\n", n) ;
+  fprintf (logFile, "read %ld chars compressed %s data\n", n, name) ;
 
   *offset = arrayReCreate (*offset, N, long) ;
   if (dummy != -1)		/* old version with ints not longs */
     { /* abuse *offset to hold ints, then update in place */
       if (fread (arrp(*offset, 0, int), sizeof(int), N, fp) != N) 
-	die ("error reading missing in pbwtReadMissing") ;
+	die ("error reading %s in pbwtRead%s", name, name) ;
       for (n = N ; n-- ;) 
 	arr(*offset, n, long) = arr(*offset, n, int) ; /* !! */
     }
   else
     if (fread (arrp(*offset, 0, long), sizeof(long), N, fp) != N)
-      die ("error reading missing in pbwtReadMissing") ;
+      die ("error reading %s in pbwtRead%s", name, name) ;
   arrayMax(*offset) = N ;
 }
 
@@ -436,7 +557,7 @@ static BOOL parseMacsSite (FILE *fp, Site *s, int M, double L, uchar *yp) /* par
 
   number = atoi(fgetword(fp)) ;	/* this is the site number */
   s->x = (int) (L * atof(fgetword(fp))) ;
-  atof(fgetword(fp)) ;		/* ignore the time */
+  double dummy = atof(fgetword(fp)) ;		/* ignore the time - dummy stops compile warning */
   while (M--)
     *yp++ = conv[getc(fp)] ;
   if (feof (fp)) return FALSE ;
@@ -470,9 +591,9 @@ PBWT *pbwtReadMacs (FILE *fp)
     }
   pbwtCursorToAFend (u, p) ;
 
-  fprintf (logFilePtr, "read MaCS file: M, N are\t%d\t%d\n", M, p->N) ;
+  fprintf (logFile, "read MaCS file: M, N are\t%d\t%d\n", M, p->N) ;
   if (isStats)
-    fprintf (logFilePtr, "                xtot, ytot are\t%d\t%d\n", nxTot, nyTot) ;
+    fprintf (logFile, "                xtot, ytot are\t%d\t%d\n", nxTot, nyTot) ;
 
   free(x) ; pbwtCursorDestroy (u) ;
 
@@ -564,9 +685,46 @@ static PBWT *pbwtReadLineFile (FILE *fp, char* type, ParseLineFunc parseLine)
     }
   pbwtCursorToAFend (u, p) ;
 
-  fprintf (logFilePtr, "read %s file", type) ;
-  if (p->chrom) fprintf (logFilePtr, " for chromosome %s", p->chrom) ;
-  fprintf (logFilePtr, ": M, N are\t%d\t%d; yz length is %ld\n", p->M, p->N, arrayMax(p->yz)) ;
+  fprintf (logFile, "read %s file", type) ;
+  if (p->chrom) fprintf (logFile, " for chromosome %s", p->chrom) ;
+  fprintf (logFile, ": M, N are\t%d\t%d; yz length is %ld\n", p->M, p->N, arrayMax(p->yz)) ;
+
+  arrayDestroy(xArray) ; pbwtCursorDestroy (u) ;
+
+  return p ;
+}
+
+typedef BOOL (*ParseTwoLineFunc)(PBWT** pp, FILE *f, FILE *l, Array a) ;
+
+static PBWT *pbwtReadLineTwoFile (FILE *fp, FILE *lp, char* type, ParseTwoLineFunc parseLine)
+{
+  PBWT *p = 0 ;
+  int j ;
+  uchar *x ;		/* original, sorted, compressed */
+  int *a ;
+  Array xArray = arrayCreate (10000, uchar) ;
+  PbwtCursor *u ;
+
+  /* skip header of legend file */
+  while (!feof(lp))
+  {  char c = getc(lp) ; if (c == '\n') break ;
+     }
+
+  while ((*parseLine) (&p, fp, lp, xArray)) /* create p first time round */
+    { if (!p->yz)		/* first line; p was just made! */
+	{ p->yz = arrayCreate(4096*32, uchar) ;
+	  u = pbwtCursorCreate (p, TRUE, TRUE) ;
+	}
+      x = arrp(xArray,0,uchar) ;
+      for (j = 0 ; j < p->M ; ++j) u->y[j] = x[u->a[j]] ;
+      pbwtCursorWriteForwards (u) ;
+      if (nCheckPoint && !(p->N % nCheckPoint))	pbwtCheckPoint (u, p) ;
+    }
+  pbwtCursorToAFend (u, p) ;
+
+  fprintf (stderr, "read %s file", type) ;
+  if (p->chrom) fprintf (stderr, " for chromosome %s", p->chrom) ;
+  fprintf (stderr, ": M, N are\t%d\t%d; yz length is %ld\n", p->M, p->N, arrayMax(p->yz)) ;
 
   arrayDestroy(xArray) ; pbwtCursorDestroy (u) ;
 
@@ -626,13 +784,13 @@ static BOOL parseHapLine (PBWT **pp, FILE *fp, Array x) /* same as parseGenLine 
 {
   PBWT *p = *pp ;
   
-  fgetword(fp) ; fgetword(fp) ;	/* ignore first two name fields */
+  fgetword(fp) ;	fgetword(fp) ;	/* ignore first two name fields */
   
   int pos = atoi (fgetword (fp)) ;
   char *var = getVariation (fp) ; /* but need to change ' ' separator to '\t' */
   if (feof (fp)) return FALSE ;
   char *cp = var ; while (*cp && *cp != ' ') ++cp ; if (*cp == ' ') *cp = '\t' ; else die ("missing separator in line %d, var is %d", p?p->N:0, var) ;
-  
+
   int m = 0, nscan ;
   while (!feof(fp))
   { char c = getc(fp) ; if (c == '\n') break ; else if (!isspace(c)) ungetc (c, fp) ;
@@ -661,18 +819,66 @@ static BOOL parseHapLine (PBWT **pp, FILE *fp, Array x) /* same as parseGenLine 
 }
 
 
+static BOOL parseHapLegendLine (PBWT **pp, FILE *fp, FILE *lp, Array x) /* same as parseGenLine - slightly simpler */
+{
+  PBWT *p = *pp ;
+  
+  fgetword(lp) ;	/* ignore first name field */
+  
+  int pos = atoi (fgetword (lp)) ;
+  char *var = getVariation (lp) ; /* but need to change ' ' separator to '\t' */
+  if (feof (lp)) return FALSE ;
+  char *cp = var ; while (*cp && *cp != ' ') ++cp ; if (*cp == ' ') *cp = '\t' ; else die ("missing separator in line %d, var is %d", p?p->N:0, var) ;
+  while (!feof(lp))
+  {  char c = getc(lp) ; if (c == '\n') break ;
+     }
+
+  int m = 0, nscan ;
+  while (!feof(fp))
+  { char c = getc(fp) ; if (c == '\n') break ; else if (!isspace(c)) ungetc (c, fp) ;
+    float f0, f1 ;
+    if ((nscan = fscanf (fp, "%f %f", &f0, &f1) != 2))
+      { warn ("bad line %d, %d floats found, m %d, pos %d, var %s - aborting", p ? p->N : 0, nscan, m, pos, var) ;
+	return FALSE ;
+      }
+    array(x,m++,uchar) = f0 ; array(x,m++,uchar) = f1 ; /* haps are phased, put straight in as is */
+  }
+  
+  if (feof (fp)) return FALSE ;
+  if (p && m != p->M) die ("length mismatch reading haps line") ;
+  
+  if (!*pp)
+  { p = *pp = pbwtCreate (m, 0) ;
+    p->sites = arrayCreate(4096, Site) ;
+    array(x,p->M,uchar) = Y_SENTINEL ; /* sentinel required for packing */
+  }
+  Site *s = arrayp(p->sites, arrayMax(p->sites), Site) ;
+  s->x = pos ;
+  dictAdd (variationDict, var, &s->varD) ;
+  
+  ++p->N ;
+  return TRUE ;
+}
+
 PBWT *pbwtReadGen (FILE *fp, char *chrom) 
 { 
   nGenMissing = 0 ;
   PBWT *p = pbwtReadLineFile (fp, "gen", parseGenLine) ;
   p->chrom = strdup (chrom) ;
-  if (nGenMissing) fprintf (logFilePtr, "%ld missing genotypes set to 00\n", nGenMissing) ;
+  if (nGenMissing) fprintf (logFile, "%ld missing genotypes set to 00\n", nGenMissing) ;
   return p ;
 }
 
 PBWT *pbwtReadHap (FILE *fp, char *chrom)
 {
   PBWT *p = pbwtReadLineFile (fp, "hap", parseHapLine) ;
+  p->chrom = strdup (chrom) ;
+  return p ;
+}
+
+PBWT *pbwtReadHapLegend (FILE *fp, FILE *lp, char *chrom)
+{
+  PBWT *p = pbwtReadLineTwoFile (fp, lp, "hap-legend", parseHapLegendLine) ;
   p->chrom = strdup (chrom) ;
   return p ;
 }
@@ -685,34 +891,39 @@ PBWT *pbwtReadPhase (FILE *fp) /* Li and Stephens PHASE format */
   int l2 = atoi (fgetword (fp)) ;  if (getc(fp) != '\n') die ("bad second line in phase file") ;
   char * tc=fgetword (fp);
   int l3 = atoi (tc) ;  
-  if (getc(fp) != '\n') { // version 2
+  if (tc[0] == 'P') { // version 2
     nhaps=l1;
     nsnps=l2;
     ninds=nhaps/2;
   }else{ // version 1
+    if (getc(fp) != '\n') die ("bad third line in phase file") ;
     ninds=l2;
     nhaps=l2*2;
     nsnps=l3;
-    fgetword (fp);
+    fgetword (fp); /* Remove the initial P */
     version=1;
   }
-  printf("Read %i SNPs %i haplotypes and %i individuals from PHASE format version %i\n",nsnps,nhaps,ninds,version);
+  fprintf(logFile,"Reading %i SNPs %i haplotypes and %i individuals from PHASE format version %i\n",nsnps,nhaps,ninds,version);
   PBWT *p = pbwtCreate (nhaps, nsnps) ;
-  p->chrom = strdup (fgetword(fp)) ; /* example 4th line is P followed by site positions */
+  p->chrom = strdup ("0") ; /* chromosome number not available from phase files */
   p->sites = arrayCreate (4096, Site) ;
-  int i ; for (i = 0 ; i < p->N ; ++i) arrayp(p->sites,i,Site)->x = atoi (fgetword(fp)) ;
-  if (getc(fp) != '\n') die ("bad 4th line in phase file") ;
-  if(version==1){
-  char var[2] ; var[1] = 0 ;
-  for (i = 0 ; i < p->N ; ++i) 
-    { *var = getc(fp) ; dictAdd (variationDict, var, &(arrayp(p->sites,i,Site)->varD)) ; }
-  if (getc(fp) != '\n') die ("bad 5th line in phase file") ;
+  int i ; for (i = 0 ; i < p->N ; ++i) {
+    tc=fgetword(fp);
+    arrayp(p->sites,i,Site)->x = atoi (tc) ;
   }
+  if (getc(fp) != '\n') die ("bad location line in phase file") ;
+  char var[2] ="S\0"; var[1] = 0 ; /*dummy variation line - used to create variationDict */
+  for (i = 0 ; i < p->N ; ++i) 
+    {
+      if(version==1) *var = getc(fp) ;
+      dictAdd (variationDict, var, &(arrayp(p->sites,i,Site)->varD)) ; }
+  if(version==1) if (getc(fp) != '\n') die ("bad 5th line in phase file") ;
+
   uchar **data = myalloc (p->N, uchar*) ;
   for (i = 0 ; i < p->N ; ++i) data[i] = myalloc (p->M, uchar) ;
   int j ; for (j = 0 ; j < p->M ; ++j)
     { for (i = 0 ; i < p->N ; ++i) data[i][j] = getc(fp) - '0' ;
-      if (getc(fp) != '\n') die ("bad %dth line in phase file", 6+j) ;
+      if (getc(fp) != '\n') die ("bad %dth line in phase file", 7+j-version) ;
     }
   p->yz = arrayCreate(4096*32, uchar) ;
   PbwtCursor *u = pbwtCursorCreate (p, TRUE, TRUE) ;
@@ -723,9 +934,9 @@ PBWT *pbwtReadPhase (FILE *fp) /* Li and Stephens PHASE format */
     }
   pbwtCursorToAFend (u, p) ;
 
-  fprintf (logFilePtr, "read phase file") ;
-  if (p->chrom) fprintf (logFilePtr, " for chromosome %s", p->chrom) ;
-  fprintf (logFilePtr, ": M, N are\t%d\t%d; yz length is %ld\n", p->M, p->N, arrayMax(p->yz)) ;
+  fprintf (logFile, "read phase file") ;
+  if (p->chrom) fprintf (logFile, " for chromosome %s", p->chrom) ;
+  fprintf (logFile, ": M, N are\t%d\t%d; yz length is %ld\n", p->M, p->N, arrayMax(p->yz)) ;
 
   for (i = 0 ; i < p->N ; ++i) free(data[i]) ;
   free (data) ; pbwtCursorDestroy (u) ;
@@ -751,7 +962,23 @@ void pbwtWriteHaplotypes (FILE *fp, PBWT *p)
     }
   free (hap) ; pbwtCursorDestroy (u) ;
 
-  fprintf (logFilePtr, "written haplotype file: %d rows of %d\n", p->N, M) ;
+  fprintf (logFile, "written haplotype file: %d rows of %d\n", p->N, M) ;
+}
+
+void pbwtWriteTransposedHaplotypes (PBWT *p, FILE *fp)
+{
+  int i, j ;
+  uchar **hap = pbwtHaplotypes (p) ;
+  
+  for (j = 0 ; j < p->M ; ++j)
+    { for (i = 0 ; i < p->N ; ++i) 
+	putc (hap[j][i], fp) ;
+      putc ('\n', fp) ; fflush (fp) ;
+    }
+  
+  for (i = 0 ; j < p->M ; ++j) free(hap[j]) ;  free (hap) ;
+  
+  fprintf (logFile, "written transposed haplotype file: %d rows of %d\n", p->M,p->N) ;
 }
 
 /*************** write IMPUTE files ********************/
