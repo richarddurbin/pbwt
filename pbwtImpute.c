@@ -1167,7 +1167,7 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   pNew->isRefFreq = TRUE ;
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
   uchar *x = myalloc (pOld->M, uchar) ;     /* uNew->y values in original sort order */
-  double *p = myalloc (pOld->M, double) ;   /* estimated prob of uNew->y in original sort order */
+  // unused: double *p = myalloc (pOld->M, double) ;   /* estimated prob of uNew->y in original sort order */
   int *aRefInv = myalloc (pRef->M, int) ;   /* holds the inverse mapping from uRef->a[i] -> i */
   int *firstSeg = mycalloc (pOld->M, int) ; /* position in maxMatch to start looking at */
   int nConflicts = 0 ;
@@ -1254,8 +1254,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 
   pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uRef) ; pbwtCursorDestroy (uNew) ;
   free (aRefInv) ; free (firstSeg) ;
-  for (j = 0 ; j < pOld->M ; ++j) free (maxMatch[j]) ; free (maxMatch) ;
-  free (xDosage) ; free (yDosage) ; if (missing) free (missing) ;
+  for (j = 0 ; j < pOld->M ; ++j) arrayDestroy (maxMatch[j]) ; free (maxMatch) ;
+  free (xDosage) ; free (yDosage) ; if (missing) free (missing) ; free (x) ;
   return pNew ;
 }
 
