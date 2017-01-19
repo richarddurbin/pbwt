@@ -26,6 +26,10 @@ UTILS_OBJS=hash.o dict.o array.o utils.o
 UTILS_HEADERS=utils.h array.h dict.h hash.h
 AUTOZYG_OBJS=autozygExtract.o
 
+$(PBWT_OBJS): pbwt.h array.h dict.h hash.h utils.h
+$(UTILS_OBJS): utils.h array.h dict.h hash.h
+pbwtMain.o: version.h
+
 pbwt: $(PBWT_OBJS) $(UTILS_OBJS)
 	$(LINK.c) $^ $(LDLIBS) -o $@
 
