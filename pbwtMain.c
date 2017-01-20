@@ -478,7 +478,7 @@ int main (int argc, char *argv[])
   if (variationDict) dictDestroy(variationDict);
   sampleDestroy();
   metaDataDestroy();
-  free(commandLine);
+  if (*commandLine) free(commandLine);
   fgetword (NULL) ;	// to keep valgrind happy, free malloced memory
   LOGCLOSE ;
   return 0 ;
