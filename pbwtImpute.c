@@ -1141,7 +1141,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   if (pOld == pFrame)		/* self-imputing - no sparse option yet */
     matchMaximalWithin (pFrame, reportMatch) ;
   else
-    matchSequencesSweepSparse (pFrame, pOld, nSparse, reportMatchSparse) ;
+    matchSequencesSweep (pFrame, pOld, reportMatch) ;
+    //matchSequencesSweepSparse (pFrame, pOld, nSparse, reportMatchSparse) ;
 
   for (j = 0 ; j < pOld->M ; ++j)	/* add terminating element to arrays */
     { if (nSparse > 1) /* can't guarantee order of sparse segments */
@@ -1184,12 +1185,12 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 	{ 
       if ( pOld != pFrame )
       {
-          if (!arr(pOld->missingOffset, kOld, long)) bzero (missing, pOld->M) ;
+          if (!pOld->missingOffset || !arr(pOld->missingOffset, kOld, long)) bzero (missing, pOld->M) ;
           else unpack3 (arrp(pOld->zMissing,arr(pOld->missingOffset,kOld,long), uchar), pOld->M, missing, 0) ;
       }
       pbwtCursorForwardsRead (uOld) ; ++kOld ;
 	  for (j = 0 ; j < pOld->M ; ++j)
-	    while (kOld >= (arrp(maxMatch[j],firstSeg[j],MatchSegment)->end & SPARSE_MASK)) ++firstSeg[j] ;
+	    while (kOld > (arrp(maxMatch[j],firstSeg[j],MatchSegment)->end & SPARSE_MASK)) ++firstSeg[j] ;
 	}
       else
         arrp(pRef->sites,kRef,Site)->isImputed = TRUE ;
@@ -1210,8 +1211,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 	  double bit = 0, sum = 0, score = 0 ;
 	  MatchSegment *m = arrp(maxMatch[j],firstSeg[j],MatchSegment) ;
 	  MatchSegment *mStop = arrp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
-	  while (m->start <= kOld && m < mStop)
-	    { bit = (kOld - m->start + 1) * ((m->end & SPARSE_MASK) - kOld) ;
+	  while (m->start <= kOld && m->end >= kOld && m < mStop)
+	    { bit = (kOld - m->start) * ((m->end & SPARSE_MASK) - kOld + 1) ;
 	      if (m->end & SPARSE_BIT) bit *= fSparse ;
 	      if (bit > 0)
 		{ sum += bit ;
