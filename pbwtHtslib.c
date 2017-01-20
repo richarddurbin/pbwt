@@ -249,7 +249,7 @@ PBWT *pbwtReadVcfGT (char *filename, int isXY)  /* read GTs from vcf/bcf using h
           // add the site
           Site *s = arrayp(p->sites, p->N++, Site) ;
           s->x = pos ;
-          s->varD = variation (line->d.allele[0], no_alt ? "." : line->d.allele[1]) ;
+          s->varD = variation (line->d.allele[0], no_alt ? "." : line->d.allele[i]) ;
         }
 
       if (nCheckPoint && !(p->N % nCheckPoint))  pbwtCheckPoint (u, p) ;
