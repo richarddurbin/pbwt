@@ -1242,9 +1242,15 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
       /* need to sort the dosages into uNew cursor order as well */
       for (j = 0 ; j < pOld->M ; ++j) 
       {
-        /* make sure the dosages of the typed markers are {0,1} */
-        if ( arrp(pRef->sites,kRef,Site)->isImputed!=TRUE && !missing[uNew->a[j]] ) yDosage[j] = x[uNew->a[j]] ? 1 : 0;
-        else yDosage[j] = xDosage[uNew->a[j]] ;
+        yDosage[j] = xDosage[uNew->a[j]] ;
+
+        /* Make sure the dosages of the typed markers are {0,1}.This is a sanity check that
+           can be removed after being tested extensively.  */
+        if ( arrp(pRef->sites,kRef,Site)->isImputed!=TRUE && !missing[uNew->a[j]] )
+        {
+            int expected = x[uNew->a[j]] ? 1 : 0;
+            if ( expected != yDosage[j] ) die ("Fixme: unexpected non-{0,1} dosage at position %d: %f\n", arrp(pRef->sites,kRef,Site)->x,yDosage[j]);
+        }
       }
       pbwtDosageStore (pNew, yDosage, kRef) ;
       pbwtCursorWriteForwards (uNew) ;
