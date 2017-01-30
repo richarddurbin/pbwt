@@ -35,16 +35,13 @@ static void readVcfSamples (PBWT *p, bcf_hdr_t *hr)
 
 static int variation (const char *ref, const char *alt)
 {
-  static char *buf = 0 ;
-  static int buflen = 0 ;
-  if (!buf) { buflen = 64 ; buf = myalloc (buflen, char) ; }
-  int var ;
-  if (strlen (ref) + strlen (alt) + 2 > buflen) 
-    { do buflen *= 2 ; while (strlen (ref) + strlen (alt) + 2 > buflen) ;
-      free (buf) ; buf = myalloc (buflen, char) ;
-    }
+  int var, len = strlen (ref) + strlen (alt) + 2;
+  char *buf = (char*) malloc(len);
   sprintf (buf, "%s\t%s", ref, alt) ;
+  char *ptr = buf;
+  while ( *ptr ) { *ptr = toupper(*ptr); ptr++; }
   dictAdd (variationDict, buf, &var) ;
+  free(buf);
   return var ;
 }
 
@@ -114,9 +111,6 @@ PBWT *pbwtReadVcfGT (char *filename, int isXY)  /* read GTs from vcf/bcf using h
       if (!p->chrom) p->chrom = strdup (chrom) ;
       else if (strcmp (chrom, p->chrom)) break ;
       int pos = line->pos + 1 ;       // bcf coordinates are 0-based
-      char *ref, *REF; 
-      ref = REF = strdup(line->d.allele[0]);
-      while ( (*ref = toupper(*ref)) ) ++ref ;
 
       // get a copy of GTs
       int ngt = bcf_get_genotypes(hr, line, &gt_arr, &mgt_arr) ;
@@ -234,10 +228,6 @@ PBWT *pbwtReadVcfGT (char *filename, int isXY)  /* read GTs from vcf/bcf using h
       /* not in the REF/ALT site */
       for (i = 1 ; i < n_allele ; i++)
         {
-          char *alt, *ALT; 
-          alt = ALT = no_alt ? "." : strdup(line->d.allele[i]) ;
-          if (!no_alt) while ( (*alt = toupper(*alt)) ) ++alt ;
-
           /* and pack them into the PBWT */
           for (j = 0 ; j < p->M ; ++j) u->y[j] = x[u->a[j]] == i ? 1 : 0;
           pbwtCursorWriteForwards (u) ;
@@ -259,7 +249,7 @@ PBWT *pbwtReadVcfGT (char *filename, int isXY)  /* read GTs from vcf/bcf using h
           // add the site
           Site *s = arrayp(p->sites, p->N++, Site) ;
           s->x = pos ;
-          s->varD = variation (REF, ALT) ;          
+          s->varD = variation (line->d.allele[0], no_alt ? "." : line->d.allele[i]) ;
         }
 
       if (nCheckPoint && !(p->N % nCheckPoint))  pbwtCheckPoint (u, p) ;
@@ -424,6 +414,7 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
   float *fls = myalloc (3*nSamples, float);
   uchar *missing = mycalloc (p->M, uchar) ;
   if (!p->missingOffset) bzero (missing, p->M) ;
+
   for (i = 0 ; i < p->N ; ++i)
     {
       Site *s = arrp(p->sites, i, Site) ;
@@ -577,10 +568,12 @@ void pbwtWriteVcf (PBWT *p, char *filename, char *referenceFasta, char *mode)
     }
 
   // cleanup
+  free(d) ;
   free(hap) ;
   free(gts) ;
+  free(missing) ;
   if (isDosage) { free(fls) ; free(gps) ; free(ds) ; free(ad) ; }
-  /*  pbwtCursorDestroy(u) ; */
+  pbwtCursorDestroy(u) ; // this was commented, not sure why??
   bcf_hdr_destroy(bcfHeader) ;
   bcf_destroy1(bcfRecord);
   hts_close(fp) ;

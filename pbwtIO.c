@@ -185,6 +185,7 @@ PBWT *pbwtRead (FILE *fp)
   if (fread (&m, sizeof(int), 1, fp) != 1) die ("error reading m in pbwtRead") ;
   if (fread (&n, sizeof(int), 1, fp) != 1) die ("error reading n in pbwtRead") ;
   p = pbwtCreate (m, n) ;
+  free(p->aFstart);
   if (version > 1)		/* read aFstart and aFend */
     { p->aFstart = myalloc (m, int) ;
       if (fread (p->aFstart, sizeof(int), m, fp) != m) die ("error reading aFstart in pbwtRead") ;
@@ -386,7 +387,9 @@ Array pbwtReadSamplesFile (FILE *fp) {
   Array samples = arrayCreate (1024, int) ;
 
   while (1) {
+    char *rmme = line;
     line = fgets(line, 1024, fp);
+    if ( !line ) free(rmme);
     if(feof(fp)) break;
     else if(sscanf(line, "ID_1%s", name)) { // IMPUTE2 file
       die("IMPUTE2 style sample files not yet supported - coming soon");

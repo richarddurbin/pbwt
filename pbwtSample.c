@@ -55,7 +55,7 @@ Sample *sample (int i)
 
 int sampleCount (void)
 {
-    return arrayMax(samples);
+    return arrayMax(samples) - 1;
 }
 
 int pbwtSamplePloidy(PBWT *p, int i)

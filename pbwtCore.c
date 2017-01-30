@@ -45,7 +45,6 @@ PBWT *pbwtCreate (int M, int N)
 
   p->M = M ; p->N = N ;
   p->aFstart = myalloc (M, int) ; int i ; for (i = 0 ; i < M ; ++i) p->aFstart[i] = i ;
-
   return p ;
 }
 
@@ -690,6 +689,8 @@ PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
   fprintf (logFile, "%d sites selected from %d, %d missing sites, pbwt size for %d haplotypes is %ld\n", 
 	   pNew->N, pOld->N, nMissingSites, pNew->M, arrayMax(pNew->yz)) ;
 
+  pNew->isX = pOld->isX ; pNew->isY = pOld->isY ;
+
   if (isKeepOld)
     { if (pOld->samples) pNew->samples = arrayCopy (pOld->samples) ;
       if (pOld->chrom) pNew->chrom = strdup (pOld->chrom) ;
@@ -702,11 +703,12 @@ PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
     else
       { pNew->chrom = pOld->chrom ; pOld->chrom = 0 ;
 	pNew->samples = pOld->samples ; pOld->samples = 0 ;
+        if (pOld->missingOffset) arrayDestroy (pOld->missingOffset) ;
         pOld->missingOffset = 0 ;
+        if (pOld->zMissing) arrayDestroy (pOld->zMissing) ;
         pOld->zMissing = 0 ;
 	pbwtDestroy (pOld) ;
       }
-  pNew->isX = pOld->isX ; pNew->isY = pOld->isY ;
 
   free(x) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   return pNew ;

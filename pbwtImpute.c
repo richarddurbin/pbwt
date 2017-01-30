@@ -1141,7 +1141,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   if (pOld == pFrame)		/* self-imputing - no sparse option yet */
     matchMaximalWithin (pFrame, reportMatch) ;
   else
-    matchSequencesSweepSparse (pFrame, pOld, nSparse, reportMatchSparse) ;
+    matchSequencesSweep (pFrame, pOld, reportMatch) ;
+    //matchSequencesSweepSparse (pFrame, pOld, nSparse, reportMatchSparse) ;
 
   for (j = 0 ; j < pOld->M ; ++j)	/* add terminating element to arrays */
     { if (nSparse > 1) /* can't guarantee order of sparse segments */
@@ -1167,11 +1168,11 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   pNew->isRefFreq = TRUE ;
   PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
   uchar *x = myalloc (pOld->M, uchar) ;     /* uNew->y values in original sort order */
-  double *p = myalloc (pOld->M, double) ;   /* estimated prob of uNew->y in original sort order */
+  // unused: double *p = myalloc (pOld->M, double) ;   /* estimated prob of uNew->y in original sort order */
   int *aRefInv = myalloc (pRef->M, int) ;   /* holds the inverse mapping from uRef->a[i] -> i */
   int *firstSeg = mycalloc (pOld->M, int) ; /* position in maxMatch to start looking at */
   int nConflicts = 0 ;
-  uchar *missing = (pOld == pFrame) ? mycalloc (pOld->M, uchar) : 0 ;
+  uchar *missing = mycalloc (pOld->M, uchar) ;
   double *xDosage = myalloc (pOld->M, double), *yDosage = myalloc (pOld->M, double) ;
 
   pNew->dosageOffset = arrayReCreate (pNew->dosageOffset, pRef->N, long) ;
@@ -1181,9 +1182,15 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   while (kRef < pRef->N)
     { if (arrp(pRef->sites,kRef,Site)->x == arrp(pFrame->sites,kOld,Site)->x
 	  && arrp(pRef->sites,kRef,Site)->varD == arrp(pFrame->sites,kOld,Site)->varD)
-	{ pbwtCursorForwardsRead (uOld) ; ++kOld ;
+	{ 
+      if ( pOld != pFrame )
+      {
+          if (!pOld->missingOffset || !arr(pOld->missingOffset, kOld, long)) bzero (missing, pOld->M) ;
+          else unpack3 (arrp(pOld->zMissing,arr(pOld->missingOffset,kOld,long), uchar), pOld->M, missing, 0) ;
+      }
+      pbwtCursorForwardsRead (uOld) ; ++kOld ;
 	  for (j = 0 ; j < pOld->M ; ++j)
-	    while (kOld >= (arrp(maxMatch[j],firstSeg[j],MatchSegment)->end & SPARSE_MASK)) ++firstSeg[j] ;
+	    while (kOld > (arrp(maxMatch[j],firstSeg[j],MatchSegment)->end & SPARSE_MASK)) ++firstSeg[j] ;
 	}
       else
         arrp(pRef->sites,kRef,Site)->isImputed = TRUE ;
@@ -1204,8 +1211,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 	  double bit = 0, sum = 0, score = 0 ;
 	  MatchSegment *m = arrp(maxMatch[j],firstSeg[j],MatchSegment) ;
 	  MatchSegment *mStop = arrp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
-	  while (m->start <= kOld && m < mStop)
-	    { bit = (kOld - m->start + 1) * ((m->end & SPARSE_MASK) - kOld) ;
+	  while (m->start <= kOld && m->end >= kOld && m < mStop)
+	    { bit = (kOld - m->start) * ((m->end & SPARSE_MASK) - kOld + 1) ;
 	      if (m->end & SPARSE_BIT) bit *= fSparse ;
 	      if (bit > 0)
 		{ sum += bit ;
@@ -1232,10 +1239,15 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 	}
 	  
       for (j = 0 ; j < pOld->M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* transfer to uNew */
-      pbwtCursorWriteForwards (uNew) ;
       /* need to sort the dosages into uNew cursor order as well */
-      for (j = 0 ; j < pOld->M ; ++j) yDosage[j] = xDosage[uNew->a[j]] ;
+      for (j = 0 ; j < pOld->M ; ++j) 
+      {
+        /* make sure the dosages of the typed markers are {0,1} */
+        if ( arrp(pRef->sites,kRef,Site)->isImputed!=TRUE && !missing[uNew->a[j]] ) yDosage[j] = x[uNew->a[j]] ? 1 : 0;
+        else yDosage[j] = xDosage[uNew->a[j]] ;
+      }
       pbwtDosageStore (pNew, yDosage, kRef) ;
+      pbwtCursorWriteForwards (uNew) ;
       
       if (n) 
 	{ psum /= n ; xsum /= n ; pxsum /= n ;
@@ -1254,8 +1266,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 
   pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uRef) ; pbwtCursorDestroy (uNew) ;
   free (aRefInv) ; free (firstSeg) ;
-  for (j = 0 ; j < pOld->M ; ++j) free (maxMatch[j]) ; free (maxMatch) ;
-  free (xDosage) ; free (yDosage) ; if (missing) free (missing) ;
+  for (j = 0 ; j < pOld->M ; ++j) arrayDestroy (maxMatch[j]) ; free (maxMatch) ;
+  free (xDosage) ; free (yDosage) ; if (missing) free (missing) ; free (x) ;
   return pNew ;
 }
 
@@ -1630,6 +1642,9 @@ PBWT *pbwtCopySamples (PBWT *pOld, int Mnew, double meanLength)
    gl[n][0] = (1-d[2*n]) * (1-d[2*n+1])
    gl[n][1] = d[2*n] + d[2*n+1] - 2*d[2*n]*d[2*n+1]
    gl[n][2] = d[2*n] * d[2*n+1]
+
+   Note that only differences from the {0,1} calls are stored. This is why
+   pbwtDosageStore() does not need the cursor but pbwtDosageRetrieve() does.
 */
 
 static inline uchar dosageEncode (double d)
