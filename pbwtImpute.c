@@ -1287,7 +1287,14 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   fprintf (logFile, "impute against reference %s\n", fileNameRoot) ;
   if (!pOld || !pOld->yz || !pOld->sites) 
     die ("referenceImpute called without existing pbwt with sites") ;
-  PBWT *pRef = pbwtReadAll (fileNameRoot) ;
+
+    PBWT *pRef;
+    FILE *fp ;
+    if ((fp = fopenTag (fileNameRoot, "pbwt", "r"))) { pRef = pbwtRead (fp) ; fclose (fp) ; } 
+    else die ("failed to open %s.pbwt", fileNameRoot) ;
+    if ((fp = fopenTag (fileNameRoot, "sites","r")))  { pbwtReadSites (pRef, fp) ; fclose (fp) ; }
+
+
   if (!pRef->sites) die ("new pbwt %s in referencePhase has no sites", fileNameRoot) ;
   if (strcmp(pOld->chrom,pRef->chrom))
     die ("mismatching chrom in referenceImpute: old %s, new %s", pRef->chrom, pOld->chrom) ;

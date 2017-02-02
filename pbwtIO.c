@@ -426,18 +426,14 @@ void pbwtReadSamples (PBWT *p, FILE *fp)
 {
   if (!p) die ("pbwtReadSamples called without a valid pbwt") ;
 
-  // NB: pbwtReadSamplesFile() calls sampleAdd() which uses static sample
-  // dictionary and therefore the sample indexes will be offset when pbwtReadSamples()
-  // is called multiple times.
-  int ioff = sampleCount() + 1;
-
   Array samples = pbwtReadSamplesFile (fp) ;
   int i,j, count_x2 = 0, count_x1 = 0, count_y1 = 0, count_y0 = 0, count2 = 0; 
   p->samples = arrayReCreate(p->samples, p->M, int) ;
 
   for (i=0; i<arrayMax(samples); i++)
   {
-      Sample *s = sample (i+ioff) ;
+      int k = arr(p->samples, i, int);
+      Sample *s = sample (k) ;
       if ( s->isFemale ) { count_x2++; count_y0++; count2++; }
       else { count_x1++; count_y1++; count2++; }
   }
@@ -459,11 +455,12 @@ void pbwtReadSamples (PBWT *p, FILE *fp)
 
   for (i=0,j=0; i<arrayMax(samples); i++)
   {
-      Sample *s = sample (i+ioff) ;
+      int k = arr(samples, i, int);
+      Sample *s = sample (k) ;
       if (p->isY && s->isFemale) continue ;
-      array(p->samples, j++, int) = arr(samples, i, int) ;
+      array(p->samples, j++, int) = k ;
       if (p->isX && s->isMale) continue ;
-      array(p->samples, j++, int) = arr(samples, i, int) ;
+      array(p->samples, j++, int) = k ;
   }
   arrayDestroy (samples) ;
 }
