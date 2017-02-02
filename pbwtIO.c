@@ -429,7 +429,7 @@ void pbwtReadSamples (PBWT *p, FILE *fp)
   // NB: pbwtReadSamplesFile() calls sampleAdd() which uses static sample
   // dictionary and therefore the sample indexes will be offset when pbwtReadSamples()
   // is called multiple times.
-  int ioff = sampleCount();
+  int ioff = sampleCount() + 1;
 
   Array samples = pbwtReadSamplesFile (fp) ;
   int i,j, count_x2 = 0, count_x1 = 0, count_y1 = 0, count_y0 = 0, count2 = 0; 
