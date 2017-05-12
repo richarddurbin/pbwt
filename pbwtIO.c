@@ -774,7 +774,7 @@ PBWT *pbwtReadHapLegend (FILE *fp, FILE *lp, char *chrom)
   return p ;
 }
 
-PBWT *pbwtReadPhase (FILE *fp) /* Li and Stephens PHASE format */
+PBWT *pbwtReadPhase (FILE *fp,char *chrom) /* Li and Stephens PHASE format */
 {
   int nhaps=0,nsnps=0,ninds=0;
   int version=2;
@@ -796,7 +796,7 @@ PBWT *pbwtReadPhase (FILE *fp) /* Li and Stephens PHASE format */
   }
   fprintf(logFile,"Reading %i SNPs %i haplotypes and %i individuals from PHASE format version %i\n",nsnps,nhaps,ninds,version);
   PBWT *p = pbwtCreate (nhaps, nsnps) ;
-  p->chrom = strdup ("0") ; /* chromosome number not available from phase files */
+  p->chrom = strdup (chrom) ;
   p->sites = arrayCreate (4096, Site) ;
   int i ; for (i = 0 ; i < p->N ; ++i) {
     tc=fgetword(fp);
