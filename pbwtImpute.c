@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 14 13:52 2015 (rd)
+ * Last edited: Apr 28 16:33 2017 (rd)
  * * Sep 22 23:10 2014 (rd): move to 64 bit arrays
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
@@ -1141,7 +1141,9 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   if (pOld == pFrame)		/* self-imputing - no sparse option yet */
     matchMaximalWithin (pFrame, reportMatch) ;
   else
-    matchSequencesSweepSparse (pFrame, pOld, nSparse, reportMatchSparse) ;
+    /*    matchSequencesSweepSparse (pFrame, pOld, nSparse, reportMatchSparse) ; */
+    matchSequencesSweep (pFrame, pOld, reportMatch) ;
+  /* RD 171113 - I don't underestand this - it disables the effect of nSparse - maybe that doesn't work? */
 
   for (j = 0 ; j < pOld->M ; ++j)	/* add terminating element to arrays */
     { if (nSparse > 1) /* can't guarantee order of sparse segments */
@@ -1174,10 +1176,10 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   uchar *missing = (pOld == pFrame) ? mycalloc (pOld->M, uchar) : 0 ;
   double *xDosage = myalloc (pOld->M, double), *yDosage = myalloc (pOld->M, double) ;
 
-  pNew->dosageOffset = arrayReCreate (pNew->dosageOffset, pRef->N, long) ;
-  pNew->zDosage = arrayReCreate (pNew->zDosage, pRef->N*16, uchar) ;
+  pNew->zDosage = arrayReCreate (pNew->zDosage, pRef->N*16, uchar) ; /* packed dosage data */
+  pNew->dosageOffset = arrayReCreate (pNew->dosageOffset, pRef->N, long) ; /* offsets per site into zDosage */
 
-  int kOld = 0, kRef = 0 ;
+  int kOld = 0, kRef = 0 ;	/* kOld is site in target and frame, kRef is site in the reference panel */
   while (kRef < pRef->N)
     { if (arrp(pRef->sites,kRef,Site)->x == arrp(pFrame->sites,kOld,Site)->x
 	  && arrp(pRef->sites,kRef,Site)->varD == arrp(pFrame->sites,kOld,Site)->varD)
@@ -1193,7 +1195,7 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 	  else unpack3 (arrp(pRef->zMissing,arr(pRef->missingOffset,kRef,long), uchar), 
 			pRef->M, missing, 0) ;
 	}
-      for (j = 0 ; j < pOld->M ; ++j)
+      for (j = 0 ; j < pOld->M ; ++j)	     /* j here is in original order */
 	{ if (pOld == pFrame && !missing[j]) /* don't impute - copy from ref */
 	    { x[j] = uRef->y[aRefInv[j]] ;
 	      continue ;
@@ -1202,8 +1204,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 	  double bit = 0, sum = 0, score = 0 ;
 	  MatchSegment *m = arrp(maxMatch[j],firstSeg[j],MatchSegment) ;
 	  MatchSegment *mStop = arrp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
-	  while (m->start <= kOld && m < mStop)
-	    { bit = (kOld - m->start + 1) * ((m->end & SPARSE_MASK) - kOld) ;
+	  while (m->start < kOld && m < mStop)
+	    { bit = (kOld - m->start) * ((m->end & SPARSE_MASK) - kOld) ;
 	      if (m->end & SPARSE_BIT) bit *= fSparse ;
 	      if (bit > 0)
 		{ sum += bit ;
@@ -1230,9 +1232,9 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 	}
 	  
       for (j = 0 ; j < pOld->M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* transfer to uNew */
-      pbwtCursorWriteForwards (uNew) ;
       /* need to sort the dosages into uNew cursor order as well */
       for (j = 0 ; j < pOld->M ; ++j) yDosage[j] = xDosage[uNew->a[j]] ;
+      pbwtCursorWriteForwards (uNew) ; /* must come after calculating yDosage[] */
       pbwtDosageStore (pNew, yDosage, kRef) ;
       
       if (n) 
