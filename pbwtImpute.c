@@ -1127,8 +1127,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 			       int nSparse, double fSparse)
 /* Require pOld and pFrame to have the same sites, a subset of sites of pRef, */
 /* and pRef and pFrame to have the same samples. */
-/* Impute only missing sites in pRef if pOld == pFrame. */
-/* Added nSparse to allow also matching at sparse positions */
+/* If pOld == pFrame then only impute missing sites in pRef, else take pRef. */
+/* Added nSparse to allow also matching at sparse positions - 171113 but this seems broken?! */
 {
   int i, j, k ;
 
@@ -1142,8 +1142,9 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
     matchMaximalWithin (pFrame, reportMatch) ;
   else
     /*    matchSequencesSweepSparse (pFrame, pOld, nSparse, reportMatchSparse) ; */
-    matchSequencesSweep (pFrame, pOld, reportMatch) ;
-  /* RD 171113 - I don't underestand this - it disables the effect of nSparse - maybe that doesn't work? */
+    /* RD 171113 - I don't underestand this - it disables the effect of nSparse - maybe that doesn't work? */
+      matchSequencesSweep (pFrame, pOld, reportMatch) ;
+
 
   for (j = 0 ; j < pOld->M ; ++j)	/* add terminating element to arrays */
     { if (nSparse > 1) /* can't guarantee order of sparse segments */
@@ -1299,7 +1300,7 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
       return pOld ;
     }
   pbwtBuildReverse (pFrame) ;	/* we need the reverse reference pbwt below */
-  pOld = pbwtSelectSites (pOld, pRef->sites, FALSE) ;
+  pOld = pbwtSelectSitesFillMissing (pOld, pRef->sites, FALSE) ;
   if (!pOld->N) die ("no overlapping sites in referenceImpute") ;
   if (!pOld->aFend) die ("pOld has no aFend in referenceImpute - your pbwt was made by a previous version of the code; buildReverse and resave the forwards pbwt") ;
 
@@ -1350,7 +1351,7 @@ PBWT *imputeMissing (PBWT *pOld)
     }
 
   if (isStats)
-    { int *nMiss = mycalloc (10,int), n0, i ;
+    { int *nMiss = mycalloc (10,int), n0, i ; /* assumes under 1e10 samples !! */
       uchar *miss = myalloc (pOld->M, uchar) ;
       for (k = 0 ; k < pOld->N ; ++k)
 	if (arr(pOld->missingOffset,k,long)) 
@@ -1380,7 +1381,7 @@ PBWT *imputeMissing (PBWT *pOld)
   PBWT *pFrame = pbwtSelectSites (pOld, completeSites, TRUE) ;
   arrayDestroy (completeSites) ;
 
-  /* then impute, using a special mode of impute2() */
+  /* then impute, using a special mode of impute3() */
   PBWT *pNew = referenceImpute3 (pFrame, pOld, pFrame, 1, 0) ;
   pNew->sites = pOld->sites ; pOld->sites = 0 ;
   pNew->samples = pOld->samples ; pOld->samples = 0 ;
