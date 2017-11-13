@@ -15,7 +15,7 @@
  * Description: tools for chromosome painting as in ChromoPainter, FineStructure etc.
  * Exported functions:
  * HISTORY:
- * Last edited: Aug  7 16:24 2015 (rd)
+ * Last edited: Jul  4 23:55 2017 (rd)
  * Created: Tue Apr  1 11:34:41 2014 (rd)
  *-------------------------------------------------------------------
  */
@@ -165,7 +165,7 @@ void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion)
   fclose (fc) ; fclose (fl) ; fclose (fc2) ;fclose (fc3) ;
   timeUpdate(logFile);
   /* clean up */
-  for (i = 0 ; i < Ninds ; ++i) { free (counts[i]) ; free (counts2[i]) ; }
+  for (i = 0 ; i < Ninds ; ++i) { free (counts[i]) ; free (counts2[i]) ; free (counts3[i]) ; free (totlengths[i]) ; }
   free (counts) ; free (counts2) ; free (counts3) ; free (totCounts) ; free (nregions); free(totlengths);
 }
 
