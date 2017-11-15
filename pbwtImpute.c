@@ -1300,13 +1300,8 @@ PBWT *pbwtFillMajorAllele (PBWT *pOri, PBWT *pRef)
             unpack3(arrp(pOri->zMissing, arr(pOri->missingOffset,iOri,long), uchar), pOri->M, tmp, 0);
             int major_allele = (float)uRef->c/(float)pRef->M <= 0.5 ? 1 : 0;
             for (i=0; i<pOri->M; i++)
-            {
-                if ( tmp[i] ) fprintf(stderr,"%d: %d -> %d\n",sRef->x,uNew->y[i],major_allele);
                 if ( tmp[i] ) uNew->y[i] = major_allele;
-            }
         }
-
-        
         pbwtCursorWriteForwards(uNew);
         pNew->N++;
         pbwtCursorForwardsRead(uOri);
