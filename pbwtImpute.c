@@ -1214,7 +1214,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 	  MatchSegment *m = arrp(maxMatch[j],firstSeg[j],MatchSegment) ;
 	  MatchSegment *mStop = arrp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
 	  while (m->start < kOld && m < mStop)
-	    { bit = (kOld - m->start) * ((m->end & SPARSE_MASK) - kOld) ;
+	  { bit = (kOld - m->start) * ((m->end & SPARSE_MASK) - kOld) ;
+
 	      if (m->end & SPARSE_BIT) bit *= fSparse ;
 	      if (bit > 0)
 		{ sum += bit ;
@@ -1245,7 +1246,6 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
       for (j = 0 ; j < pOld->M ; ++j) yDosage[j] = xDosage[uNew->a[j]] ;
       pbwtCursorWriteForwards (uNew) ; /* must come after calculating yDosage[] */
       pbwtDosageStore (pNew, yDosage, kRef) ;
-      pbwtCursorWriteForwards (uNew) ;
       
       if (n) 
 	{ psum /= n ; xsum /= n ; pxsum /= n ;
@@ -1270,6 +1270,66 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 }
 
 /*********************************************************************/
+
+/* Use the major allele from the reference panel (the frame) for missing genotypes in the query */
+PBWT *pbwtFillMajorAllele (PBWT *pOri, PBWT *pRef)
+{
+    if ( !pOri->missingOffset ) return pOri;
+
+    PBWT *pNew = pbwtCreate (pOri->M, 0) ;
+    PbwtCursor *uOri = pbwtCursorCreate (pOri, TRUE, TRUE) ;
+    PbwtCursor *uNew = pbwtCursorCreate (pNew, TRUE, TRUE) ;
+    PbwtCursor *uRef = pbwtCursorCreate (pRef, TRUE, TRUE) ;
+
+    Site *sOri  = arrp(pOri->sites,0,Site), *eOri = sOri + pOri->N;
+    Site *sRef  = arrp(pRef->sites,0,Site), *eRef = sRef + pRef->N;
+
+    uchar *tmp = myalloc(pOri->M+1, uchar); 
+    tmp[pNew->M] = Y_SENTINEL ;  /* needed for efficient packing */
+
+    int i, iOri = 0;
+    while ( sOri < eOri && sRef < eRef )
+    {
+        if ( sOri->x != sRef->x ) die("fixme: %d != %d in pbwtFillMajorAllele\n", sOri->x,sRef->x);
+
+        for (i=0; i<pOri->M; i++) tmp[uOri->a[i]] = uOri->y[i];
+        for (i=0; i<pNew->M; i++) uNew->y[i] = tmp[uNew->a[i]] ;
+
+        if ( arr(pOri->missingOffset,iOri,long) )
+        {
+            unpack3(arrp(pOri->zMissing, arr(pOri->missingOffset,iOri,long), uchar), pOri->M, tmp, 0);
+            int major_allele = (float)uRef->c/(float)pRef->M <= 0.5 ? 1 : 0;
+            for (i=0; i<pOri->M; i++)
+            {
+                if ( tmp[i] ) fprintf(stderr,"%d: %d -> %d\n",sRef->x,uNew->y[i],major_allele);
+                if ( tmp[i] ) uNew->y[i] = major_allele;
+            }
+        }
+
+        
+        pbwtCursorWriteForwards(uNew);
+        pNew->N++;
+        pbwtCursorForwardsRead(uOri);
+        pbwtCursorForwardsRead(uRef);
+        sRef++;
+        sOri++;
+        iOri++;
+    }
+    pbwtCursorToAFend (uNew, pNew) ;
+    pNew->isX = pOri->isX ;
+    pNew->isY = pOri->isY ;
+    pNew->samples = pOri->samples ; pOri->samples = 0;
+    pNew->chrom = pOri->chrom ; pOri->chrom = 0;
+    pNew->sites = pOri->sites ; pOri->sites = 0 ; 
+
+    free(tmp);
+    pbwtDestroy(pOri);
+    pbwtCursorDestroy(uOri);
+    pbwtCursorDestroy(uNew);
+    pbwtCursorDestroy(uRef);
+
+    return pNew;
+}
 
   PBWT *referenceImpute (PBWT *pOld, char *fileNameRoot, int nSparse, double fSparse)
 {
@@ -1300,11 +1360,13 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
       return pOld ;
     }
   pbwtBuildReverse (pFrame) ;	/* we need the reverse reference pbwt below */
-  pOld = pbwtSelectSitesFillMissing (pOld, pRef->sites, FALSE) ;
+  pOld = pbwtSelectSites (pOld, pRef->sites, FALSE) ;
   if (!pOld->N) die ("no overlapping sites in referenceImpute") ;
   if (!pOld->aFend) die ("pOld has no aFend in referenceImpute - your pbwt was made by a previous version of the code; buildReverse and resave the forwards pbwt") ;
 
   fprintf (logFile, "Imputation preliminaries: ") ; timeUpdate(logFile) ;
+
+  pOld = pbwtFillMajorAllele (pOld, pFrame);
 
   if (isStats)
     { pImp = myalloc (pRef->N, double*) ;

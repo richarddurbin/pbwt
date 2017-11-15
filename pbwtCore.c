@@ -622,7 +622,7 @@ void pbwtCursorForwardsAPacked (PbwtCursor *u)
 
 /***************************************************/
 
-static PBWT *selectSitesLocal (PBWT *pOld, Array sites, BOOL isKeepOld, BOOL isFillMissing)
+PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld)
 {
   PBWT *pNew = pbwtCreate (pOld->M, 0) ;
   int ip = 0, ia = 0, j ;
@@ -654,7 +654,6 @@ static PBWT *selectSitesLocal (PBWT *pOld, Array sites, BOOL isKeepOld, BOOL isF
           else if (!noAlt && sp->varD > sa->varD) { ++ia ; ++sa ; }
           else
             { array(pNew->sites,pNew->N,Site) = *sp ;
-// 171113 if isMissing then inspect sa->freq to set major allele 
               for (j = 0 ; j < pOld->M ; ++j) x[uOld->a[j]] = uOld->y[j] ;
               pbwtCursorForwardsRead (uOld) ;
               for (j = 0 ; j < pNew->M ; ++j) uNew->y[j] = x[uNew->a[j]] ;
@@ -713,10 +712,6 @@ static PBWT *selectSitesLocal (PBWT *pOld, Array sites, BOOL isKeepOld, BOOL isF
   free(x) ; pbwtCursorDestroy (uOld) ; pbwtCursorDestroy (uNew) ;
   return pNew ;
 }
-
-PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld) { return pbwtSelectSites (pOld, site, isKeepOld, FALSE) ; }
-
-PBWT *pbwtSelectSitesFillMissing (PBWT *pOld, Array sites, BOOL isKeepOld) { return pbwtSelectSites (pOld, site, isKeepOld, TRUE) ; }
 
 /***************************************************/
 
