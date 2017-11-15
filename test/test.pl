@@ -20,6 +20,7 @@ test_read_vcf_gt($opts,in=>'read.vcf',out=>'remove.samples.out',args=>"-removeSa
 test_read_vcf_gt($opts,in=>'read.vcf',out=>'select.sites.out',args=>"-selectSites $$opts{path}/sub.sites");
 test_read_vcf_gt($opts,in=>'read.vcf',out=>'remove.sites.out',args=>"-removeSites $$opts{path}/sub.sites");
 test_pbwt_reference_impute($opts, in=>'refImpute.in', ref=>'OMNI', out=>'refImpute.out.vcf');
+test_pbwt_reference_impute($opts, in=>'small', ref=>'small-ref', out=>'small-impute.out.vcf');
 test_merge($opts,in=>['merge.1','merge.2'],out=>'merge.12.out');
 test_merge_sites($opts,in=>['merge.1','merge.2'],out=>'merge.12.sites');
 

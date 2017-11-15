@@ -1,0 +1,27 @@
+##fileformat=VCFv4.1
+##FILTER=<ID=PASS,Description="All filters passed">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##contig=<ID=20,length=2147483647>
+##bcftools_viewVersion=1.6-14-geed5371-dirty+htslib-1.6-3-g75decb8
+##bcftools_viewCommand=view -t 20:1-98930 -S rmme.smpl -Oz -o test/small-ref.vcf.gz test/OMNI.vcf.gz; Date=Tue Oct 24 09:49:39 2017
+##bcftools_viewCommand=view -s HG00096 test/small-ref.vcf.gz; Date=Tue Oct 24 09:53:25 2017
+##bcftools_annotateVersion=1.6-14-geed5371-dirty+htslib-1.6-3-g75decb8
+##bcftools_annotateCommand=annotate -x INFO -Oz -o test/small.vcf.gz test/small.vcf; Date=Tue Oct 24 09:56:09 2017
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	XXXXXXX
+20	63799	rs1418258	C	T	0	PASS	.	GT	1|0
+20	68749	rs6086616	T	C	0	PASS	.	GT	1|1
+20	69094	rs6039403	G	A	0	PASS	.	GT	1|0
+20	69408	rs17685809	C	T	0	PASS	.	GT	1|0
+20	71093	rs6040395	G	A	0	PASS	.	GT	0|0
+20	80655	rs2196239	A	G	0	PASS	.	GT	1|1
+20	87112	rs34383360	G	A	0	PASS	.	GT	0|1
+20	87416	rs1935386	A	C	0	PASS	.	GT	0|1
+20	90814	rs75507632	T	C	0	PASS	.	GT	0|0
+20	90984	rs1077784	A	G	0	PASS	.	GT	0|0
+20	91088	rs2002370	C	T	0	PASS	.	GT	1|1
+20	91508	rs6051659	G	A	0	PASS	.	GT	1|1
+20	92366	rs13039134	A	G	0	PASS	.	GT	0|1
+20	92527	rs1418260	A	G	0	PASS	.	GT	./.
+20	96931	rs6052070	A	G	0	PASS	.	GT	0|0
+20	97122	rs6515824	C	T	0	PASS	.	GT	0|0
+20	98930	rs6116135	G	A	0	PASS	.	GT	0|0

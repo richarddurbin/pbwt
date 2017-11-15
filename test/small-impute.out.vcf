@@ -1,0 +1,37 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##contig=<ID=20,length=2147483647>
+##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count in genotypes">
+##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##INFO=<ID=RefPanelAF,Number=A,Type=Float,Description="Allele frequency in imputation reference panel">
+##INFO=<ID=DR2,Number=A,Type=Float,Description="Estimated haploid dosage r^2 from imputation">
+##INFO=<ID=TYPED,Number=0,Type=Flag,Description="Site was genotyped prior to imputation">
+##FORMAT=<ID=ADS,Number=.,Type=Float,Description="Allele dosage per haplotype">
+##FORMAT=<ID=DS,Number=1,Type=Float,Description="Genotype dosage">
+##FORMAT=<ID=GP,Number=G,Type=Float,Description="Genotype posterior probabilities">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	XXXXXXX
+20	63231	.	T	G	.	PASS	RefPanelAF=0.05;DR2=0;AC=0;AN=2	GT:ADS:DS:GP	0|0:0.05,0.05:0.1:0.9025,0.095,0.0025
+20	63799	.	C	T	.	PASS	RefPanelAF=0.25;DR2=1;AC=1;AN=2;TYPED	GT:ADS:DS:GP	1|0:1,0:1:0,1,0
+20	68749	.	T	C	.	PASS	RefPanelAF=0.55;DR2=1;AC=2;AN=2;TYPED	GT:ADS:DS:GP	1|1:1,1:2:0,0,1
+20	69094	.	G	A	.	PASS	RefPanelAF=0.45;DR2=1;AC=1;AN=2;TYPED	GT:ADS:DS:GP	1|0:1,0:1:0,1,0
+20	69408	.	C	T	.	PASS	RefPanelAF=0.1;DR2=1;AC=1;AN=2;TYPED	GT:ADS:DS:GP	1|0:1,0:1:0,1,0
+20	71093	.	G	A	.	PASS	RefPanelAF=0;DR2=1;AC=0;AN=2;TYPED	GT:ADS:DS:GP	0|0:0,0:0:1,0,0
+20	74347	.	G	A	.	PASS	RefPanelAF=0.5;DR2=1;AC=0;AN=2	GT:ADS:DS:GP	0|0:0,0:0:1,0,0
+20	75254	.	C	A	.	PASS	RefPanelAF=0.25;DR2=1;AC=1;AN=2	GT:ADS:DS:GP	0|1:0,1:1:0,1,0
+20	80655	.	A	G	.	PASS	RefPanelAF=0.9;DR2=1;AC=2;AN=2;TYPED	GT:ADS:DS:GP	1|1:1,1:2:0,0,1
+20	83611	.	C	A	.	PASS	RefPanelAF=0;DR2=1;AC=0;AN=2	GT:ADS:DS:GP	0|0:0,0:0:1,0,0
+20	87112	.	G	A	.	PASS	RefPanelAF=0.5;DR2=1;AC=1;AN=2;TYPED	GT:ADS:DS:GP	0|1:0,1:1:0,1,0
+20	87416	.	A	C	.	PASS	RefPanelAF=0.55;DR2=1;AC=1;AN=2;TYPED	GT:ADS:DS:GP	0|1:0,1:1:0,1,0
+20	88155	.	T	C	.	PASS	RefPanelAF=0;DR2=1;AC=0;AN=2	GT:ADS:DS:GP	0|0:0,0:0:1,0,0
+20	90814	.	T	C	.	PASS	RefPanelAF=0;DR2=1;AC=0;AN=2;TYPED	GT:ADS:DS:GP	0|0:0,0:0:1,0,0
+20	90984	.	A	G	.	PASS	RefPanelAF=0.05;DR2=1;AC=0;AN=2;TYPED	GT:ADS:DS:GP	0|0:0,0:0:1,0,0
+20	91088	.	C	T	.	PASS	RefPanelAF=0.85;DR2=1;AC=2;AN=2;TYPED	GT:ADS:DS:GP	1|1:1,1:2:0,0,1
+20	91346	.	G	A	.	PASS	RefPanelAF=0.05;DR2=1;AC=0;AN=2	GT:ADS:DS:GP	0|0:0,0:0:1,0,0
+20	91508	.	G	A	.	PASS	RefPanelAF=0.8;DR2=1;AC=2;AN=2;TYPED	GT:ADS:DS:GP	1|1:1,1:2:0,0,1
+20	91707	.	C	T	.	PASS	RefPanelAF=0.15;DR2=1;AC=1;AN=2	GT:ADS:DS:GP	1|0:1,0:1:0,1,0
+20	92366	.	A	G	.	PASS	RefPanelAF=0.5;DR2=1;AC=1;AN=2;TYPED	GT:ADS:DS:GP	0|1:0,1:1:0,1,0
+20	92527	.	A	G	.	PASS	RefPanelAF=0.95;DR2=1;AC=2;AN=2;TYPED	GT:ADS:DS:GP	1|1:1,1:2:0,0,1
+20	96931	.	A	G	.	PASS	RefPanelAF=0.05;DR2=1;AC=0;AN=2;TYPED	GT:ADS:DS:GP	0|0:0,0:0:1,0,0
+20	97122	.	C	T	.	PASS	RefPanelAF=0.05;DR2=1;AC=0;AN=2;TYPED	GT:ADS:DS:GP	0|0:0,0:0:1,0,0
+20	98930	.	G	A	.	PASS	RefPanelAF=0.05;DR2=0;AC=0;AN=2;TYPED	GT:ADS:DS:GP	0|0:0.05,0.05:0.1:0.9025,0.095,0.0025
