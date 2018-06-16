@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 14 13:53 2015 (rd)
+ * Last edited: Jun 16 17:14 2018 (rd)
  * added paintSparse function
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
@@ -106,6 +106,7 @@ PBWT *pbwtSubRange (PBWT *pOld, int start, int end) ;
 void pbwtBuildReverse (PBWT *p) ;
 uchar **pbwtHaplotypes (PBWT *p) ;
 PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld) ;
+PBWT *pbwtSelectSitesFillMissing (PBWT *pOld, Array sites, BOOL isKeepOld) ;
 PBWT *pbwtRemoveSites (PBWT *pOld, Array sites, BOOL isKeepOld) ;
 
 /* operations to move forwards and backwards in the pbwt using the cursor structure */

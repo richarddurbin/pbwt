@@ -15,7 +15,7 @@
  * Description: core functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Aug  7 16:21 2015 (rd)
+ * Last edited: Jun 16 16:51 2018 (rd)
  * * Sep 22 23:02 2014 (rd): change for 64bit arrays
  * Created: Thu Apr  4 11:06:17 2013 (rd)
  *-------------------------------------------------------------------
@@ -681,9 +681,9 @@ static PBWT *selectSitesLocal (PBWT *pOld, Array sites, BOOL isKeepOld, BOOL isF
   return pNew ;
 }
 
-PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld) { return pbwtSelectSites (pOld, site, isKeepOld, FALSE) ; }
+PBWT *pbwtSelectSites (PBWT *pOld, Array sites, BOOL isKeepOld) { return selectSitesLocal (pOld, sites, isKeepOld, FALSE) ; }
 
-PBWT *pbwtSelectSitesFillMissing (PBWT *pOld, Array sites, BOOL isKeepOld) { return pbwtSelectSites (pOld, site, isKeepOld, TRUE) ; }
+PBWT *pbwtSelectSitesFillMissing (PBWT *pOld, Array sites, BOOL isKeepOld) { return selectSitesLocal (pOld, sites, isKeepOld, TRUE) ; }
 
 /***************************************************/
 
