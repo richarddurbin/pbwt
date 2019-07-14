@@ -16,7 +16,7 @@
                 plus utilities to intentionally corrupt data
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 14 13:52 2015 (rd)
+ * Last edited: Apr 28 16:33 2017 (rd)
  * * Sep 22 23:10 2014 (rd): move to 64 bit arrays
  * Created: Thu Apr  4 12:02:56 2013 (rd)
  *-------------------------------------------------------------------
@@ -1127,8 +1127,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 			       int nSparse, double fSparse)
 /* Require pOld and pFrame to have the same sites, a subset of sites of pRef, */
 /* and pRef and pFrame to have the same samples. */
-/* Impute only missing sites in pRef if pOld == pFrame. */
-/* Added nSparse to allow also matching at sparse positions */
+/* If pOld == pFrame then only impute missing sites in pRef, else take pRef. */
+/* Added nSparse to allow also matching at sparse positions - 171113 but this seems broken?! */
 {
   int i, j, k ;
 
@@ -1141,7 +1141,10 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   if (pOld == pFrame)		/* self-imputing - no sparse option yet */
     matchMaximalWithin (pFrame, reportMatch) ;
   else
-    matchSequencesSweepSparse (pFrame, pOld, nSparse, reportMatchSparse) ;
+    /*    matchSequencesSweepSparse (pFrame, pOld, nSparse, reportMatchSparse) ; */
+    /* RD 171113 - I don't underestand this - it disables the effect of nSparse - maybe that doesn't work? */
+      matchSequencesSweep (pFrame, pOld, reportMatch) ;
+
 
   for (j = 0 ; j < pOld->M ; ++j)	/* add terminating element to arrays */
     { if (nSparse > 1) /* can't guarantee order of sparse segments */
@@ -1174,10 +1177,10 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
   uchar *missing = (pOld == pFrame) ? mycalloc (pOld->M, uchar) : 0 ;
   double *xDosage = myalloc (pOld->M, double), *yDosage = myalloc (pOld->M, double) ;
 
-  pNew->dosageOffset = arrayReCreate (pNew->dosageOffset, pRef->N, long) ;
-  pNew->zDosage = arrayReCreate (pNew->zDosage, pRef->N*16, uchar) ;
+  pNew->zDosage = arrayReCreate (pNew->zDosage, pRef->N*16, uchar) ; /* packed dosage data */
+  pNew->dosageOffset = arrayReCreate (pNew->dosageOffset, pRef->N, long) ; /* offsets per site into zDosage */
 
-  int kOld = 0, kRef = 0 ;
+  int kOld = 0, kRef = 0 ;	/* kOld is site in target and frame, kRef is site in the reference panel */
   while (kRef < pRef->N)
     { if (arrp(pRef->sites,kRef,Site)->x == arrp(pFrame->sites,kOld,Site)->x
 	  && arrp(pRef->sites,kRef,Site)->varD == arrp(pFrame->sites,kOld,Site)->varD)
@@ -1193,7 +1196,7 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 	  else unpack3 (arrp(pRef->zMissing,arr(pRef->missingOffset,kRef,long), uchar), 
 			pRef->M, missing, 0) ;
 	}
-      for (j = 0 ; j < pOld->M ; ++j)
+      for (j = 0 ; j < pOld->M ; ++j)	     /* j here is in original order */
 	{ if (pOld == pFrame && !missing[j]) /* don't impute - copy from ref */
 	    { x[j] = uRef->y[aRefInv[j]] ;
 	      continue ;
@@ -1202,8 +1205,8 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 	  double bit = 0, sum = 0, score = 0 ;
 	  MatchSegment *m = arrp(maxMatch[j],firstSeg[j],MatchSegment) ;
 	  MatchSegment *mStop = arrp(maxMatch[j],arrayMax(maxMatch[j]),MatchSegment) ;
-	  while (m->start <= kOld && m < mStop)
-	    { bit = (kOld - m->start + 1) * ((m->end & SPARSE_MASK) - kOld) ;
+	  while (m->start < kOld && m < mStop)
+	    { bit = (kOld - m->start) * ((m->end & SPARSE_MASK) - kOld) ;
 	      if (m->end & SPARSE_BIT) bit *= fSparse ;
 	      if (bit > 0)
 		{ sum += bit ;
@@ -1230,9 +1233,9 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
 	}
 	  
       for (j = 0 ; j < pOld->M ; ++j) uNew->y[j] = x[uNew->a[j]] ; /* transfer to uNew */
-      pbwtCursorWriteForwards (uNew) ;
       /* need to sort the dosages into uNew cursor order as well */
       for (j = 0 ; j < pOld->M ; ++j) yDosage[j] = xDosage[uNew->a[j]] ;
+      pbwtCursorWriteForwards (uNew) ; /* must come after calculating yDosage[] */
       pbwtDosageStore (pNew, yDosage, kRef) ;
       
       if (n) 
@@ -1278,7 +1281,7 @@ static PBWT *referenceImpute3 (PBWT *pOld, PBWT *pRef, PBWT *pFrame,
       return pOld ;
     }
   pbwtBuildReverse (pFrame) ;	/* we need the reverse reference pbwt below */
-  pOld = pbwtSelectSites (pOld, pRef->sites, FALSE) ;
+  pOld = pbwtSelectSitesFillMissing (pOld, pRef->sites, FALSE) ;
   if (!pOld->N) die ("no overlapping sites in referenceImpute") ;
   if (!pOld->aFend) die ("pOld has no aFend in referenceImpute - your pbwt was made by a previous version of the code; buildReverse and resave the forwards pbwt") ;
 
@@ -1328,7 +1331,7 @@ PBWT *imputeMissing (PBWT *pOld)
     }
 
   if (isStats)
-    { int *nMiss = mycalloc (10,int), n0, i ;
+    { int *nMiss = mycalloc (10,int), n0, i ; /* assumes under 1e10 samples !! */
       uchar *miss = myalloc (pOld->M, uchar) ;
       for (k = 0 ; k < pOld->N ; ++k)
 	if (arr(pOld->missingOffset,k,long)) 
@@ -1358,7 +1361,7 @@ PBWT *imputeMissing (PBWT *pOld)
   PBWT *pFrame = pbwtSelectSites (pOld, completeSites, TRUE) ;
   arrayDestroy (completeSites) ;
 
-  /* then impute, using a special mode of impute2() */
+  /* then impute, using a special mode of impute3() */
   PBWT *pNew = referenceImpute3 (pFrame, pOld, pFrame, 1, 0) ;
   pNew->sites = pOld->sites ; pOld->sites = 0 ;
   pNew->samples = pOld->samples ; pOld->samples = 0 ;

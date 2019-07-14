@@ -15,7 +15,8 @@
  * Description: match functions in pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Aug  7 16:21 2015 (rd)
+ * Last edited: Jan  2 10:14 2016 (rd)
+ * * Jan  2 10:13 2016 (rd): start adding code for inexact match
  * Created: Thu Apr  4 11:55:48 2013 (rd)
  *-------------------------------------------------------------------
  */

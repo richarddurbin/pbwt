@@ -15,7 +15,7 @@
  * Description: read/write functions for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Dec 14 13:51 2015 (rd)
+ * Last edited: Mar 11 16:38 2016 (rd)
  * readPhase updated for chromopainter and chromopainter v2 formats
  * Created: Thu Apr  4 11:42:08 2013 (rd)
  *-------------------------------------------------------------------
@@ -94,7 +94,7 @@ void pbwtWriteSamples (PBWT *p, FILE *fp)
   fprintf (logFile, "written %d samples\n", p->M/2) ;
 }
 
-void writeDataOffset (FILE *fp, char *name, Array offset, Array data, int N)
+void writeDataOffset (FILE *fp, char *name, Array data, Array offset, int N)
 {
   if (!offset || !data) die ("write %s called without data", name) ;
   int dummy = -1 ;	/* ugly hack to mark that we now use longs not ints */
@@ -356,7 +356,7 @@ void pbwtReadSamples (PBWT *p, FILE *fp)
   arrayDestroy (samples) ;
 }
 
-static void readDataOffset (FILE *fp, char *name, Array *offset, Array *data, int N)
+static void readDataOffset (FILE *fp, char *name, Array *data, Array *offset, int N)
 {
   long n ;			/* size of data file */
   int dummy ; 
@@ -368,21 +368,21 @@ static void readDataOffset (FILE *fp, char *name, Array *offset, Array *data, in
 
   *data = arrayReCreate (*data, n, uchar) ;
   if (fread (arrp(*data, 0, uchar), sizeof(uchar), n, fp) != n)
-    die ("error reading zMissing in pbwtReadMissing") ;
+    die ("error reading z%s in pbwtRead%s", name, name) ;
   arrayMax(*data) = n ;
-  fprintf (logFile, "read %ld chars compressed missing data\n", n) ;
+  fprintf (logFile, "read %ld chars compressed %s data\n", n, name) ;
 
   *offset = arrayReCreate (*offset, N, long) ;
   if (dummy != -1)		/* old version with ints not longs */
     { /* abuse *offset to hold ints, then update in place */
       if (fread (arrp(*offset, 0, int), sizeof(int), N, fp) != N) 
-	die ("error reading missing in pbwtReadMissing") ;
+	die ("error reading %s in pbwtRead%s", name, name) ;
       for (n = N ; n-- ;) 
 	arr(*offset, n, long) = arr(*offset, n, int) ; /* !! */
     }
   else
     if (fread (arrp(*offset, 0, long), sizeof(long), N, fp) != N)
-      die ("error reading missing in pbwtReadMissing") ;
+      die ("error reading %s in pbwtRead%s", name, name) ;
   arrayMax(*offset) = N ;
 }
 
