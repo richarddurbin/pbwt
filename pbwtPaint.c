@@ -15,7 +15,7 @@
  * Description: tools for chromosome painting as in ChromoPainter, FineStructure etc.
  * Exported functions:
  * HISTORY:
- * Last edited: Jul  4 23:55 2017 (rd)
+ * Last edited: Jul 14 8:33:00 2019 (djl)
  * Created: Tue Apr  1 11:34:41 2014 (rd)
  *-------------------------------------------------------------------
  */
@@ -53,9 +53,8 @@ static inline void printAll(int ii,int Ninds,
   gzprintf (fr,"IND%i %.2f\n",ii+1, nregions) ; 
 }
 
-void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion)
+void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion,int ploidy)
 {
-  int ploidy=2;
   int Ninds=p->M/ploidy;
   double **totlengths = 0 ;
   double **counts = 0 ;
@@ -169,10 +168,9 @@ void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion)
   free (counts) ; free (counts2) ; free (counts3) ; free (totCounts) ; free (nregions); free(totlengths);
 }
 
-void paintAncestryMatrixSparse (PBWT *p, char* fileRoot,int chunksperregion,int cutoff)
+void paintAncestryMatrixSparse (PBWT *p, char* fileRoot,int chunksperregion,int ploidy,int cutoff)
 {
   int i, j, k ;
-  int ploidy=2;
   int Ninds=p->M/ploidy;
   int *map_indhap = mycalloc (p->M,int);
   for (i = 0 ; i < p->M ; ++i) map_indhap[i]=i/ploidy;

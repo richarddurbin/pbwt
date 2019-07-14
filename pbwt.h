@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jun 16 17:14 2018 (rd)
+ * Last edited: Jul 14 17:14 2019 (djl)
  * added paintSparse function
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
@@ -236,8 +236,8 @@ void pbwtLogLikelihoodCopyModel (PBWT *p, double theta, double rho) ;
 
 /* pbwtPaint.c */
 
-void paintAncestryMatrix (PBWT *p, char *fileRoot,int chunksperregion) ;
-void paintAncestryMatrixSparse (PBWT *p, char *fileRoot,int chunksperregion,int cutoff) ;
+void paintAncestryMatrix (PBWT *p, char *fileRoot,int chunksperregion,int ploidy) ;
+void paintAncestryMatrixSparse (PBWT *p, char *fileRoot,int chunksperregion,int ploidy,int cutoff) ;
 
 /* pbwtMerge.c */
 
