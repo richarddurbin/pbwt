@@ -1,4 +1,3 @@
-
 CFLAGS= -g -O3
 CPPFLAGS=-I$(HTSDIR)
 HTSDIR=../htslib

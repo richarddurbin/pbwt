@@ -218,6 +218,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -readHap <file> <chrom>   read impute2 hap file - must set chrom\n") ;
       fprintf (stderr, "  -readHapLegend <hap_file> <legend_file> <chrom>\n") ;
       fprintf (stderr, "                            read impute2 hap and legend file - must set chrom\n") ;
+      fprintf (stderr, "  -readPhaseChr <file> <chr>read Li and Stephens phase file - must set chrom\n") ;
       fprintf (stderr, "  -readPhase <file>         read Li and Stephens phase file\n") ;
       fprintf (stderr, "  -checkpoint <n>           checkpoint every n sites while reading\n") ;
       fprintf (stderr, "  -merge <file> ...         merge two or more pbwt files\n") ;
@@ -260,8 +261,8 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -imputeMissing            impute data marked as missing\n") ;
       fprintf (stderr, "  -fitAlphaBeta <model>     fit probabilistic model 1..3\n") ;
       fprintf (stderr, "  -llCopyModel <theta> <rho>  log likelihood of Li-Stephens model\n") ;
-      fprintf (stderr, "  -paint <fileNameRoot> [n] output painting co-ancestry matrix to fileroot, optionally specififying the number per region\n") ;
-      fprintf (stderr, "  -paintSparse <fileNameRoot> [n] output sparse painting to fileroot, optionally specififying the number per region\n") ;
+      fprintf (stderr, "  -paint <fileNameRoot> [n] [p] output painting co-ancestry matrix to fileroot, optionally specififying the number per region and ploidy\n") ;
+      fprintf (stderr, "  -paintSparse <fileNameRoot> [n] [p] [t] output sparse painting to fileroot, optionally specififying the number per region, ploidy, and threshold for inclusion in the output\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale) - also writes sites.freq file\n") ;
       fprintf (stderr, "  -refFreq <file>           read site frequency information into the refFreq field of current sites\n") ;
@@ -325,7 +326,9 @@ int main (int argc, char *argv[])
     else if (!strcmp (argv[0], "-readHapLegend") && argc > 3)
     { if (p) pbwtDestroy (p) ; FOPEN("readHap","r") ; LOPEN("readHap","r") ; p = pbwtReadHapLegend (fp, lp, argv[3]) ; FCLOSE ; LCLOSE ; argc -= 4 ; argv += 4 ; }
     else if (!strcmp (argv[0], "-readPhase") && argc > 1)
-      { if (p) pbwtDestroy (p) ; FOPEN("readPhase","r") ; p = pbwtReadPhase (fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+      { if (p) pbwtDestroy (p) ; FOPEN("readPhase","r") ; p = pbwtReadPhase (fp,"0") ; FCLOSE ; argc -= 2 ; argv += 2 ; }
+    else if (!strcmp (argv[0], "-readPhaseChr") && argc > 2)
+      { if (p) pbwtDestroy (p) ; FOPEN("readPhaseChr","r") ; p = pbwtReadPhase (fp,argv[2]) ; FCLOSE ; argc -= 3 ; argv += 3 ; }
     else if (!strcmp (argv[0], "-write") && argc > 1)
       { FOPEN("write","w") ; pbwtWrite (p, fp) ; FCLOSE ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeSites") && argc > 1)
@@ -349,7 +352,7 @@ int main (int argc, char *argv[])
     else if (!strcmp (argv[0], "-writePhase") && argc > 1)
       { pbwtWritePhase (p,argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeTransposedHaplotypes") && argc > 1)
-      { FOPEN("writeTransposedHaplotypes",argv[0]) ; pbwtWriteTransposedHaplotypes (p, fp) ; argc -= 2 ; argv += 2 ; }
+      { FOPEN("writeTransposedHaplotypes","w") ; pbwtWriteTransposedHaplotypes (p, fp) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-referenceFasta") && argc > 1)
       { referenceFasta = strdup(argv[1]) ; argc -= 2 ; argv += 2 ; }
     else if (!strcmp (argv[0], "-writeVcf") && argc > 1)
@@ -444,16 +447,39 @@ int main (int argc, char *argv[])
     else if (!strcmp (argv[0], "-paint") && argc > 1)
       { 
 	int npr=100;
-       	if(argc>2) if(argv[2][0] !='-') npr=atoi(argv[2]);
-	paintAncestryMatrix (p, argv[1],npr) ; argc -= 2 ; argv += 2 ; 
-       	if(argc>0) if(argv[0][0] !='-') {--argc;++argv; }
+	int ploidy=2;
+	int nargs=2;
+       	if(argc>2) if(argv[2][0] !='-') {
+	    npr=atoi(argv[2]);
+	    ++nargs;
+	  }
+       	if(argc>3) if(argv[3][0] !='-') {
+	    ploidy=atoi(argv[3]);
+	    ++nargs;
+	  }
+	paintAncestryMatrix (p, argv[1],npr,ploidy) ; 
+	argc-=nargs;argv+=nargs;
       }
     else if (!strcmp (argv[0], "-paintSparse") && argc > 1)
       { 
 	int npr=100;
-       	if(argc>2) if(argv[2][0] !='-') npr=atoi(argv[2]);
-	paintAncestryMatrixSparse (p, argv[1],npr,0) ; argc -= 2 ; argv += 2 ; 
-       	if(argc>0) if(argv[0][0] !='-') {--argc;++argv; }
+	int ploidy=2;
+	int nargs=2;
+	double thresh=0;
+       	if(argc>2) if(argv[2][0] !='-') {
+	    npr=atoi(argv[2]);
+	    ++nargs;
+	  }
+       	if(argc>3) if(argv[3][0] !='-') {
+	    ploidy=atoi(argv[3]);
+	    ++nargs;
+	  }
+       	if(argc>4) if(argv[3][0] !='-') {
+	    thresh=atof(argv[4]);
+	    ++nargs;
+	  }
+	paintAncestryMatrixSparse (p, argv[1],npr,ploidy,thresh) ; 
+	argc-=nargs;argv+=nargs;
       }
     else if (!strcmp (argv[0], "-play"))
       { p = playGround (p) ; argc -= 1 ; argv += 1 ; }

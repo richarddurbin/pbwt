@@ -15,7 +15,7 @@
  * Description: header file for pbwt package
  * Exported functions:
  * HISTORY:
- * Last edited: Jun 16 17:14 2018 (rd)
+ * Last edited: Jul 14 17:14 2019 (djl)
  * added paintSparse function
  * Created: Thu Apr  4 11:02:39 2013 (rd)
  *-------------------------------------------------------------------
@@ -189,7 +189,7 @@ PBWT *pbwtReadVcfq (FILE *fp) ;	/* reduced VCF style file made by vcf query */
 PBWT *pbwtReadGen (FILE *fp, char *chrom) ;	/* gen file as used by impute2 (unphased) */
 PBWT *pbwtReadHap (FILE *fp, char *chrom) ;	/* hap file as used by impute2 (unphased) */
 PBWT *pbwtReadHapLegend (FILE *fp, FILE *lp, char *chrom) ; /* hap and legend file as used by impute2 (phased) */
-PBWT *pbwtReadPhase (FILE *fp) ; /* Li and Stephens PHASE file */
+PBWT *pbwtReadPhase (FILE *fp, char *chrom) ; /* Li and Stephens PHASE file */
 void pbwtWriteHaplotypes (FILE *fp, PBWT *p) ;
 void pbwtWriteTransposedHaplotypes (PBWT *p, FILE *fp) ;
 void pbwtWriteImputeRef (PBWT *p, char *fileNameRoot) ;
@@ -236,8 +236,8 @@ void pbwtLogLikelihoodCopyModel (PBWT *p, double theta, double rho) ;
 
 /* pbwtPaint.c */
 
-void paintAncestryMatrix (PBWT *p, char *fileRoot,int chunksperregion) ;
-void paintAncestryMatrixSparse (PBWT *p, char *fileRoot,int chunksperregion,int cutoff) ;
+void paintAncestryMatrix (PBWT *p, char *fileRoot,int chunksperregion,int ploidy) ;
+void paintAncestryMatrixSparse (PBWT *p, char *fileRoot,int chunksperregion,int ploidy,int cutoff) ;
 
 /* pbwtMerge.c */
 
