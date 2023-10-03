@@ -261,8 +261,8 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -imputeMissing            impute data marked as missing\n") ;
       fprintf (stderr, "  -fitAlphaBeta <model>     fit probabilistic model 1..3\n") ;
       fprintf (stderr, "  -llCopyModel <theta> <rho>  log likelihood of Li-Stephens model\n") ;
-      fprintf (stderr, "  -paint <fileNameRoot> [n] [p] output painting co-ancestry matrix to fileroot, optionally specififying the number per region and ploidy\n") ;
-      fprintf (stderr, "  -paintSparse <fileNameRoot> [n] [p] [t] output sparse painting to fileroot, optionally specififying the number per region, ploidy, and threshold for inclusion in the output\n") ;
+      fprintf (stderr, "  -paint <fileNameRoot> [n=100] [p=2] output painting co-ancestry matrix to fileroot, optionally specififying the number per region and ploidy\n") ;
+      fprintf (stderr, "  -paintSparse <fileNameRoot> [n=100] [p=2] [t=0] output sparse painting to fileroot, optionally specififying the number per region, ploidy, and threshold for inclusion in the output\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale) - also writes sites.freq file\n") ;
       fprintf (stderr, "  -refFreq <file>           read site frequency information into the refFreq field of current sites\n") ;
