@@ -92,7 +92,7 @@ void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion,int ploidy
     flp = fopenTag (fileRoot, "localancestry.out", "w") ;
     localsum = myalloc (Ninds, double*) ;
     for (i = 0 ; i < Ninds ; ++i) localsum[i] = mycalloc (p->N, double) ;
-    fprintf (flp,"pos ");
+    fprintf (flp,"pos");
     for (i = 0 ; i < Ninds ; ++i) fprintf (flp," IND%i",i+1);
     fprintf (flp,"\n");
   }
@@ -109,7 +109,7 @@ void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion,int ploidy
       int n1 = 1 ;		/* so don't have an empty chunk to start with! */
       MatchSegment *mStop = arrp(maxMatch[i], arrayMax(maxMatch[i])-1, MatchSegment) ;
       memset (partCounts, 0, sizeof(double)*Ninds) ;
-      for (k = 0 ; k < p->N ; k++) // k is the SITE NUMBER
+      for (k = 1 ; k < p->N ; k++) // k is the SITE NUMBER
 	{ double sum = 0 ;
 	  while (m1->end <= k && m1 < mStop)
 	    { if ((n1 % chunksperregion)==0)
@@ -138,7 +138,7 @@ void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion,int ploidy
       if(outputlocal) {
 	fprintf (flp,"HAP %i IND%i\n",i+1,map_indhap[i]+1);
 	for (k = p->N-1 ; k >=0 ; --k) {
-	  fprintf(flp,"%i ",arrayp(p->sites,k,Site)->x);
+	  fprintf(flp,"%i",arrayp(p->sites,k,Site)->x);
 	   for(j=0; j<Ninds;++j) fprintf (flp," %0.3f",localsum[j][k]);
 	  fprintf (flp,"\n");
 	}
@@ -249,7 +249,7 @@ void paintAncestryMatrixSparse (PBWT *p, char* fileRoot,int chunksperregion,int 
 	memset (t_totlengths, 0, sizeof(double)*Ninds) ;
       }
 
-      for (k = 0 ; k < p->N ; k++) 
+      for (k = 1 ; k < p->N ; k++)
 	{ double sum = 0 ;
 	  while (m1->end <= k && m1 < mStop)
 	    {
