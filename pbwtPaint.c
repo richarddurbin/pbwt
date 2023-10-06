@@ -53,7 +53,7 @@ static inline void printAll(int ii,int Ninds,
   gzprintf (fr,"IND%i %.2f\n",ii+1, nregions) ; 
 }
 
-void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion,int ploidy)
+void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion,int ploidy,int outputlocal)
 {
   int Ninds=p->M/ploidy;
   double **totlengths = 0 ;
@@ -61,7 +61,10 @@ void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion,int ploidy
   double **counts2 = 0 ; /* store sums of squares of counts in 100 block bins */
   double **counts3 = 0 ; /* store sums of counts in 100 block bins */
   double *nregions = 0; /* store number of regions found */
-
+  /* local ancestry things: */
+  double **localsum = 0; /* store the total local ancestry weight for the current individual for each snp (if needed)*/
+  FILE *flp;
+    
   int i, j, k ;
   int *map_indhap = mycalloc (p->M,int);
   for (i = 0 ; i < p->M ; ++i) map_indhap[i]=i/ploidy;
@@ -85,14 +88,28 @@ void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion,int ploidy
   double *partCounts = myalloc (Ninds, double) ;
   /* now weight per site based on distance from ends */
 
-  for (i = 0 ; i < p->M ; ++i)
+  if(outputlocal) {
+    flp = fopenTag (fileRoot, "localancestry.out", "w") ;
+    localsum = myalloc (Ninds, double*) ;
+    for (i = 0 ; i < Ninds ; ++i) localsum[i] = mycalloc (p->N, double) ;
+    fprintf (flp,"pos ");
+    for (i = 0 ; i < Ninds ; ++i) fprintf (flp," IND%i",i+1);
+    fprintf (flp,"\n");
+  }
+
+  for (i = 0 ; i < p->M ; ++i) // i is the SAMPLE NUMBER
     { 
+      if(outputlocal) { // initialise the painting probability
+	for(j=0; j<Ninds;++j) {
+	  for(k=0; k<p->N;++k) localsum[j][k]=0;
+	}
+      }
       //      printf("Processing individual %i (haplotype %i)\n",i/ploidy,i);
       MatchSegment *m1 = arrp(maxMatch[i],0,MatchSegment), *m ;
       int n1 = 1 ;		/* so don't have an empty chunk to start with! */
       MatchSegment *mStop = arrp(maxMatch[i], arrayMax(maxMatch[i])-1, MatchSegment) ;
       memset (partCounts, 0, sizeof(double)*Ninds) ;
-      for (k = 1 ; k < p->N ; k++)
+      for (k = 0 ; k < p->N ; k++) // k is the SITE NUMBER
 	{ double sum = 0 ;
 	  while (m1->end <= k && m1 < mStop)
 	    { if ((n1 % chunksperregion)==0)
@@ -111,13 +128,23 @@ void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion,int ploidy
 	  if (sum)
 	    for (m = m1 ; m->start < k && m <= mStop ; ++m) {
 	      if(map_indhap[i]==map_indhap[m->j]) continue; // skip match to self
+	      if(outputlocal) localsum[map_indhap[m->j]][k] += (k - m->start) * (m->end - k) / sum;
 	      totlengths[map_indhap[i]][map_indhap[m->j]] += (k - m->start) * (m->end - k) / sum;
  	      double thiscount=(k - m->start) * (m->end - k) / sum/(m->end - m->start);
 	      counts[map_indhap[i]][map_indhap[m->j]] += thiscount;
 	      partCounts[map_indhap[m->j]] += thiscount;
 	    }
 	}
+      if(outputlocal) {
+	fprintf (flp,"HAP %i IND%i\n",i+1,map_indhap[i]+1);
+	for (k = p->N-1 ; k >=0 ; --k) {
+	  fprintf(flp,"%i ",arrayp(p->sites,k,Site)->x);
+	   for(j=0; j<Ninds;++j) fprintf (flp," %0.3f",localsum[j][k]);
+	  fprintf (flp,"\n");
+	}
+      }
     }
+  if(outputlocal) fclose(flp);
   
   free(map_indhap);
   free (partCounts) ;
@@ -222,7 +249,7 @@ void paintAncestryMatrixSparse (PBWT *p, char* fileRoot,int chunksperregion,int 
 	memset (t_totlengths, 0, sizeof(double)*Ninds) ;
       }
 
-      for (k = 1 ; k < p->N ; k++) 
+      for (k = 0 ; k < p->N ; k++) 
 	{ double sum = 0 ;
 	  while (m1->end <= k && m1 < mStop)
 	    {
@@ -280,5 +307,5 @@ void paintAncestryMatrixSparse (PBWT *p, char* fileRoot,int chunksperregion,int 
 
 }
 
-
 /* end of file */
+

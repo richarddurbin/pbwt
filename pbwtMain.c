@@ -261,7 +261,7 @@ int main (int argc, char *argv[])
       fprintf (stderr, "  -imputeMissing            impute data marked as missing\n") ;
       fprintf (stderr, "  -fitAlphaBeta <model>     fit probabilistic model 1..3\n") ;
       fprintf (stderr, "  -llCopyModel <theta> <rho>  log likelihood of Li-Stephens model\n") ;
-      fprintf (stderr, "  -paint <fileNameRoot> [n=100] [p=2] output painting co-ancestry matrix to fileroot, optionally specififying the number per region and ploidy\n") ;
+      fprintf (stderr, "  -paint <fileNameRoot> [n=100] [p=2] [l=0] output painting co-ancestry matrix to fileroot, optionally specififying the number per region, ploidy, and whether to output local ancestry\n") ;
       fprintf (stderr, "  -paintSparse <fileNameRoot> [n=100] [p=2] [t=0] output sparse painting to fileroot, optionally specififying the number per region, ploidy, and threshold for inclusion in the output\n") ;
       fprintf (stderr, "  -pretty <file> <k>        pretty plot at site k\n") ;
       fprintf (stderr, "  -sfs                      print site frequency spectrum (log scale) - also writes sites.freq file\n") ;
@@ -448,6 +448,7 @@ int main (int argc, char *argv[])
       { 
 	int npr=100;
 	int ploidy=2;
+	int outputlocal=0;
 	int nargs=2;
        	if(argc>2) if(argv[2][0] !='-') {
 	    npr=atoi(argv[2]);
@@ -457,7 +458,11 @@ int main (int argc, char *argv[])
 	    ploidy=atoi(argv[3]);
 	    ++nargs;
 	  }
-	paintAncestryMatrix (p, argv[1],npr,ploidy) ; 
+       	if(argc>4) if(argv[4][0] !='-') {
+	    outputlocal=atoi(argv[4]);
+	    ++nargs;
+	  }
+	paintAncestryMatrix (p, argv[1],npr,ploidy,outputlocal); 
 	argc-=nargs;argv+=nargs;
       }
     else if (!strcmp (argv[0], "-paintSparse") && argc > 1)
