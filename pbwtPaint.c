@@ -149,6 +149,17 @@ void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion,int ploidy
   free(map_indhap);
   free (partCounts) ;
 
+  // Normalise the chunklengths
+  for (i = 0 ; i < Ninds ; ++i)    {
+    double indsum=0;
+    for (j = 0 ; j < Ninds ; ++j)    {
+      indsum+=totlengths[i][j];
+    }
+    for (j = 0 ; j < Ninds ; ++j)    {
+      totlengths[i][j]=totlengths[i][j]/indsum * p->N * ploidy;
+    }
+  }
+  
   /* report results */
   FILE *fc = fopenTag (fileRoot, "chunkcounts.out", "w") ;
   FILE *fl = fopenTag (fileRoot, "chunklengths.out", "w") ;
@@ -226,6 +237,7 @@ void paintAncestryMatrixSparse (PBWT *p, char* fileRoot,int chunksperregion,int 
   matchMaximalWithin (p, reportMatch) ;  /* store maximal matches in maxMatch */
 
   double *partCounts = myalloc (Ninds, double) ; 
+  double indsum=0; //sum of the chunklengths to this individual over all individuals (number of snps with matches)
 
   /* now weight per site based on distance from ends */
   /// i =1 .. M is each haplotype
@@ -235,7 +247,6 @@ void paintAncestryMatrixSparse (PBWT *p, char* fileRoot,int chunksperregion,int 
       MatchSegment *m1 = arrp(maxMatch[i],0,MatchSegment);      // m1 is a SEGMENT that matches at SNP i
       MatchSegment *m ;// m is another segment
       int n1 = 1 ; // number of chunks found so far. 1 so don't have an empty chunk to start with! 
-
       MatchSegment *mStop = arrp(maxMatch[i], arrayMax(maxMatch[i])-1, MatchSegment) ;//
       
       // Clear records if we have a new individual
@@ -270,7 +281,7 @@ void paintAncestryMatrixSparse (PBWT *p, char* fileRoot,int chunksperregion,int 
 	  for (m = m1 ; m->start < k && m <= mStop ; ++m) 
 	    if((map_indhap[i]!=map_indhap[m->j])&&(m->end-m->start>cutoff)) // skip match to self
 	      sum += (k - m->start) * (m->end - k) ;
-	  if (sum)
+	  if (sum){
 	    for (m = m1 ; m->start < k && m <= mStop ; ++m) {
 	      if((map_indhap[i]==map_indhap[m->j])||(m->end-m->start<=cutoff)) continue;// skip match to self
 	      double thislengths = (k - m->start) * (m->end - k) / sum;
@@ -282,9 +293,18 @@ void paintAncestryMatrixSparse (PBWT *p, char* fileRoot,int chunksperregion,int 
 	      partCounts[map_indhap[m->j]] += thiscount;
 	      //	      dynamicListSet(usedinds,map_indhap[m->j],1);
 	    }
+	  indsum+=1.0; // update the total number of matches individuals
+	  }
 	} // end loop over the N loci
-      
-    }// end loop over individuals
+      if(i%ploidy==1){      // normalise the chunklengths to account for sites with no matches
+	int jj; for (jj = 0 ; jj < Ninds ; ++jj) {
+	  if(t_totlengths[jj]){
+	    t_totlengths[jj]=t_totlengths[jj]/indsum * p->N * ploidy;
+	  }
+	}
+	indsum=0;
+      }
+    }// end loop over haplotypes
 
     printAll(map_indhap[p->M-1],Ninds,
 	   t_counts,t_counts2,t_counts3,t_totlengths,nregions[map_indhap[p->M-1]],
