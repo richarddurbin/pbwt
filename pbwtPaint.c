@@ -44,13 +44,13 @@ static inline void printAll(int ii,int Ninds,
 			    gzFile fc,gzFile fc2,gzFile fc3,gzFile fl,gzFile fr){
   int jj ; for (jj = 0 ; jj < Ninds ; ++jj) {
     if(t_counts[jj]){
-      gzprintf (fc, "IND%i IND%i %.4f\n", ii+1,jj+1,t_counts[jj]) ; 
-      gzprintf (fl, "IND%i IND%i %.4f\n", ii+1,jj+1,t_totlengths[jj]) ; 
-      gzprintf (fc2,"IND%i IND%i %.4f\n", ii+1,jj+1,t_counts2[jj]) ; 
-      gzprintf (fc3,"IND%i IND%i %.4f\n", ii+1,jj+1,t_counts3[jj]) ; 
+      gzprintf (fc, "%i %i %.4f\n", ii+1,jj+1,t_counts[jj]) ; 
+      gzprintf (fl, "%i %i %.4f\n", ii+1,jj+1,t_totlengths[jj]) ; 
+      gzprintf (fc2,"%i %i %.4f\n", ii+1,jj+1,t_counts2[jj]) ; 
+      gzprintf (fc3,"%i %i %.4f\n", ii+1,jj+1,t_counts3[jj]) ; 
     }
   }
-  gzprintf (fr,"IND%i %.2f\n",ii+1, nregions) ; 
+  gzprintf (fr,"%i %.2f\n",ii+1, nregions) ; 
 }
 
 void paintAncestryMatrix (PBWT *p, char* fileRoot,int chunksperregion,int ploidy,int outputlocal)
