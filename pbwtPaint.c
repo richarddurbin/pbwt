@@ -268,11 +268,11 @@ void paintAncestryMatrixSparse (PBWT *p, char* fileRoot,int chunksperregion,int 
 	    }
 	  // for every individual who has a sufficiently long match
 	  for (m = m1 ; m->start < k && m <= mStop ; ++m) 
-	      if(map_indhap[i]!=map_indhap[m->j]) // skip match to self
-	    sum += (k - m->start) * (m->end - k) ;
+	    if((map_indhap[i]!=map_indhap[m->j])&&(m->end-m->start>cutoff)) // skip match to self
+	      sum += (k - m->start) * (m->end - k) ;
 	  if (sum)
 	    for (m = m1 ; m->start < k && m <= mStop ; ++m) {
-	      if(i==map_indhap[m->j]) continue; // skip match to self
+	      if((map_indhap[i]==map_indhap[m->j])||(m->end-m->start<=cutoff)) continue;// skip match to self
 	      double thislengths = (k - m->start) * (m->end - k) / sum;
  	      double thiscount=(k - m->start) * (m->end - k) / sum/(m->end - m->start);
 
