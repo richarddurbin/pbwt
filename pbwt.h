@@ -236,7 +236,7 @@ void pbwtLogLikelihoodCopyModel (PBWT *p, double theta, double rho) ;
 
 /* pbwtPaint.c */
 
-void paintAncestryMatrix (PBWT *p, char *fileRoot,int chunksperregion,int ploidy) ;
+void paintAncestryMatrix (PBWT *p, char *fileRoot,int chunksperregion,int ploidy,int outputlocal) ;
 void paintAncestryMatrixSparse (PBWT *p, char *fileRoot,int chunksperregion,int ploidy,int cutoff) ;
 
 /* pbwtMerge.c */
