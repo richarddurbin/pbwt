@@ -11,7 +11,7 @@ algorithms are linear in the query size independent of reference size.
 A description of the basic data structure and matching algorithms is
 given in "Efficient haplotype matching and storage using the
 Positional Burrows-Wheeler Transform (PBWT)", Richard Durbin
-Bioinformatics 30:1266-72 (2014).
+[Bioinformatics 30:1266-72 (2014)](https://academic.oup.com/bioinformatics/article/30/9/1266/236397).
 
 There are various phasing and imputation methods in the software that
 are not yet published.
@@ -19,6 +19,9 @@ are not yet published.
 Richard Durbin <rd@sanger.ac.uk>
 
 May 2013, updated September 2014
+
+April 2024: the `-paint` and `-paintSparse` commands are described in Yaoling Yang, Richard Durbin, Astrid K. N. Iversen, and Daniel J. Lawson. 2024. “Sparse Haplotype-Based Fine-Scale Local Ancestry Inference at Scale Reveals Recent Selection on Immune Responses.” [medRxiv 2024.03.13.24304206](https://doi.org/10.1101/2024.03.13.24304206)
+
 
 Installation instructions
 ------------------------
