@@ -1,4 +1,4 @@
-The pbwt package provides a core implementation and development
+The `pbwt` package provides a core implementation and development
 environment for PBWT (Positional Burrows-Wheeler Transform) methods
 for storing and computing on genome variation data sets.  
 
@@ -24,14 +24,14 @@ April 2024: the `-paint` and `-paintSparse` commands are described in Yaoling Ya
 
 Installation instructions
 ------------------------
-Download htslib from https://github.com/samtools/htslib, and compile it
+Download `htslib` from https://github.com/samtools/htslib, and compile it
 
    git clone https://github.com/samtools/htslib
    cd htslib
    make
    cd ..
 
-Download and make pbwt
+Download and make `pbwt`
 
    git clone https://github.com/richarddurbin/pbwt
    cd pbwt
@@ -58,19 +58,19 @@ conversion to alternating checkA.{pbwt,sites} and checkB.{pbwt,sites} files.
     pbwt -read macs11k.pbwt -subsample 10000 1000 -write macs1k.pbwt
     pbwt -read macs10k.pbwt -sfs > macs10k.sfs
 
-gives the site frequency spectrum for macs10k
+gives the site frequency spectrum for `macs10k`
 
     pbwt -read macs1k.pbwt -haps macs1k.haps
 
-writes out the haplotypes stored in macs1k
+writes out the haplotypes stored in `macs1k`
 
     pbwt -read macs10k.pbwt -matchDynamic macs1k.pbwt > macs1k-10k.max
 
-for each sequence in macs1k, finds maximal matches to anything in macs10k
+for each sequence in macs1k, finds maximal matches to anything in `macs10k`
 
     pbwt -read macs10k.pbwt -maxWithin > macs10k.max
 
-finds maximal matches for each sequence in macs10k to anything else in macs10k
+finds maximal matches for each sequence in macs10k to anything else in `macs10k`
 
 To start from real data in a .vcf file rather than a macs simulation use
 
@@ -80,5 +80,5 @@ Note that -writeAll xxx will write xxx.pbwt, xxx.sites, xxx.samples and any othe
 associated files, and -readAll xxx will correspondingly read xxx.pbwt
 and any available files based on suffix.
 
-pbwt is very happy to handle up to 100,000 haplotypes, probably a
+`pbwt` is very happy to handle up to 100,000 haplotypes, probably a
 million.
