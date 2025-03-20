@@ -20,7 +20,7 @@ Richard Durbin <rd@sanger.ac.uk>
 
 May 2013, updated September 2014
 
-April 2024: the `-paint` and `-paintSparse` commands are described in “Sparse Haplotype-Based Fine-Scale Local Ancestry Inference at Scale Reveals Recent Selection on Immune Responses.”, Yaoling Yang, Richard Durbin, Astrid K. N. Iversen, and Daniel J. Lawson [Nat Comms 16:2742, 2025](https://www.nature.com/articles/s41467-025-57601-3). The [SparsePainter documentation](https://github.com/YaolingYang/painting-pipeline/tree/main/Compute%20haplotype%20components%20(HCs)) contains full information about how to extract Haplotype Components (HCs) from `pbwt -paintSparse` output.
+April 2024: the `-paint` and `-paintSparse` commands are described in “Sparse Haplotype-Based Fine-Scale Local Ancestry Inference at Scale Reveals Recent Selection on Immune Responses.”, Yaoling Yang, Richard Durbin, Astrid K. N. Iversen, and Daniel J. Lawson [Nat Comms 16:2742, 2025](https://www.nature.com/articles/s41467-025-57601-3). The [SparsePainter documentation](https://github.com/YaolingYang/SparsePainter/tree/main/painting-pipeline) contains full information about how to extract Haplotype Components (HCs) from `pbwt -paintSparse` output.
 
 Installation instructions
 ------------------------
